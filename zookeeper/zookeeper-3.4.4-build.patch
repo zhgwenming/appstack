@@ -1,0 +1,447 @@
+diff -Nru zookeeper-3.4.4/build.xml zookeeper-3.4.4-gil/build.xml
+--- zookeeper-3.4.4/build.xml	2012-09-17 10:34:37.000000000 +0200
++++ zookeeper-3.4.4-gil/build.xml	2012-10-12 17:51:43.676211458 +0200
+@@ -36,7 +36,7 @@
+     <property name="src.dir" value="${basedir}/src" />
+     <property name="java.src.dir" value="${src.dir}/java/main" />
+ 
+-    <property name="lib.dir" value="${src.dir}/java/lib" />
++    <property name="lib.dir" value="/usr/share/java" />
+     <property name="lib.dir.includes" value="**/*.jar" />
+     <property name="lib.dir.excludes" value="**/excluded/" />
+ 
+@@ -89,46 +89,28 @@
+     <property name="dist.dir" value="${build.dir}/${final.name}"/>
+     <property name="dist.maven.dir" value="${dist.dir}/dist-maven"/>
+ 
+-    <property name="clover.home" location="${env.CLOVER_HOME}"/>
+-    <property name="clover.jar" location="${clover.home}/lib/clover.jar" />
+-    <property name="clover.db.dir" location="${test.java.build.dir}/clover/db"/>
+-    <property name="clover.report.dir"
+-              location="${test.java.build.dir}/clover/reports"/>
+-
+     <property name="contrib.dir" value="${src.dir}/contrib"/>
+     <property name="recipes.dir" value="${src.dir}/recipes"/>
+ 
+     <property name="ivy.version" value="2.2.0"/>
+     <property name="ivy.url"
+-              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
+-    <property name="ivy.home" value="${user.home}/.ant" />
+-    <property name="ivy.lib" value="${build.dir}/lib"/>
++              value="file:/usr/share/java/" />
++    <property name="ivy.home" value="${basedir}/.ant" />
++    <property name="ivy.lib" value="/usr/share/java"/>
+     <property name="ivy.package.lib" value="${build.dir}/package/lib"/>
+     <property name="ivy.test.lib" value="${build.dir}/test/lib"/>
+     <property name="ivy.jdiff.lib" value="${build.dir}/jdiff/lib"/>
+     <property name="ivysettings.xml" value="${basedir}/ivysettings.xml"/>
+ 
+-    <available property="clover.present"
+-               classname="com.cenqua.clover.CloverInstr"
+-               classpath="${clover.home}/lib/clover.jar"/>
+-
+     <available file="${c.src.dir}/Makefile" property="Makefile.present"/>
+ 
+     <!-- check if clover reports should be generated -->
+-    <condition property="clover.enabled">
+-      <and>
+-        <isset property="run.clover"/>
+-        <isset property="clover.present"/>
+-      </and>
+-    </condition>
+ 
+ 
+     <property name="test.cobertura.output.format" value="html" />
+     <property name="coveragereport.dir" value="${build.dir}/cobertura" />
+ 
+     <!-- rats properties -->
+-    <property name="rats_url" value="http://arat.googlecode.com/files/rat-lib-all-0.5.1.jar" />
+-    <property name="rat.reporting.classname" value="rat.Report"/>
+ 
+         <!-- test patch properties -->
+     <property name="scratch.dir" value="${user.home}/tmp"/>
+@@ -198,7 +180,6 @@
+       <fileset dir="${ivy.lib}">
+         <include name="**/*.jar" />
+       </fileset>
+-      <pathelement path="${clover.jar}" />
+     </path>
+ 
+     <path id="test.java.classpath">
+@@ -225,7 +206,7 @@
+         <mkdir dir="${ivy.package.lib}"/>
+         <mkdir dir="${ivy.test.lib}"/>
+         <condition property="ivy.jar.exists">
+-          <available file="${lib.dir}/ivy-${ivy.version}.jar"/>
++          <available file="${lib.dir}/ivy.jar"/>
+         </condition>
+ 
+         <tstamp>
+@@ -312,8 +293,8 @@
+     <target name="ivy-download" unless="ivy.jar.exists" depends="init">
+       <delete dir="${lib.dir}"
+               includes="ivy-*.jar" excludes="ivy-${ivy.version}.jar"/>
+-      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
+-           dest="${lib.dir}/ivy-${ivy.version}.jar" usetimestamp="true"/>
++      <get src="${ivy.url}/ivy.jar"
++           dest="${lib.dir}/ivy.jar" usetimestamp="true"/>
+     </target>
+ 
+     <target name="ivy-taskdef" unless="ivy.initialized">
+@@ -329,32 +310,20 @@
+ 
+     <target name="ivy-retrieve" depends="init,ivy-init">
+       <ivy:retrieve settingsRef="${ant.project.name}" type="jar" conf="default"
+-                    pattern="${ivy.lib}/[artifact]-[revision].[ext]"/>
++                    pattern="${ivy.lib}/[artifact].[ext]"/>
+     </target>
+ 
+     <target name="ivy-retrieve-test" depends="init,ivy-init">
+       <ivy:retrieve settingsRef="${ant.project.name}" type="jar" conf="test"
+-                    pattern="${ivy.test.lib}/[artifact]-[revision].[ext]"/>
++                    pattern="${ivy.test.lib}/[artifact].[ext]"/>
+     </target>
+ 
+     <target name="ivy-retrieve-package" depends="init,ivy-init">
+       <ivy:retrieve settingsRef="${ant.project.name}" conf="package"
+-                    pattern="${ivy.package.lib}/[artifact]-[revision].[ext]"/>
+-    </target>
+-
+-    <target name="ivy-retrieve-jdiff" depends="init,ivy-init">
+-      <mkdir dir="${ivy.jdiff.lib}"/>
+-      <ivy:retrieve settingsRef="${ant.project.name}" type="jar" conf="jdiff"
+-                    pattern="${ivy.jdiff.lib}/[artifact]-[revision].[ext]"/>
+-    </target>
+-
+-    <target name="ivy-retrieve-releaseaudit" depends="init,ivy-init">
+-      <ivy:retrieve settingsRef="${ant.project.name}" type="jar" conf="releaseaudit"
+-                    pattern="${ivy.lib}/[artifact]-[revision].[ext]"/>
+-      <ivy:cachepath pathid="releaseaudit-classpath" conf="releaseaudit"/>
++                    pattern="${ivy.package.lib}/[artifact].[ext]"/>
+     </target>
+ 
+-    <target name="compile" depends="ivy-retrieve,clover,build-generated">
++    <target name="compile" depends="ivy-retrieve">
+         <javac srcdir="${java.src.dir}" destdir="${build.classes}" includeantruntime="false"
+                target="${javac.target}" source="${javac.source}" debug="on">
+             <classpath refid="java.classpath"/>
+@@ -498,7 +467,6 @@
+             <arg value="--revision" />
+             <classpath>
+                 <pathelement path="${build.classes}" />
+-                <pathelement path="${clover.jar}" />
+             </classpath>
+         </java>
+         <exec executable="hostname" outputproperty="host.name"/>
+@@ -541,7 +509,6 @@
+             <arg value="--revision" />
+             <classpath>
+                 <pathelement path="${build.classes}" />
+-                <pathelement path="${clover.jar}" />
+             </classpath>
+         </java>
+         <exec executable="hostname" outputproperty="host.name"/>
+@@ -634,7 +601,7 @@
+     <!--                                                                    -->
+     <!-- ================================================================== -->
+     <target name="package" 
+-            depends="jar,bin-jar,src-jar,javadoc-jar,test-jar,api-report,create-cppunit-configure,compile-test"
++            depends="jar,bin-jar,src-jar,javadoc-jar,test-jar,create-cppunit-configure,compile-test"
+             description="Build distribution">
+       <mkdir dir="${dist.dir}"/>
+       <mkdir dir="${dist.dir}/lib"/>
+@@ -733,7 +700,7 @@
+     </target>
+ 
+     <target name="bin-package"
+-            depends="jar,bin-jar,src-jar,javadoc-jar,test-jar,api-report,create-cppunit-configure,compile-test"
++            depends="jar,bin-jar,src-jar,javadoc-jar,test-jar,create-cppunit-configure,compile-test"
+             description="Build binary distribution">
+       <delete dir="${dist.dir}"/>
+       <mkdir dir="${dist.dir}"/>
+@@ -1094,9 +1061,6 @@
+       <delete dir="${docs.src}/build"/>
+       <delete dir="${src_generated.dir}" />
+       <delete dir="${csrc_generated.dir}" />
+-      <delete file="${lib.dir}/Null.java"/>
+-      <delete file="${lib.dir}/rats.jar" />
+-      <delete file="${jdiff.xml.dir}/${name}_${version}.xml"/>	
+       <delete file="${jar.name}" />
+       <delete dir="${distribution}"/>
+       <delete dir="${revision.dir}"/>
+@@ -1260,7 +1224,6 @@
+ 		<env key="LD_LIBRARY_PATH" value="${env.LD_LIBRARY_PATH};${cppunit.lib}"/>
+ 		<env key="PATH" path="${env.PATH};${c.src.dir};"/>
+                 <env key="CALLER" value="ANT"/>
+-                <env key="CLOVER_HOME" value="${clover.home}"/>
+                 <env key="base_dir" value="${basedir}"/>
+ 		<arg line="clean run-check"/>
+ 	</exec>
+@@ -1304,50 +1267,6 @@
+     <!-- Run optional third-party tool targets                  -->
+     <!-- ====================================================== -->
+ 
+-    <!-- clover code coverage -->
+-    <target name="clover" depends="clover.setup, clover.info" 
+-            description="Instrument the Unit tests using Clover.  Requires a Clover license and CLOVER_HOME environment variable set appropriately.  To use, specify -Drun.clover=true on the command line."/>
+-
+-    <target name="clover.setup" if="clover.enabled">
+-      <taskdef resource="cloverlib.xml" classpath="${clover.jar}"/>
+-      <mkdir dir="${clover.db.dir}"/>
+-      <clover-setup initString="${clover.db.dir}/zookeeper_coverage.db">
+-        <fileset dir="${java.src.dir}"
+-                 includes="org/apache/zookeeper/**/*"
+-                 excludes="org/apache/zookeeper/version/**/*"/>
+-      </clover-setup>
+-    </target>
+-
+-    <target name="clover.info" if="run.clover" unless="clover.present">
+-      <echo>
+-        Clover not found. Code coverage reports disabled.
+-      </echo>
+-    </target>
+-
+-    <target name="clover.check">
+-      <fail unless="clover.present">
+-        ##################################################################
+-        Clover not found.
+-        Please make sure clover.jar is in ANT_HOME/lib, or made available
+-        to Ant using other mechanisms like -lib or CLASSPATH.
+-        ##################################################################
+-      </fail>
+-    </target>
+-
+-    <target name="generate-clover-reports" depends="clover.check, clover">
+-      <mkdir dir="${clover.report.dir}"/>
+-      <clover-report>
+-        <current outfile="${clover.report.dir}" title="${final.name}">
+-          <format type="html"/>
+-        </current>
+-      </clover-report>
+-      <clover-report>
+-        <current outfile="${clover.report.dir}/clover.xml" title="${final.name}">
+-          <format type="xml"/>
+-        </current>
+-      </clover-report>
+-    </target>
+-
+     <!-- Run with 'ant -Dfindbugs.home="path to Findbugs directory" findbugs -->
+     <property name="findbugs.home" value="" />
+     <target name="findbugs" depends="check-for-findbugs, jar" if="findbugs.present">
+@@ -1356,11 +1275,11 @@
+         <property name="findbugs.report.htmlfile" value="${findbugs.out.dir}/zookeeper-findbugs-report.html" />
+         <property name="findbugs.report.xmlfile" value="${findbugs.out.dir}/zookeeper-findbugs-report.xml" />
+         <taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask" 
+-                classpath="${findbugs.home}/lib/findbugs-ant.jar" />
++                classpath="${ivy.lib}/ant/ant-findbugs.jar" />
+         <mkdir dir="${findbugs.out.dir}" />
+         <findbugs home="${findbugs.home}" output="xml:withMessages" excludeFilter="${findbugs.exclude.file}" 
+                 outputFile="${findbugs.report.xmlfile}" effort="max" jvmargs="-Xmx512M">
+-            <auxClasspath path="${ivy.lib}/log4j-1.2.15.jar" />
++            <auxClasspath path="${ivy.lib}/log4j.jar" />
+             <sourcePath path="${java.src.dir}" />
+             <class location="${build.dir}/${final.name}.jar" />
+         </findbugs>
+@@ -1369,7 +1288,7 @@
+     </target>
+ 
+     <target name="check-for-findbugs">
+-        <available property="findbugs.present" file="${findbugs.home}/lib/findbugs.jar" />
++        <available property="findbugs.present" file="${ivy.lib}/findbugs.jar" />
+     </target>
+ 
+     <!-- Code coverage -->
+@@ -1479,51 +1398,6 @@
+     <!-- ================================================================== -->
+     <!-- Perform audit activities for the release                           -->
+     <!-- ================================================================== -->
+-    <target name="rats-taskdef" depends="ivy-retrieve-releaseaudit">
+-      <typedef format="xml" resource="org/apache/rat/anttasks/antlib.xml" uri="antlib:org.apache.rat.anttasks"
+-               classpathref="releaseaudit-classpath"/>
+-    </target>
+-
+-    <target name="releaseaudit" depends="package,rats-taskdef" description="Release Audit activities">
+-      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks">
+-        <fileset dir="${dist.dir}">
+-          <exclude name="**/*.m4"/>
+-          <exclude name="**/*.md5"/>
+-          <exclude name="**/*.pom"/>
+-          <exclude name="**/*.sha1"/>
+-          <exclude name="**/.gitignore"/>
+-          <exclude name="**/Makefile**"/>
+-          <exclude name="**/winconfig.h"/>
+-          <exclude name="**/configure**"/>
+-          <exclude name="**/*Doxyfile"/>
+-          <exclude name="**/*.am"/>
+-          <exclude name="**/compile"/>
+-          <exclude name="**/depcomp"/>
+-          <exclude name="**/install-sh"/>
+-          <exclude name="**/ltmain.sh"/>
+-          <exclude name="**/missing"/>
+-          <exclude name="**/wrappers*.opt"/>
+-          <exclude name="CHANGES.txt"/>
+-          <exclude name="**/VERSION"/>
+-          <exclude name="**/ChangeLog"/>
+-          <exclude name="**/OldChangeLog"/>
+-          <exclude name="**/Changes"/>
+-          <exclude name="**/contrib/zkperl/MANIFEST"/>
+-          <exclude name="**/conf/*"/>
+-          <exclude name="**/docs/"/>
+-          <exclude name="**/lib/jdiff/"/>
+-          <exclude name="src/c/autom4te.cache/**"/>
+-          <exclude name="src/c/config**"/>
+-          <exclude name="src/c/src/hashtable/"/>
+-          <exclude name="src/java/generated/.generated/"/>
+-          <exclude name="src/java/test/checkstyle*.xml"/>
+-          <exclude name="src/java/test/checkstyle*.xsl"/>
+-          <exclude name="src/java/test/config/findbugs*.xml"/>
+-          <exclude name="src/**/*.vcproj"/>
+-          <exclude name="src/**/*.sln"/>
+-        </fileset>
+-      </rat:report>
+-    </target>
+ 
+     <target name="findbugs.check" depends="check-for-findbugs" unless="findbugs.present">
+     	<fail message="'findbugs.home' is not defined. Please pass -Dfindbugs.home=&lt;base of Findbugs installation&gt; 
+@@ -1575,65 +1449,6 @@
+      <!-- this target runs the hudson trunk build -->
+      <target name="hudson-test-trunk" depends="docs,tar,findbugs"/>
+ 
+-     <target name="api-xml" depends="ivy-retrieve-jdiff, javadoc, write-null">
+-       <javadoc>
+-         <doclet name="jdiff.JDiff"
+-                 path="${ivy.jdiff.lib}/jdiff-1.0.9.jar:${ivy.jdiff.lib}/xerces-1.4.4.jar">
+-           <param name="-apidir" value="${jdiff.xml.dir}"/>
+-           <param name="-apiname" value="${name} ${version}"/>
+-         </doclet>
+-         <packageset dir="${java.src.dir}">
+-           <include name="org/apache/zookeeper"/>
+-           <exclude name="org/apache/jute"/>
+-         </packageset>
+-         <classpath>
+-           <pathelement location="${build.classes}"/>
+-           <fileset dir="${lib.dir}">
+-             <include name="**/*.jar" />
+-             <exclude name="**/excluded/" />
+-           </fileset>
+-           <fileset dir="${ivy.lib}">
+-             <include name="**/*.jar" />
+-           </fileset>
+-         </classpath>
+-       </javadoc>
+-     </target>
+-     
+-     <target name="write-null">
+-       <exec executable="touch">
+-         <arg value="${jdiff.home}/Null.java"/>
+-       </exec>
+-     </target> 
+-
+-     <target name="api-report" depends="api-xml">
+-       <mkdir dir="${jdiff.build.dir}"/>
+-       <javadoc sourcepath="${java.src.dir}"
+-                destdir="${jdiff.build.dir}"
+-                excludepackagenames="org.apache.jute"	
+-                sourceFiles="${jdiff.home}/Null.java">
+-         <doclet name="jdiff.JDiff"
+-                 path="${ivy.jdiff.lib}/jdiff-1.0.9.jar:${ivy.jdiff.lib}/xerces-1.4.4.jar">
+-           <param name="-oldapi" value="${name} ${jdiff.stable}"/>
+-           <param name="-newapi" value="${name} ${version}"/>
+-           <param name="-oldapidir" value="${jdiff.xml.dir}"/>
+-           <param name="-newapidir" value="${jdiff.xml.dir}"/>
+-           <param name="-javadocold" value="${jdiff.stable.javadoc}"/>
+-           <param name="-javadocnew" value="../../api/"/>
+-           <param name="-stats"/>
+-         </doclet>
+-         <classpath>
+-           <pathelement location="${build.classes}"/>
+-           <fileset dir="${lib.dir}">
+-             <include name="**/*.jar" />
+-             <exclude name="**/excluded/" />
+-           </fileset>
+-           <fileset dir="${ivy.lib}">
+-             <include name="**/*.jar" />
+-           </fileset>
+-         </classpath>
+-       </javadoc>
+-     </target>
+-
+      <condition property="ant-eclipse.jar.exists">
+        <available file="${lib.dir}/ant-eclipse-1.0-jvm1.2.jar"/>
+      </condition>
+diff -Nru zookeeper-3.4.4/ivysettings.xml zookeeper-3.4.4-gil/ivysettings.xml
+--- zookeeper-3.4.4/ivysettings.xml	2012-09-17 10:34:37.000000000 +0200
++++ zookeeper-3.4.4-gil/ivysettings.xml	2012-10-12 17:02:35.706545077 +0200
+@@ -18,13 +18,13 @@
+ -->
+ 
+   <property name="repo.maven.org"
+-    value="http://repo1.maven.org/maven2/" override="false"/>
++    value="file:///usr/share/java/" override="false"/>
+   <property name="repo.jboss.org"
+-    value="http://repository.jboss.org/nexus/content/groups/public/" override="false"/>
++    value="file:///usr/share/java/" override="false"/>
+   <property name="repo.sun.org"
+-    value="http://download.java.net/maven/2/" override="false"/>
++    value="file:///usr/share/java/" override="false"/>
+   <property name="maven2.pattern"
+-    value="[organisation]/[module]/[revision]/[module]-[revision]"/>
++    value="[module]"/>
+   <property name="maven2.pattern.ext" value="${maven2.pattern}.[ext]"/>
+   <include url="${ivy.default.conf.dir}/ivyconf-local.xml"/>
+   <settings defaultResolver="default"/>
+diff -Nru zookeeper-3.4.4/ivy.xml zookeeper-3.4.4-gil/ivy.xml
+--- zookeeper-3.4.4/ivy.xml	2012-09-17 10:34:37.000000000 +0200
++++ zookeeper-3.4.4-gil/ivy.xml	2012-10-12 17:41:46.216338834 +0200
+@@ -39,36 +39,36 @@
+   </publications>
+ 
+   <dependencies>
+-    <dependency org="org.slf4j" name="slf4j-api" rev="1.6.1"/>
+-    <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.6.1" transitive="false"/>
++    <dependency org="org.slf4j" name="slf4j/api" rev=""/>
++    <dependency org="org.slf4j" name="slf4j/log4j12" rev="" transitive="false"/>
+   
+     <!-- transitive false turns off dependency checking, log4j deps seem borked -->
+-    <dependency org="log4j" name="log4j" rev="1.2.15" transitive="false" conf="default"/>
+-    <dependency org="jline" name="jline" rev="0.9.94" transitive="false" conf="default"/>
++    <dependency org="log4j" name="log4j" rev="" transitive="false" conf="default"/>
++    <dependency org="jline" name="jline" rev="" transitive="false" conf="default"/>
+ 
+-    <dependency org="org.jboss.netty" name="netty" conf="default" rev="3.2.2.Final">
++    <dependency org="org.jboss.netty" name="netty" conf="default" rev="">
+       <artifact name="netty" type="jar" conf="default"/>
+     </dependency>
+ 
+-    <dependency org="org.vafer" name="jdeb" rev="0.8" conf="package->master"/>
++    <!--dependency org="org.vafer" name="jdeb" rev="0.8" conf="package->master"/-->
+ 
+-    <dependency org="junit" name="junit" rev="4.8.1" conf="test->default"/>
+-     <dependency org="org.mockito" name="mockito-all" rev="1.8.2"
++    <dependency org="junit" name="junit" rev="" conf="test->default"/>
++     <dependency org="org.mockito" name="mockito" rev=""
+                conf="test->default"/>
+-    <dependency org="checkstyle" name="checkstyle" rev="5.0"
++    <dependency org="checkstyle" name="checkstyle" rev=""
+                 conf="test->default"/>
+ 
+-    <dependency org="jdiff" name="jdiff" rev="1.0.9"
++    <!--dependency org="jdiff" name="jdiff" rev=""
+                 conf="jdiff->default"/>
+-    <dependency org="xerces" name="xerces" rev="1.4.4"
++    <dependency org="xerces" name="xerces-j2" rev=""
+                 conf="jdiff->default"/>
+ 
+-    <dependency org="org.apache.rat" name="apache-rat-tasks" 
+-                rev="0.6" conf="releaseaudit->default"/>
++    <dependency org="org.apache.rat" name="apache-rat/apache-rat-tasks" 
++                rev="" conf="releaseaudit->default"/>
+     <dependency org="commons-lang" name="commons-lang" 
+-                rev="2.4" conf="releaseaudit->default"/>
++                rev="" conf="releaseaudit->default"/>
+     <dependency org="commons-collections" name="commons-collections" 
+-                rev="3.1" conf="releaseaudit->default"/>
++                rev="" conf="releaseaudit->default"/-->
+   </dependencies>
+ 
+ </ivy-module>
