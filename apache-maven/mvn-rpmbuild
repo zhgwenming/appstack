@@ -1,0 +1,67 @@
+#!/bin/sh
+if [ -f /usr/share/java-utils/java-functions ] ; then
+  . /usr/share/java-utils/java-functions
+  set_jvm
+  set_javacmd
+fi
+
+function install_metadata()
+{
+    mkdir -p "$1"
+    tar xf /usr/share/apache-maven/repo-metadata.tar.xz -C "$1"
+}
+
+function help()
+{
+    echo "mvn-rpmbuild [options] [<goal(s)>] [<phase(s)>]"
+    echo
+    echo "mvn-rpmbuild is custom Fedora maven used for building maven projects"
+    echo "using only jar files provided by rpms installed on your system. It will"
+    echo "never download artifacts from remote repositories. You can modify its"
+    echo "behaviour using several environment variables:"
+    echo
+    echo "-Dmaven.repo.local [default:$(pwd)/.m2] - custom location of maven repository"
+    echo "-Dmaven.local.depmap.file - file containing custom dependency mapping between"
+    echo "                            groupId:artifactId and jar file. File format see:"
+    echo "                            http://fedoraproject.org/wiki/Java/JPPMavenReadme"
+    echo "-Dmaven.local.debug - if set maven will print additional resolving information"
+    echo "                      that can be useful for debugging resolver problems"
+}
+
+
+# add maven.repo.local if it's not defined already
+local_add="-Dmaven.repo.local=$(pwd)/.m2/"
+
+function process_args()
+{
+while [ $# != 0 ]; do
+        flag="$1"
+        case "$flag" in
+             -h|--help)
+                help
+                ;;
+             *) ind=`expr match "$flag" -Dmaven.repo.local=`
+                if [[ $ind != 0 ]];then
+                    install_metadata "${flag/-Dmaven.repo.local=/}/"
+                    local_add=""
+                fi
+                ;;
+        esac
+        shift
+done
+}
+
+process_args "$@"
+
+if [ -n "$local_add" ];then
+    install_metadata "${local_add/-Dmaven.repo.local=/}/"
+fi
+
+export M2_HOME=/usr/share/apache-maven
+echo $JAVA_HOME
+export JAVA_HOME
+# can't put it on command line due to
+# http://jira.codehaus.org/browse/SUREFIRE-121
+export MAVEN_OPTS="$MAVEN_OPTS -Dmaven.local.mode ${local_add}"
+
+$M2_HOME/bin/mvn -o "$@"

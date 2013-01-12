@@ -1,0 +1,10 @@
+#!/bin/sh
+if [ -f /usr/share/java-utils/java-functions ] ; then
+  . /usr/share/java-utils/java-functions
+  set_jvm
+  set_javacmd
+fi
+
+export M2_HOME=/usr/share/apache-maven
+echo $JAVA_HOME
+export JAVA_HOME; $M2_HOME/bin/mvn -Dmaven2.jpp.mode $@
