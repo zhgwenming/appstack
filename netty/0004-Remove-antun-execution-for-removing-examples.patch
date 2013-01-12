@@ -1,0 +1,71 @@
+From e25559365fd6bd5ff6942351bc53ab0a5a61ef77 Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Mon, 5 Dec 2011 15:52:27 +0100
+Subject: [PATCH 4/4] Remove antun execution for removing examples
+
+For some reason -sources.jar is not generated before so it
+fails. Should investigate one of these days...
+---
+ pom.xml |   46 ----------------------------------------------
+ 1 files changed, 0 insertions(+), 46 deletions(-)
+
+diff --git a/pom.xml b/pom.xml
+index 8615b36..443b4c8 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -324,52 +324,6 @@
+               </tasks>
+             </configuration>
+           </execution>
+-          <execution>
+-            <id>remove-examples</id>
+-            <phase>package</phase>
+-            <goals>
+-              <goal>run</goal>
+-            </goals>
+-            <configuration>
+-              <tasks>
+-                <taskdef resource="net/sf/antcontrib/antlib.xml" />
+-                <if>
+-                  <or>
+-                    <equals arg2="jar" arg1="${project.packaging}" />
+-                    <equals arg2="bundle" arg1="${project.packaging}" />
+-                  </or>
+-                  <then>
+-                    <move file="${project.build.directory}/${project.build.finalName}.jar" tofile="${project.build.directory}/${project.build.finalName}.orig.jar" />
+-                    <zip destfile="${project.build.directory}/${project.build.finalName}.jar">
+-                      <zipfileset filemode="644" src="${project.build.directory}/${project.build.finalName}.orig.jar" dirmode="755">
+-                        <include name="META-INF/MANIFEST.MF" />
+-                      </zipfileset>
+-                      <zipfileset filemode="644" src="${project.build.directory}/${project.build.finalName}.orig.jar" dirmode="755">
+-                        <exclude name="META-INF/MANIFEST.MF" />
+-                        <exclude name="*/*/*/example/**" />
+-                      </zipfileset>
+-                    </zip>
+-                    <delete file="${project.build.directory}/${project.build.finalName}.orig.jar" />
+-                    <checksum file="${project.build.directory}/${project.build.finalName}.jar" algorithm="md5" forceoverwrite="yes" />
+-                    <checksum file="${project.build.directory}/${project.build.finalName}.jar" algorithm="sha1" forceoverwrite="yes" />
+-                    <move file="${project.build.directory}/${project.build.finalName}-sources.jar" tofile="${project.build.directory}/${project.build.finalName}-sources.orig.jar" />
+-                    <zip destfile="${project.build.directory}/${project.build.finalName}-sources.jar">
+-                      <zipfileset filemode="644" src="${project.build.directory}/${project.build.finalName}-sources.orig.jar" dirmode="755">
+-                        <include name="META-INF/MANIFEST.MF" />
+-                      </zipfileset>
+-                      <zipfileset filemode="644" src="${project.build.directory}/${project.build.finalName}-sources.orig.jar" dirmode="755">
+-                        <exclude name="META-INF/MANIFEST.MF" />
+-                        <exclude name="*/*/*/example/**" />
+-                      </zipfileset>
+-                    </zip>
+-                    <delete file="${project.build.directory}/${project.build.finalName}-sources.orig.jar" />
+-                    <checksum file="${project.build.directory}/${project.build.finalName}-sources.jar" algorithm="md5" forceoverwrite="yes" />
+-                    <checksum file="${project.build.directory}/${project.build.finalName}-sources.jar" algorithm="sha1" forceoverwrite="yes" />
+-                  </then>
+-                </if>
+-              </tasks>
+-            </configuration>
+-          </execution>
+         </executions>
+         <dependencies>
+           <dependency>
+-- 
+1.7.7.3
+

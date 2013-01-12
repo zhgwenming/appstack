@@ -1,0 +1,33 @@
+From 61b66b45737653da51cc25d2771a97c811525e0f Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Thu, 13 Jan 2011 15:02:01 +0100
+Subject: [PATCH 2/4] Replace jboss logger with jdk logger
+
+---
+ .../microcontainer/NettyLoggerConfigurator.java    |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/java/org/jboss/netty/container/microcontainer/NettyLoggerConfigurator.java b/src/main/java/org/jboss/netty/container/microcontainer/NettyLoggerConfigurator.java
+index 2ccc731..eca8a6a 100644
+--- a/src/main/java/org/jboss/netty/container/microcontainer/NettyLoggerConfigurator.java
++++ b/src/main/java/org/jboss/netty/container/microcontainer/NettyLoggerConfigurator.java
+@@ -16,7 +16,7 @@
+ package org.jboss.netty.container.microcontainer;
+ 
+ import org.jboss.netty.logging.InternalLoggerFactory;
+-import org.jboss.netty.logging.JBossLoggerFactory;
++import org.jboss.netty.logging.JdkLoggerFactory;
+ 
+ /**
+  * A bean that configures the default {@link InternalLoggerFactory}.
+@@ -27,6 +27,6 @@ import org.jboss.netty.logging.JBossLoggerFactory;
+  */
+ public class NettyLoggerConfigurator {
+     public NettyLoggerConfigurator() {
+-        InternalLoggerFactory.setDefaultFactory(new JBossLoggerFactory());
++        InternalLoggerFactory.setDefaultFactory(new JdkLoggerFactory());
+     }
+ }
+-- 
+1.7.7.3
+

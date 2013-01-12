@@ -1,0 +1,159 @@
+From f246eb5c5ac4f19e93706630b39ce27cea1918e1 Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Mon, 5 Dec 2011 14:15:52 +0100
+Subject: [PATCH 1/4] Remove optional deps
+
+---
+ pom.xml |  129 ---------------------------------------------------------------
+ 1 files changed, 0 insertions(+), 129 deletions(-)
+
+diff --git a/pom.xml b/pom.xml
+index a1597fe..77fb611 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -116,13 +116,6 @@
+       <optional>true</optional>
+     </dependency>
+     <dependency>
+-      <groupId>org.jboss.logging</groupId>
+-      <artifactId>jboss-logging-spi</artifactId>
+-      <version>2.1.2.GA</version>
+-      <scope>compile</scope>
+-      <optional>true</optional>
+-    </dependency>
+-    <dependency>
+       <groupId>log4j</groupId>
+       <artifactId>log4j</artifactId>
+       <version>1.2.16</version>
+@@ -462,128 +455,6 @@
+         </configuration>
+       </plugin>
+       <plugin>
+-        <artifactId>maven-jxr-plugin</artifactId>
+-        <version>2.2</version>
+-        <executions>
+-          <execution>
+-            <id>generate-xref</id>
+-            <phase>package</phase>
+-            <goals>
+-              <goal>jxr</goal>
+-            </goals>
+-          </execution>
+-        </executions>
+-        <configuration>
+-          <inputEncoding>UTF-8</inputEncoding>
+-          <outputEncoding>UTF-8</outputEncoding>
+-          <linkJavadoc>true</linkJavadoc>
+-          <destDir>${project.build.directory}/xref</destDir>
+-          <javadocDir>${project.build.directory}/api</javadocDir>
+-          <stylesheet>${basedir}/src/xref/stylesheet.css</stylesheet>
+-          <docTitle>${project.name} Source Xref (${project.version})</docTitle>
+-          <windowTitle>${project.name} Source Xref (${project.version})</windowTitle>
+-        </configuration>
+-      </plugin>
+-      <plugin>
+-        <groupId>org.jboss.maven.plugins</groupId>
+-        <artifactId>maven-jdocbook-plugin</artifactId>
+-        <version>2.2.1</version>
+-        <executions>
+-          <execution>
+-            <id>generate-docbook</id>
+-            <phase>package</phase>
+-            <goals>
+-              <goal>resources</goal>
+-              <goal>generate</goal>
+-            </goals>
+-          </execution>
+-        </executions>
+-        <dependencies>
+-          <dependency>
+-            <groupId>org.jboss</groupId>
+-            <artifactId>jbossorg-docbook-xslt</artifactId>
+-            <version>1.1.0</version>
+-            <exclusions>
+-              <exclusion>
+-                <groupId>org.eclipse.wst.css</groupId>
+-                <artifactId>core</artifactId>
+-              </exclusion>
+-              <exclusion>
+-                <groupId>org.eclipse.wst.sse</groupId>
+-                <artifactId>core</artifactId>
+-              </exclusion>
+-            </exclusions>
+-          </dependency>
+-          <dependency>
+-            <groupId>org.jboss</groupId>
+-            <artifactId>jbossorg-jdocbook-style</artifactId>
+-            <version>1.1.0</version>
+-            <type>jdocbook-style</type>
+-            <exclusions>
+-              <exclusion>
+-                <groupId>org.eclipse.wst.css</groupId>
+-                <artifactId>core</artifactId>
+-              </exclusion>
+-              <exclusion>
+-                <groupId>org.eclipse.wst.sse</groupId>
+-                <artifactId>core</artifactId>
+-              </exclusion>
+-            </exclusions>
+-          </dependency>
+-          <dependency>
+-            <groupId>org.jboss</groupId>
+-            <artifactId>jbossorg-fonts</artifactId>
+-            <version>1.0.0</version>
+-            <type>jdocbook-style</type>
+-          </dependency>
+-        </dependencies>
+-        <configuration>
+-          <sourceDocumentName>master.xml</sourceDocumentName>
+-          <sourceDirectory>${basedir}/src/docbook</sourceDirectory>
+-          <cssResource>
+-            <directory>${basedir}/src/docbook</directory>
+-            <includes>
+-              <include>css/**/*</include>
+-            </includes>
+-          </cssResource>
+-          <imageResource>
+-            <directory>${basedir}/src/docbook</directory>
+-            <includes>
+-              <include>images/**/*</include>
+-            </includes>
+-          </imageResource>
+-          <formats>
+-            <format>
+-              <formatName>html</formatName>
+-              <stylesheetResource>file:///${basedir}/src/docbook/xslt/xhtml.xsl</stylesheetResource>
+-              <finalName>index.html</finalName>
+-            </format>
+-            <format>
+-              <formatName>html_single</formatName>
+-              <stylesheetResource>file:///${basedir}/src/docbook/xslt/xhtml-single.xsl</stylesheetResource>
+-              <finalName>index.html</finalName>
+-            </format>
+-            <format>
+-              <formatName>eclipse</formatName>
+-              <stylesheetResource>file:///${basedir}/src/docbook/xslt/eclipse.xsl</stylesheetResource>
+-              <finalName>index.html</finalName>
+-            </format>
+-            <format>
+-              <formatName>pdf</formatName>
+-              <stylesheetResource>file:///${basedir}/src/docbook/xslt/pdf.xsl</stylesheetResource>
+-              <finalName>netty.pdf</finalName>
+-            </format>
+-          </formats>
+-          <options>
+-            <xincludeSupported>true</xincludeSupported>
+-            <xmlTransformerType>saxon</xmlTransformerType>
+-            <docbookVersion>1.72.0</docbookVersion>
+-            <localeSeparator>-</localeSeparator>
+-            <autoDetectFonts>true</autoDetectFonts>
+-          </options>
+-        </configuration>
+-      </plugin>
+-      <plugin>
+         <artifactId>maven-assembly-plugin</artifactId>
+         <version>2.2</version>
+         <executions>
+-- 
+1.7.7.3
+
