@@ -1,0 +1,13 @@
+--- protobuf-2.3.0/python/setup.py.orig	2010-01-08 13:20:15.000000000 -0600
++++ protobuf-2.3.0/python/setup.py	2011-01-20 16:07:59.547707352 -0600
+@@ -4,8 +4,8 @@
+ 
+ # We must use setuptools, not distutils, because we need to use the
+ # namespace_packages option for the "google" package.
+-from ez_setup import use_setuptools
+-use_setuptools()
++#from ez_setup import use_setuptools
++#use_setuptools()
+ 
+ from setuptools import setup
+ from distutils.spawn import find_executable

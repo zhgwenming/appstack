@@ -1,0 +1,11 @@
+--- protobuf-2.2.0/configure.orig	2009-08-11 19:28:24.000000000 -0500
++++ protobuf-2.2.0/configure	2010-03-11 16:30:22.000000000 -0600
+@@ -8638,7 +8638,7 @@
+ LIBTOOL_DEPS="$ltmain"
+ 
+ # Always use our own libtool.
+-LIBTOOL='$(SHELL) $(top_builddir)/libtool'
++LIBTOOL='$(SHELL) /usr/bin/libtool'
+ 
+ 
+ 
