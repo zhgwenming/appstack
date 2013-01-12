@@ -1,0 +1,21 @@
+diff --git a/misc/macros.jpackage b/misc/macros.jpackage
+index 1978e14..e7974cc 100644
+--- a/misc/macros.jpackage
++++ b/misc/macros.jpackage
+@@ -88,11 +88,14 @@
+ #
+ %_javadocdir     %{_datadir}/javadoc
+ 
++# Directory for maven poms
++%_mavenpomdir %{_datadir}/maven-poms
++
+ #
+ # Directory for maven depmaps
+ #
+-%_mavendepmapdir /etc/maven
+-%_mavendepmapfragdir /etc/maven/fragments
++%_mavendepmapdir %{_sysconfdir}/maven
++%_mavendepmapfragdir %{_datadir}/maven-fragments
+ 
+ #
+ # Current default JVM home.

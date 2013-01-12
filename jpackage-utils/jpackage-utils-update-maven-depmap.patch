@@ -1,0 +1,15 @@
+--- misc/macros.jpackage~	2012-12-03 17:03:13.084454193 +0100
++++ misc/macros.jpackage	2012-12-03 18:01:15.727181161 +0100
+@@ -173,11 +173,7 @@
+ # update_maven_depmap updates the main maven depmap
+ #
+ %update_maven_depmap() \
+-echo -e "<dependencies>\\n" > %{_mavendepmapdir}/maven2-depmap.xml\
+-if [ -d %{_mavendepmapfragdir} ] && [ -n "`find %{_mavendepmapfragdir} -type f`" ]; then\
+-cat %{_mavendepmapfragdir}/* >> %{_mavendepmapdir}/maven2-depmap.xml\
+-fi\
+-echo -e "</dependencies>\\n" >> %{_mavendepmapdir}/maven2-depmap.xml\
++:\
+ %{nil}
+ 
+ #==============================================================================

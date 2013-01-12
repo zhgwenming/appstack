@@ -1,0 +1,80 @@
+--- jpackage-utils-1.7.5/java-utils/java-functions	2008-04-01 20:57:42.000000000 +0300
++++ jpackage-utils-1.7.5/java-utils/java-functions	2009-05-04 19:53:21.000000000 +0300
+@@ -24,11 +24,26 @@ fi
+ [ ! -z "$_JAVA_HOME" -a -d "$_JAVA_HOME" ] && JAVA_HOME="$_JAVA_HOME"
+ 
+ # Test default JRE/JVM roots if nothing is defined yet
+-[ -z "$JAVA_HOME" -a -d "$JVM_ROOT/java" ] && JAVA_HOME="$JVM_ROOT/java"
+-[ -z "$JAVA_HOME" -a -d "$JVM_ROOT/jre" ] && JAVA_HOME="$JVM_ROOT/jre"
++_set_java_home() {
++  if [ -z "$JAVA_HOME" ] ; then
++    local _java_dirs="java"
++    case "$_prefer_jre" in
++      1|[Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]) _java_dirs="jre $_java_dirs" ;;
++      *)                               _java_dirs="$_java_dirs jre" ;;
++    esac
++    for d in $_java_dirs ; do
++      if [ -d "$JVM_ROOT/$d" ] ; then
++        JAVA_HOME="$JVM_ROOT/$d"
++        break
++      fi
++    done
++  fi
++}
+ 
+ # Set the java virtual machine
+ set_jvm() {
++  _set_java_home
++
+   # use $JAVA_HOME if defined
+   if [ -n "$JAVA_HOME" ] ; then
+     return
+@@ -37,7 +52,11 @@ set_jvm() {
+   # try to find it from java command
+ 
+   # try javac first, or we might get the location of the jre instead - djw
+-  java=`which javac 2>/dev/null || :`
++  # if JRE is prefered then don't try javac - mizdebsk
++  case "$_prefer_jre" in
++    1|[Yy][Ee][Ss]|[Tt][Rr][Uu][Ee]) java= ;;
++    *) java=`which javac 2>/dev/null || :` ;;
++  esac
+ 
+   # if we don't have the jdk, then maybe we have the jre - djw
+   if [ -z "$java" ] ; then
+@@ -60,6 +75,8 @@ set_jvm() {
+ # Set the classpath
+ # This requires a valid JAVA_HOME, JAVACMD, and JAVA_LIBDIR
+ set_classpath() {
++  _set_java_home
++
+   # get local classpath first
+   jars=$@
+   if [ -n "$ADDITIONAL_JARS" ] ; then
+@@ -130,6 +147,8 @@ run() {
+ # Set JVM-related directories
+ # Requires a correct $JAVA_LIBDIR, $JAVA_HOME and $JAVA_CMD
+ set_jvm_dirs() {
++    _set_java_home
++
+     # Jar repository provided by the JVM
+     JVM_LIBDIR=$JVM_ROOT-exports/$(echo "$JAVA_HOME" |\
+         sed -n "s+$JVM_ROOT/\([-_[:alnum:].]*\)\(.*\)+\1+p")
+--- jpackage-utils-1.7.5/misc/macros.jpackage	2008-01-04 13:21:42.000000000 +0200
++++ jpackage-utils-1.7.5/misc/macros.jpackage	2009-05-04 20:00:58.000000000 +0300
+@@ -301,6 +301,7 @@ EOF\
+ # %3	options
+ # %4	jars (separated by ':')
+ # %5    the name of script you wish to create
++# %6    whether to prefer a jre over a sdk when finding a jvm
+ #
+ %jpackage_script() \
+ install -d -m 755 $RPM_BUILD_ROOT%{_bindir}\
+@@ -311,6 +312,7 @@ cat > $RPM_BUILD_ROOT%{_bindir}/%5 << EO
+ # JPackage Project <http://www.jpackage.org/>\
+ \
+ # Source functions library\
++_prefer_jre="%{?6}"\
+ . %{_javadir}-utils/java-functions\
+ \
+ # Source system prefs\

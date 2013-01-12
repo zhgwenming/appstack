@@ -1,0 +1,12 @@
+diff -up ./java-utils/java-functions.sav ./java-utils/java-functions
+--- ./java-utils/java-functions.sav	2012-12-11 13:50:29.000000000 -0500
++++ ./java-utils/java-functions	2012-12-11 13:51:05.000000000 -0500
+@@ -141,7 +141,7 @@ run() {
+     echo "arguments used: $@"
+   fi
+   # let's start
+-  exec $JAVACMD $FLAGS -classpath $CLASSPATH $OPTIONS $MAIN_CLASS "$@"
++  exec "$JAVACMD" $FLAGS -classpath "$CLASSPATH" $OPTIONS "$MAIN_CLASS" "$@"
+ }
+ 
+ # Set JVM-related directories

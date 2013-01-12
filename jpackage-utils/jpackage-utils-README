@@ -1,0 +1,36 @@
+
+The jpackage-utils package installs the following scripts on the system:
+
+* %{_bindir}/build-classpath
+                                build the Java classpath in a portable manner
+* %{_bindir}/build-jar-repository
+                                build a jar repository in a portable manner
+* %{_bindir}/rebuild-jar-repository
+                                rebuild a jar repository in a portable manner
+                                (after a jvm change...)
+* %{_bindir}/build-classpath-directory
+                                build the Java classpath from a directory
+* %{_bindir}/diff-jars
+                                show jar content differences
+* %{_bindir}/jvmjar
+                                install jvm extensions
+* %{_bindir}/create-jar-links
+                                create custom jar links
+* %{_bindir}/clean-binary-files
+                                remove binary files from sources
+* %{_bindir}/check-binary-files
+                                check for presence of unexpected binary files
+* %{_datadir}/java-utils/java-functions
+                                shell script functions library for Java
+                                applications
+* %{_sysconfdir}/java/jpackage-release
+                                string identifying the currently installed
+                                JPackage release
+* %{_sysconfdir}/java/java.conf
+                                system-wide Java configuration file
+* %{_sysconfdir}/rpm/macros.jpackage
+                                RPM macros for Java packagers and developers
+* %{_docdir}/%{name}-%{version}/jpackage-policy
+                                Java packaging policy for packagers and
+                                developers
+
