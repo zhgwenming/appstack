@@ -28,11 +28,11 @@ BuildRequires: libtool
 BuildRequires: ant
 BuildRequires: ant-junit
 BuildRequires: apache-ivy
-BuildRequires: checkstyle
+#BuildRequires: checkstyle
 BuildRequires: jline
 BuildRequires: junit
 BuildRequires: log4j
-BuildRequires: mockito
+#BuildRequires: mockito
 BuildRequires: slf4j
 
 # BuildRequires: rat-lib
