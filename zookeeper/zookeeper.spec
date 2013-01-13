@@ -1,12 +1,13 @@
 Name:          zookeeper
 Version:       3.4.5
-Release:       2%{?dist}
+Release:       3%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
 URL:           http://zookeeper.apache.org/
 Source0:       http://www.apache.org/dist/zookeeper/%{name}-%{version}/%{name}-%{version}.tar.gz
 Source1:       zookeeper.upstart
+Source2:       zookeeper.sysconfig
 # remove non free clover references
 # configure ivy to use system libraries
 # disable rat-lib and jdiff support
@@ -97,6 +98,13 @@ BuildArch:     noarch
 This package contains javadoc for %{name}.
 
 %prep
+# 201:200 for zookeeper
+getent group zookeeper >/dev/null || groupadd -r --gid 201 zookeeper
+getent passwd zookeeper >/dev/null || \
+useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologin \
+-c "Zookeeper server" zookeeper
+exit 0
+
 %setup -q
 find -name "*.jar" -delete
 find -name "*.class" -delete
@@ -177,6 +185,12 @@ install -m 755 bin/zkCli.sh %{buildroot}%{_datadir}/%{name}/bin/zkCli.sh
 install -m 755 bin/zkEnv.sh %{buildroot}%{_datadir}/%{name}/bin/zkEnv.sh
 install -m 755 bin/zkServer.sh %{buildroot}%{_datadir}/%{name}/bin/zkServer.sh
 install -p -D -m 644 %{SOURCE1} %{buildroot}%{_sysconfdir}/init/zookeeper.conf
+install -p -D -m 644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/zookeeper
+
+# configuration.xsl  log4j.properties  zoo_sample.cfg
+install -p -D -m 644 conf/configuration.xsl %{buildroot}%{_sysconfdir}/zookeeper/conf/configuration.xsl
+install -p -D -m 644 conf/log4j.properties %{buildroot}%{_sysconfdir}/zookeeper/conf/log4j.properties
+install -p -D -m 644 conf/zoo_sample.cfg %{buildroot}%{_sysconfdir}/zookeeper/conf/zoo.cfg
 
 %check
 pushd src/c
@@ -201,7 +215,11 @@ popd
 %doc src/c/ChangeLog src/c/LICENSE src/c/NOTICE.txt src/c/README
 
 %files server
+%{_sysconfdir}/sysconfig/zookeeper
 %{_sysconfdir}/init/zookeeper.conf
+%{_sysconfdir}/zookeeper/conf/configuration.xsl
+%{_sysconfdir}/zookeeper/conf/log4j.properties
+%{_sysconfdir}/zookeeper/conf/zoo.cfg
 
 
 %files lib
