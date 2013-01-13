@@ -1,5 +1,5 @@
 Name:          zookeeper
-Version:       3.4.5
+Version:       3.3.6
 Release:       3%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
@@ -103,7 +103,6 @@ getent group zookeeper >/dev/null || groupadd -r --gid 201 zookeeper
 getent passwd zookeeper >/dev/null || \
 useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologin \
 -c "Zookeeper server" zookeeper
-exit 0
 
 %setup -q
 find -name "*.jar" -delete
@@ -112,16 +111,16 @@ find -name "*.cmd" -delete
 find -name "*.so*" -delete
 find -name "*.dll" -delete
 
-%patch0 -p1
-%patch1 -p0
-%pom_remove_dep org.vafer:jdeb dist-maven/%{name}-%{version}.pom
-# jdiff task deps
-%pom_remove_dep jdiff:jdiff dist-maven/%{name}-%{version}.pom
-%pom_remove_dep xerces:xerces dist-maven/%{name}-%{version}.pom
-# rat-lib task deps
-%pom_remove_dep org.apache.rat:apache-rat-tasks dist-maven/%{name}-%{version}.pom
-%pom_remove_dep commons-collections:commons-collections dist-maven/%{name}-%{version}.pom
-%pom_remove_dep commons-lang:commons-lang dist-maven/%{name}-%{version}.pom
+#%patch0 -p1
+#%patch1 -p0
+#%pom_remove_dep org.vafer:jdeb dist-maven/%{name}-%{version}.pom
+## jdiff task deps
+#%pom_remove_dep jdiff:jdiff dist-maven/%{name}-%{version}.pom
+#%pom_remove_dep xerces:xerces dist-maven/%{name}-%{version}.pom
+## rat-lib task deps
+#%pom_remove_dep org.apache.rat:apache-rat-tasks dist-maven/%{name}-%{version}.pom
+#%pom_remove_dep commons-collections:commons-collections dist-maven/%{name}-%{version}.pom
+#%pom_remove_dep commons-lang:commons-lang dist-maven/%{name}-%{version}.pom
 
 sed -i "s|<packaging>pom</packaging>|<packaging>jar</packaging>|" dist-maven/%{name}-%{version}.pom
 sed -i "s|<groupId>checkstyle</groupId>|<groupId>com.puppycrawl.tools</groupId>|" dist-maven/%{name}-%{version}.pom
@@ -166,6 +165,7 @@ pushd src/c
 %{__make} install DESTDIR=%{buildroot}
 # cleanup
 rm -f docs/html/*.map
+mv %{buildroot}/usr/include/c-client-src/ %{buildroot}/usr/include/%{name}
 popd
 
 find %{buildroot} -name '*.la' -exec rm -f {} ';'
@@ -212,7 +212,7 @@ popd
 %{_datadir}/%{name}/bin/zkEnv.sh
 %{_datadir}/%{name}/bin/zkServer.sh
 
-%doc src/c/ChangeLog src/c/LICENSE src/c/NOTICE.txt src/c/README
+%doc src/c/ChangeLog src/c/LICENSE src/c/README
 
 %files server
 %{_sysconfdir}/sysconfig/zookeeper
@@ -225,24 +225,24 @@ popd
 %files lib
 %defattr(-,root,root,-)
 %{_libdir}/lib*.so.*
-%doc src/c/LICENSE src/c/NOTICE.txt
+%doc src/c/LICENSE
 
 %files lib-devel
 %defattr(-,root,root,-)
 %dir %{_includedir}/%{name}
 %{_includedir}/%{name}/*.h
 %{_libdir}/*.so
-%doc src/c/LICENSE src/c/NOTICE.txt src/c/docs/html/*
+%doc src/c/LICENSE src/c/docs/html/*
 
 %files java
 %{_javadir}/%{name}.jar
 %{_mavenpomdir}/JPP-%{name}.pom
 %{_mavendepmapfragdir}/%{name}
-%doc CHANGES.txt LICENSE.txt NOTICE.txt README.txt
+%doc CHANGES.txt LICENSE.txt README.txt
 
 %files javadoc
 %{_javadocdir}/%{name}
-%doc LICENSE.txt NOTICE.txt
+%doc LICENSE.txt 
 
 %changelog
 * Sun Dec 02 2012 gil cattaneo <puntogil@libero.it> 3.4.5-1
