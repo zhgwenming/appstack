@@ -6,6 +6,7 @@ Group:         Development/Libraries
 License:       ASL 2.0
 URL:           http://zookeeper.apache.org/
 Source0:       http://www.apache.org/dist/zookeeper/%{name}-%{version}/%{name}-%{version}.tar.gz
+Source1:       zookeeper.upstart
 # remove non free clover references
 # configure ivy to use system libraries
 # disable rat-lib and jdiff support
@@ -44,6 +45,14 @@ BuildRequires: slf4j
 %description
 ZooKeeper is a centralized service for maintaining configuration information,
 naming, providing distributed synchronization, and providing group services.
+
+%package server
+Summary:       Zookeeper Server
+Group:         System Environment/Daemons
+
+%description server
+Zookeeper Server.
+For general information about Zookeeper please see %{url}
 
 %package lib
 Summary:       Zookeeper C client library
@@ -167,6 +176,7 @@ install -m 755 bin/zkCleanup.sh %{buildroot}%{_datadir}/%{name}/bin/zkCleanup.sh
 install -m 755 bin/zkCli.sh %{buildroot}%{_datadir}/%{name}/bin/zkCli.sh
 install -m 755 bin/zkEnv.sh %{buildroot}%{_datadir}/%{name}/bin/zkEnv.sh
 install -m 755 bin/zkServer.sh %{buildroot}%{_datadir}/%{name}/bin/zkServer.sh
+install -p -D -m 644 %{SOURCE1} %{buildroot}%{_sysconfdir}/init/zookeeper.conf
 
 %check
 pushd src/c
@@ -189,6 +199,10 @@ popd
 %{_datadir}/%{name}/bin/zkServer.sh
 
 %doc src/c/ChangeLog src/c/LICENSE src/c/NOTICE.txt src/c/README
+
+%files server
+%{_sysconfdir}/init/zookeeper.conf
+
 
 %files lib
 %defattr(-,root,root,-)
