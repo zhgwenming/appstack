@@ -1,6 +1,6 @@
 Name:          zookeeper
 Version:       3.3.6
-Release:       3%{?dist}
+Release:       4%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
@@ -33,7 +33,6 @@ BuildRequires: jline
 BuildRequires: junit
 BuildRequires: log4j
 BuildRequires: mockito
-BuildRequires: netty
 BuildRequires: slf4j
 
 # BuildRequires: rat-lib
@@ -50,6 +49,7 @@ naming, providing distributed synchronization, and providing group services.
 %package server
 Summary:       Zookeeper Server
 Group:         System Environment/Daemons
+Requires:      zookeeper-java
 
 %description server
 Zookeeper Server.
@@ -78,7 +78,6 @@ Summary:       Zookeeper Java client library
 # Requires:      felix-osgi-compendium
 Requires:      jline
 Requires:      log4j
-Requires:      netty
 Requires:      slf4j
 
 Requires:      java
