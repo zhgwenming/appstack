@@ -1,6 +1,6 @@
 Name:          zookeeper
 Version:       3.4.5
-Release:       1%{?dist}
+Release:       2%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
@@ -158,6 +158,15 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 # bin/zkCli.sh
 # bin/zkEnv.sh
 # bin/zkServer.sh
+install -d -m 755 %{buildroot}%{_datadir}/%{name}/bin
+install -d -m 755 %{buildroot}%{_sharedstatedir}/%{name}
+install -d -m 755 %{buildroot}%{_localstatedir}/log/%{name}
+install -d -m 755 %{buildroot}%{_localstatedir}/run/%{name}
+
+install -m 755 bin/zkCleanup.sh %{buildroot}%{_datadir}/%{name}/bin/zkCleanup.sh
+install -m 755 bin/zkCli.sh %{buildroot}%{_datadir}/%{name}/bin/zkCli.sh
+install -m 755 bin/zkEnv.sh %{buildroot}%{_datadir}/%{name}/bin/zkEnv.sh
+install -m 755 bin/zkServer.sh %{buildroot}%{_datadir}/%{name}/bin/zkServer.sh
 
 %check
 pushd src/c
@@ -174,6 +183,11 @@ popd
 %{_bindir}/cli_mt
 %{_bindir}/cli_st
 %{_bindir}/load_gen
+%{_datadir}/%{name}/bin/zkCleanup.sh
+%{_datadir}/%{name}/bin/zkCli.sh
+%{_datadir}/%{name}/bin/zkEnv.sh
+%{_datadir}/%{name}/bin/zkServer.sh
+
 %doc src/c/ChangeLog src/c/LICENSE src/c/NOTICE.txt src/c/README
 
 %files lib
