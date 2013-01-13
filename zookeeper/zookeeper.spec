@@ -1,6 +1,6 @@
 Name:          zookeeper
 Version:       3.3.6
-Release:       4%{?dist}
+Release:       5%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
@@ -97,12 +97,6 @@ BuildArch:     noarch
 This package contains javadoc for %{name}.
 
 %prep
-# 201:200 for zookeeper
-getent group zookeeper >/dev/null || groupadd -r --gid 201 zookeeper
-getent passwd zookeeper >/dev/null || \
-useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologin \
--c "Zookeeper server" zookeeper
-
 %setup -q
 find -name "*.jar" -delete
 find -name "*.class" -delete
@@ -197,6 +191,13 @@ make check
 popd
 # skip for now
 #%%ant test-core-java
+
+%pre
+# 201:201 for zookeeper
+getent group zookeeper >/dev/null || groupadd -r --gid 201 zookeeper
+getent passwd zookeeper >/dev/null || \
+useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologin \
+-c "Zookeeper server" zookeeper
 
 %post lib -p /sbin/ldconfig
 %postun lib -p /sbin/ldconfig
