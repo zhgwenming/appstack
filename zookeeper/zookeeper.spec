@@ -1,6 +1,6 @@
 Name:          zookeeper
 Version:       3.3.6
-Release:       5%{?dist}
+Release:       6%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
@@ -192,11 +192,11 @@ popd
 # skip for now
 #%%ant test-core-java
 
-%pre
+%pre server
 # 201:201 for zookeeper
 getent group zookeeper >/dev/null || groupadd -r --gid 201 zookeeper
 getent passwd zookeeper >/dev/null || \
-useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologin \
+useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/%{name} -s /sbin/nologin \
 -c "Zookeeper server" zookeeper
 
 %post lib -p /sbin/ldconfig
@@ -215,11 +215,14 @@ useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologi
 %doc src/c/ChangeLog src/c/LICENSE src/c/README
 
 %files server
-%{_sysconfdir}/sysconfig/zookeeper
-%{_sysconfdir}/init/zookeeper.conf
-%{_sysconfdir}/zookeeper/conf/configuration.xsl
-%{_sysconfdir}/zookeeper/conf/log4j.properties
-%{_sysconfdir}/zookeeper/conf/zoo.cfg
+%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/sysconfig/zookeeper
+%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/init/zookeeper.conf
+%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/configuration.xsl
+%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/log4j.properties
+%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/zoo.cfg
+%dir %attr(0755, zookeeper, root) %{_localstatedir}/log/%{name}
+%dir %attr(0755, zookeeper, root) %{_localstatedir}/run/%{name}
+%dir %attr(0755, zookeeper, root) %{_sharedstatedir}/%{name}
 
 
 %files lib
@@ -245,17 +248,6 @@ useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/keystone -s /sbin/nologi
 %doc LICENSE.txt 
 
 %changelog
-* Sun Dec 02 2012 gil cattaneo <puntogil@libero.it> 3.4.5-1
-- update to 3.4.5
 
-* Tue Oct 30 2012 gil cattaneo <puntogil@libero.it> 3.4.4-3
-- fix missing hostname
-
-* Fri Oct 12 2012 gil cattaneo <puntogil@libero.it> 3.4.4-2
-- add ant-junit as BR
-
-* Fri Oct 12 2012 gil cattaneo <puntogil@libero.it> 3.4.4-1
-- update to 3.4.4
-
-* Fri May 18 2012 gil cattaneo <puntogil@libero.it> 3.4.3-1
-- initial rpm
+* Fri Jan 14 2013 Albert Zhang <zhgwenming@gmail.com> 3.3.6
+- initial rpm, permission fixes
