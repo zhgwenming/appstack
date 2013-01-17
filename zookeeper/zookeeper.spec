@@ -1,6 +1,6 @@
 Name:          zookeeper
 Version:       3.3.6
-Release:       6%{?dist}
+Release:       7%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
@@ -52,6 +52,7 @@ naming, providing distributed synchronization, and providing group services.
 Summary:       Zookeeper Server
 Group:         System Environment/Daemons
 Requires:      zookeeper-java
+BuildArch:     noarch
 
 %description server
 Zookeeper Server.
@@ -81,6 +82,7 @@ Summary:       Zookeeper Java client library
 Requires:      jline
 Requires:      log4j
 Requires:      slf4j
+Requires:      jre >= 1.6.0
 
 Requires:      java
 Requires:      jpackage-utils
