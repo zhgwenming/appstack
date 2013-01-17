@@ -8,12 +8,14 @@ URL:           http://zookeeper.apache.org/
 Source0:       http://www.apache.org/dist/zookeeper/%{name}-%{version}/%{name}-%{version}.tar.gz
 Source1:       zookeeper.upstart
 Source2:       zookeeper.sysconfig
+Source3:       zookeeper.init
 # remove non free clover references
 # configure ivy to use system libraries
 # disable rat-lib and jdiff support
-Patch0:        %{name}-3.4.4-build.patch
+Patch0:        %{name}-3.3.6-build.patch
 # https://issues.apache.org/jira/browse/ZOOKEEPER-1557
 Patch1:        https://issues.apache.org/jira/secure/attachment/12548109/ZOOKEEPER-1557.patch
+Patch2:        %{name}-3.3.6-ivy.patch
 BuildRequires: autoconf
 BuildRequires: automake
 BuildRequires: cppunit-devel
@@ -104,7 +106,8 @@ find -name "*.cmd" -delete
 find -name "*.so*" -delete
 find -name "*.dll" -delete
 
-#%patch0 -p1
+%patch0 -p1
+#%patch2 -p1
 #%patch1 -p0
 #%pom_remove_dep org.vafer:jdeb dist-maven/%{name}-%{version}.pom
 ## jdiff task deps
@@ -171,14 +174,15 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 install -d -m 755 %{buildroot}%{_datadir}/%{name}/bin
 install -d -m 755 %{buildroot}%{_sharedstatedir}/%{name}
 install -d -m 755 %{buildroot}%{_localstatedir}/log/%{name}
-install -d -m 755 %{buildroot}%{_localstatedir}/run/%{name}
+#install -d -m 755 %{buildroot}%{_localstatedir}/run/%{name}
 
 install -m 755 bin/zkCleanup.sh %{buildroot}%{_datadir}/%{name}/bin/zkCleanup.sh
 install -m 755 bin/zkCli.sh %{buildroot}%{_datadir}/%{name}/bin/zkCli.sh
 install -m 755 bin/zkEnv.sh %{buildroot}%{_datadir}/%{name}/bin/zkEnv.sh
 install -m 755 bin/zkServer.sh %{buildroot}%{_datadir}/%{name}/bin/zkServer.sh
-install -p -D -m 644 %{SOURCE1} %{buildroot}%{_sysconfdir}/init/zookeeper.conf
-install -p -D -m 644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/zookeeper
+install -p -D -m 644 %{SOURCE1} %{buildroot}%{_datadir}/%{name}/zookeeper.upstart
+install -p -D -m 644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/%{name}
+install -p -D -m 755 %{SOURCE3} %{buildroot}%{_initddir}/%{name}
 
 # configuration.xsl  log4j.properties  zoo_sample.cfg
 install -p -D -m 644 conf/configuration.xsl %{buildroot}%{_sysconfdir}/zookeeper/conf/configuration.xsl
@@ -216,13 +220,13 @@ useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/%{name} -s /sbin/nologin
 
 %files server
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/sysconfig/zookeeper
-%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/init/zookeeper.conf
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/configuration.xsl
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/log4j.properties
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/zoo.cfg
 %dir %attr(0755, zookeeper, root) %{_localstatedir}/log/%{name}
-%dir %attr(0755, zookeeper, root) %{_localstatedir}/run/%{name}
 %dir %attr(0755, zookeeper, root) %{_sharedstatedir}/%{name}
+%{_datadir}/%{name}/zookeeper.upstart
+%{_initddir}/%{name}
 
 
 %files lib

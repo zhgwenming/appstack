@@ -1,0 +1,23 @@
+diff -up ./build.xml.orig ./build.xml
+--- ./build.xml.orig	2013-01-17 14:21:55.687152319 +0800
++++ ./build.xml	2013-01-17 14:24:34.572163175 +0800
+@@ -100,7 +100,7 @@
+ 
+     <property name="ivy.version" value="2.1.0"/>
+     <property name="ivy.url"
+-              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
++              value="file:/usr/share/java" />
+     <property name="ivy.home" value="${user.home}/.ant" />
+     <property name="ivy.lib" value="${build.dir}/lib"/>
+     <property name="ivy.test.lib" value="${build.dir}/test/lib"/>
+@@ -288,8 +288,8 @@
+     <target name="ivy-download" unless="ivy.jar.exists" depends="init">
+       <delete dir="${lib.dir}"
+               includes="ivy-*.jar" excludes="ivy-${ivy.version}.jar"/>
+-      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
+-           dest="${lib.dir}/ivy-${ivy.version}.jar" usetimestamp="true"/>
++      <get src="${ivy.url}/ivy.jar"
++           dest="${lib.dir}/ivy.jar" usetimestamp="true"/>
+     </target>
+ 
+     <target name="ivy-taskdef" unless="ivy.initialized">
