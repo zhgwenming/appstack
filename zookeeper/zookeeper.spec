@@ -9,6 +9,9 @@ Source0:       http://www.apache.org/dist/zookeeper/%{name}-%{version}/%{name}-%
 Source1:       zookeeper.upstart
 Source2:       zookeeper.sysconfig
 Source3:       zookeeper.init
+Source4:       zoo.cfg
+Source5:       log4j.properties
+Source6:       myid
 # remove non free clover references
 # configure ivy to use system libraries
 # disable rat-lib and jdiff support
@@ -187,9 +190,15 @@ install -p -D -m 644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/%{name}
 install -p -D -m 755 %{SOURCE3} %{buildroot}%{_initddir}/%{name}
 
 # configuration.xsl  log4j.properties  zoo_sample.cfg
+install -p -D -m 644 conf/configuration.xsl %{buildroot}%{_defaultdocdir}/%{name}-%{version}/examples/conf/configuration.xsl
+install -p -D -m 644 conf/log4j.properties %{buildroot}%{_defaultdocdir}/%{name}-%{version}/examples/conf/log4j.properties
+install -p -D -m 644 conf/zoo_sample.cfg %{buildroot}%{_defaultdocdir}/%{name}-%{version}/examples/conf/zoo_sample.cfg
+
+install -p -D -m 644 %{SOURCE4} %{buildroot}%{_sysconfdir}/zookeeper/conf/zoo.cfg
+install -p -D -m 644 %{SOURCE5} %{buildroot}%{_sysconfdir}/zookeeper/conf/log4j.properties
+install -p -D -m 644 %{SOURCE6} %{buildroot}%{_sysconfdir}/zookeeper/conf/myid
 install -p -D -m 644 conf/configuration.xsl %{buildroot}%{_sysconfdir}/zookeeper/conf/configuration.xsl
-install -p -D -m 644 conf/log4j.properties %{buildroot}%{_sysconfdir}/zookeeper/conf/log4j.properties
-install -p -D -m 644 conf/zoo_sample.cfg %{buildroot}%{_sysconfdir}/zookeeper/conf/zoo.cfg
+ln -nsf /etc/zookeeper/conf/myid %{buildroot}%{_sharedstatedir}/%{name}/myid
 
 %check
 pushd src/c
@@ -225,8 +234,12 @@ useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/%{name} -s /sbin/nologin
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/configuration.xsl
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/log4j.properties
 %config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/zoo.cfg
+%config(noreplace) %attr(-, root, zookeeper) %{_sysconfdir}/zookeeper/conf/myid
+#%doc conf/configuration.xsl conf/log4j.properties conf/zoo_sample.cfg
+%doc conf/
 %dir %attr(0755, zookeeper, root) %{_localstatedir}/log/%{name}
 %dir %attr(0755, zookeeper, root) %{_sharedstatedir}/%{name}
+%{_sharedstatedir}/%{name}/myid
 %{_datadir}/%{name}/zookeeper.upstart
 %{_initddir}/%{name}
 
