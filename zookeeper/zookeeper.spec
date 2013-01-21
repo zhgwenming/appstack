@@ -1,6 +1,6 @@
 Name:          zookeeper
 Version:       3.3.6
-Release:       7%{?dist}
+Release:       8%{?dist}
 Summary:       A high-performance coordination service for distributed applications
 Group:         Development/Libraries
 License:       ASL 2.0
@@ -213,6 +213,10 @@ getent group zookeeper >/dev/null || groupadd -r --gid 201 zookeeper
 getent passwd zookeeper >/dev/null || \
 useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/%{name} -s /sbin/nologin \
 -c "Zookeeper server" zookeeper
+
+%preun server
+/sbin/service %{name} stop >/dev/null 2>&1
+/sbin/chkconfig --del %{name}
 
 %post lib -p /sbin/ldconfig
 %postun lib -p /sbin/ldconfig
