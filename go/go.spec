@@ -28,6 +28,8 @@ BuildRequires:  glibc-devel
 BuildRequires:  libgcc
 %endif
 
+Requires:       %{name}-src = %{version}-%{release}
+
 ExclusiveArch: %ix86 x86_64
 
 %description
@@ -40,6 +42,13 @@ to machine code yet has the convenience of garbage collection and the
 power of run-time reflection. It's a fast, statically typed, compiled
 language that feels like a dynamically typed, interpreted language.
 
+
+%package src
+Summary:        Go documentation
+Group:          Development/Languages
+
+%description src
+Go source code
 
 %package doc
 Summary:        Go documentation
@@ -137,14 +146,17 @@ cd src && GOARCH=%{goarch} ./make.bash
 %install
 # create dirs
 install -d -p -m 755 %{buildroot}%{_bindir}
-install -d -p -m 755 %{buildroot}%{_libdir}/go/
+install -d -p -m 755 %{buildroot}%{_datadir}/go
+install -d -p -m 755 %{buildroot}%{_libdir}/go
 install -d -p -m 755 %{buildroot}%{_libdir}/go/pkg
-install -d -p -m 755 %{buildroot}%{_libdir}/go/src
+ln -s ../../share/go/src %{buildroot}%{_libdir}/go/src
+ln -s ../../share/go/include %{buildroot}%{_libdir}/go/include
+#install -d -p -m 755 %{buildroot}%{_libdir}/go/src
 
 # install essential
 install -D -p -m 755   bin/*                               %{buildroot}%{_bindir}
 cp -pR                 pkg                                 %{buildroot}%{_libdir}/go
-install -D -p -m 664   src/Make.*                          %{buildroot}%{_libdir}/go/src
+#install -D -p -m 664   src/Make.*                          %{buildroot}%{_libdir}/go/src
 install -D -p -m 664   go.sh                               %{buildroot}%{_sysconfdir}/profile.d/go.sh
 
 # install extras
@@ -158,7 +170,9 @@ install -D -p -m 644   misc/vim/syntax/go.vim              %{buildroot}/%{_datad
 install -d -p -m 755   doc/examples
 mv                     misc/cgo                            doc/examples
 #chmod 644              doc/codelab/wiki/test.sh
-find src -name *.go -exec cp -p --parents {} doc/ \;
+#find src -name *.go -exec cp -p --parents {}  %{buildroot}%{_datadir}/go/src \;
+cp -a src  %{buildroot}%{_datadir}/go/
+cp -a include  %{buildroot}%{_datadir}/go/
 
 %files
 %defattr(-,root,root,-)
@@ -171,6 +185,10 @@ find src -name *.go -exec cp -p --parents {} doc/ \;
 %files doc
 %defattr(-,root,root,-)
 %doc doc/*
+
+%files src
+%defattr(-,root,root,-)
+%{_datadir}/go/*
 
 %files -n vim-go
 %defattr(-,root,root,-)
