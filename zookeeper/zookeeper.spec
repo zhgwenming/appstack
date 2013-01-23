@@ -61,20 +61,20 @@ BuildArch:     noarch
 Zookeeper Server.
 For general information about Zookeeper please see %{url}
 
-%package lib
+%package libs
 Summary:       Zookeeper C client library
 Group:         System Environment/Libraries
 
-%description lib
+%description libs
 This package provides a C client interface to Zookeeper server.
 For general information about Zookeeper please see %{url}
 
-%package lib-devel
+%package devel
 Summary:       Development files for the %{name} library
 Group:         Development/Libraries
 Requires:      %{name}-lib = %{version}-%{release}
 
-%description lib-devel
+%description devel
 Development files for the %{name} library.
 
 %package java
@@ -248,12 +248,12 @@ useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/%{name} -s /sbin/nologin
 %{_initddir}/%{name}
 
 
-%files lib
+%files libs
 %defattr(-,root,root,-)
 %{_libdir}/lib*.so.*
 %doc src/c/LICENSE
 
-%files lib-devel
+%files devel
 %defattr(-,root,root,-)
 %dir %{_includedir}/%{name}
 %{_includedir}/%{name}/*.h
@@ -271,6 +271,9 @@ useradd --uid 201 -r -g zookeeper -d %{_sharedstatedir}/%{name} -s /sbin/nologin
 %doc LICENSE.txt 
 
 %changelog
+
+* Wed Jan 23 2013 Albert Zhang <zhgwenming@gmail.com> 3.3.6
+- change the c lib package name to zookeeper-{libs-devel}
 
 * Fri Jan 14 2013 Albert Zhang <zhgwenming@gmail.com> 3.3.6
 - initial rpm, permission fixes
