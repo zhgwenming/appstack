@@ -59,23 +59,23 @@ Requires:       %{name} = %{version}-%{release}
 Go examples and documentation.
 
 
-%package -n     vim-go
+%package	vim
 Summary:        Go syntax files for vim
 Group:          Applications/Editors
 Requires:       vim-common%{?_isa}
 Requires:       %{name} = %{version}-%{release}
 
-%description -n vim-go
+%description	vim
 Go syntax for vim.
 
 
-%package -n     emacs-go
+%package	emacs
 Summary:        Go syntax files for emacs
 Group:          Applications/Editors
 Requires:       emacs-common%{?_isa}
 Requires:       %{name} = %{version}-%{release}
 
-%description -n emacs-go
+%description	emacs
 Go syntax for emacs.
 
 
@@ -190,13 +190,13 @@ cp -a include  %{buildroot}%{_datadir}/go/
 %defattr(-,root,root,-)
 %{_datadir}/go/*
 
-%files -n vim-go
+%files vim
 %defattr(-,root,root,-)
 %doc LICENSE
 %{_datadir}/vim/vimfiles/syntax/go.vim
 %{_datadir}/vim/vimfiles/ftdetect/gofiletype.vim
 
-%files -n emacs-go
+%files emacs
 %defattr(-,root,root,-)
 %doc LICENSE
 %{_datadir}/emacs/site-lisp/go-mode-load.el
