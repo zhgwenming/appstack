@@ -156,6 +156,10 @@ mkdir -p maven-aether-provider/src/main/java/org/apache/maven/artifact/resolver 
 cp %{SOURCE100} maven-aether-provider/src/main/java/org/apache/maven/artifact/resolver
 cp %{SOURCE101} maven-aether-provider/src/main/java/org/apache/maven/artifact/repository
 
+pushd apache-maven
+rm src/bin/*bat
+popd
+
 %if ! %{bootstrap}
 # by adding our things this has become compile dep
 sed -i 's:<scope>runtime</scope>::' maven-core/pom.xml
@@ -168,8 +172,6 @@ sed -i 's:\r::' *.txt
 
 # fix for animal-sniffer (we don't generate 1.5 signatures)
 sed -i 's:check-java-1.5-compat:check-java-1.6-compat:' pom.xml
-
-%endif
 
 pushd apache-maven
 rm src/bin/*bat
@@ -189,6 +191,8 @@ popd
 
 %pom_add_dep aopalliance:aopalliance:any:test maven-model-builder
 %pom_add_dep cglib:cglib:any:test maven-model-builder
+
+%endif
 
 %build
 
