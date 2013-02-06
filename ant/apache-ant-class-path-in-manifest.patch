@@ -1,0 +1,13 @@
+--- build.xml.orig	2012-02-29 13:29:12.000000000 +0200
++++ build.xml	2012-02-29 13:31:36.787937053 +0200
+@@ -728,10 +728,6 @@
+         <include name="LICENSE.txt"/>
+         <include name="NOTICE.txt"/>
+       </metainf>
+-      <manifest>
+-        <attribute name="Class-Path"
+-          value="ant.jar xalan.jar"/>
+-      </manifest>
+     </jar>
+ 
+     <macrodef name="optional-jar">

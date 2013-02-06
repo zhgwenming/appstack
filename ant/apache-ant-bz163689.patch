@@ -1,0 +1,100 @@
+--- apache-ant-1.7.1/src/main/org/apache/tools/ant/taskdefs/optional/TraXLiaison.java.orig	2008-06-27 01:05:16.000000000 -0400
++++ apache-ant-1.7.1/src/main/org/apache/tools/ant/taskdefs/optional/TraXLiaison.java	2008-07-10 16:41:47.456449617 -0400
+@@ -166,44 +166,12 @@
+      * @throws Exception on error
+      */
+     public void transform(File infile, File outfile) throws Exception {
+-        if (transformer == null) {
+-            createTransformer();
+-        }
+-
+-        InputStream fis = null;
+-        OutputStream fos = null;
+-        try {
+-            fis = new BufferedInputStream(new FileInputStream(infile));
+-            fos = new BufferedOutputStream(new FileOutputStream(outfile));
+-            StreamResult res = new StreamResult(fos);
+-            // not sure what could be the need of this...
+-            res.setSystemId(JAXPUtils.getSystemId(outfile));
+-            Source src = getSource(fis, infile);
+-
+-            // set parameters on each transformation, maybe something has changed
+-            //(e.g. value of file name parameter)
+-            setTransformationParameters();
+-
+-            transformer.transform(src, res);
+-        } finally {
+-            // make sure to close all handles, otherwise the garbage
+-            // collector will close them...whenever possible and
+-            // Windows may complain about not being able to delete files.
+-            try {
+-                if (fis != null) {
+-                    fis.close();
+-                }
+-            } catch (IOException ignored) {
+-                // ignore
+-            }
+-            try {
+-                if (fos != null) {
+-                    fos.close();
+-                }
+-            } catch (IOException ignored) {
+-                // ignore
+-            }
+-        }
++         if (logger != null) {
++             logger.log("The style task is disabled on this platform");
++             logger.log(
++                 "http://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=163689");
++         }
++         new FileOutputStream(outfile).close();
+     }
+ 
+     /**
+--- apache-ant-1.7.1/src/main/org/apache/tools/ant/taskdefs/optional/XMLValidateTask.java.orig	2008-06-27 01:05:22.000000000 -0400
++++ apache-ant-1.7.1/src/main/org/apache/tools/ant/taskdefs/optional/XMLValidateTask.java	2008-07-10 16:42:09.270573847 -0400
+@@ -285,42 +285,8 @@
+      * @throws BuildException if <code>failonerror</code> is true and an error happens
+      */
+     public void execute() throws BuildException {
+-
+-        int fileProcessed = 0;
+-        if (file == null && (filesets.size() == 0)) {
+-            throw new BuildException(
+-                "Specify at least one source - " + "a file or a fileset.");
+-        }
+-
+-
+-
+-        if (file != null) {
+-            if (file.exists() && file.canRead() && file.isFile()) {
+-                doValidate(file);
+-                fileProcessed++;
+-            } else {
+-                String errorMsg = "File " + file + " cannot be read";
+-                if (failOnError) {
+-                    throw new BuildException(errorMsg);
+-                } else {
+-                    log(errorMsg, Project.MSG_ERR);
+-                }
+-            }
+-        }
+-
+-        for (int i = 0; i < filesets.size(); i++) {
+-
+-            FileSet fs = (FileSet) filesets.elementAt(i);
+-            DirectoryScanner ds = fs.getDirectoryScanner(getProject());
+-            String[] files = ds.getIncludedFiles();
+-
+-            for (int j = 0; j < files.length; j++) {
+-                File srcFile = new File(fs.getDir(getProject()), files[j]);
+-                doValidate(srcFile);
+-                fileProcessed++;
+-            }
+-        }
+-        onSuccessfulValidation(fileProcessed);
++         log("The xmlvalidate task is disabled on this platform");
++         log("http://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=163689");
+     }
+ 
+     /**
