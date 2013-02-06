@@ -1,0 +1,28 @@
+From d0dbdcde31414336340a5089fecf4f93cb5125ad Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Tue, 12 Oct 2010 16:56:50 +0200
+Subject: [PATCH 1/6] Add plugin-api deps
+
+---
+ maven-plugin-api/pom.xml |    5 +++++
+ 1 files changed, 5 insertions(+), 0 deletions(-)
+
+diff --git a/maven-plugin-api/pom.xml b/maven-plugin-api/pom.xml
+index abc2065..efea352 100644
+--- a/maven-plugin-api/pom.xml
++++ b/maven-plugin-api/pom.xml
+@@ -52,6 +52,11 @@ under the License.
+       <groupId>org.sonatype.sisu</groupId>
+       <artifactId>sisu-inject-plexus</artifactId>
+     </dependency>
++    <dependency>
++      <groupId>org.codehaus.plexus</groupId>
++      <artifactId>plexus-container-default</artifactId>
++      <version>1.0.0</version>
++    </dependency>
+   </dependencies>
+ 
+   <build>
+-- 
+1.7.7.6
+

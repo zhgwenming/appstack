@@ -1,0 +1,47 @@
+#!/bin/sh
+if [ -f /usr/share/java-utils/java-functions ] ; then
+  . /usr/share/java-utils/java-functions
+  set_jvm
+  set_javacmd
+fi
+
+function help()
+{
+    echo "mvn-local [options] [<goal(s)>] [<phase(s)>]"
+    echo
+    echo "mvn-local is custom Fedora maven used for building maven projects"
+    echo "using mix of jar files provided by system and remote maven repositories."
+    echo "You can modify its behaviour using several environment variables:"
+    echo
+    echo "-Dmaven.repo.local [default:$(pwd)/.m2] - custom location of maven repository"
+    echo "-Dmaven.local.depmap.file - file containing custom dependency mapping between"
+    echo "                            groupId:artifactId and jar file. File format see:"
+    echo "                            http://fedoraproject.org/wiki/Java/JPPMavenReadme"
+    echo "-Dmaven.local.debug - if set maven will print additional resolving information"
+    echo "                      that can be useful for debugging resolver problems"
+}
+
+function process_args()
+{
+while [ $# != 0 ]; do
+        flag="$1"
+        case "$flag" in
+             -h|--help)
+                help
+                ;;
+        esac
+        shift
+done
+}
+
+process_args "$@"
+
+export M2_HOME=/usr/share/maven
+echo $JAVA_HOME
+export JAVA_HOME
+# can't put it on command line due to
+# http://jira.codehaus.org/browse/SUREFIRE-121
+export MAVEN_OPTS="$MAVEN_OPTS -Dmaven.local.mode ${local_add}"
+echo "Running mvn in local mode. Please report bugs to http://bugzilla.redhat.com"
+
+$M2_HOME/bin/mvn "$@"

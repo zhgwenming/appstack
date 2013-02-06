@@ -1,0 +1,33 @@
+From 62e01ae45ea1da847e4cabdcbd64950654f9d4a5 Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Thu, 9 Feb 2012 11:11:26 +0100
+Subject: [PATCH 6/6] Make compiler plugin default to source 1.5
+
+This will help with modello problems and is generally better probably
+---
+ pom.xml |    9 +++++++++
+ 1 files changed, 9 insertions(+), 0 deletions(-)
+
+diff --git a/pom.xml b/pom.xml
+index c55f33c..fd27b03 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -393,6 +393,15 @@
+     <pluginManagement>
+       <plugins>
+         <plugin>
++          <groupId>org.apache.maven.plugins</groupId>
++          <artifactId>maven-compiler-plugin</artifactId>
++          <version>2.1</version>
++          <configuration>
++            <source>1.5</source>
++            <target>1.5</target>
++          </configuration>
++        </plugin>
++        <plugin>
+           <groupId>org.codehaus.plexus</groupId>
+           <artifactId>plexus-component-metadata</artifactId>
+           <version>${plexusVersion}</version>
+-- 
+1.7.7.6
+

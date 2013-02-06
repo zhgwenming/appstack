@@ -1,0 +1,24 @@
+From b38e59d0512fed8f376fcbdea71204b04cdee1cb Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Mon, 22 Aug 2011 15:59:53 +0200
+Subject: [PATCH 3/6] Use utf-8 source encoding
+
+---
+ pom.xml |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/pom.xml b/pom.xml
+index 3aacefc..8cba9cc 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -65,6 +65,7 @@
+     <siteDeployUrl>scp://people.apache.org/www/maven.apache.org/ref/${project.version}/</siteDeployUrl>
+     <siteUrl>http://maven.apache.org/ref/${project.version}/</siteUrl>
+ 
++    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+   </properties>
+ 
+   <mailingLists>
+-- 
+1.7.7.6
+

@@ -1,0 +1,160 @@
+From ed8122f5538d9000cd8a8579be8a107249e7b022 Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Tue, 30 Aug 2011 11:44:42 +0200
+Subject: [PATCH 4/6] Fix text scope skipping with maven.test.skip
+
+Previously maven put test dependencies into dependency graph even when
+"maven.test.skip" was true, therefore. This patch fixes that with few
+caveats:
+
+maven-compat was changed so plugins using old api work like this as
+well. We removed test deps from "artifacts" Set in
+DefaultArtifactResolver if maven.test.skip system property is found.
+
+We created new DependencySelector. Currently it's in wrong place and
+possibly has other problems (never going to get upstreamed like
+this). But as a hack this works OK.
+
+Main problem: Is using "maven.test.skip" string literally OK? Also,
+literally referencing "test" scope is probably not 100% clean.
+---
+ .../artifact/resolver/DefaultArtifactResolver.java | 18 ++++++
+ .../main/java/org/apache/maven/DefaultMaven.java   |  6 +-
+ .../maven/SkipTestScopeDependencySelector.java     | 72 ++++++++++++++++++++++
+ 3 files changed, 95 insertions(+), 1 deletion(-)
+ create mode 100644 maven-core/src/main/java/org/apache/maven/SkipTestScopeDependencySelector.java
+
+diff --git a/maven-compat/src/main/java/org/apache/maven/artifact/resolver/DefaultArtifactResolver.java b/maven-compat/src/main/java/org/apache/maven/artifact/resolver/DefaultArtifactResolver.java
+index 9c8364d..761ff92 100644
+--- a/maven-compat/src/main/java/org/apache/maven/artifact/resolver/DefaultArtifactResolver.java
++++ b/maven-compat/src/main/java/org/apache/maven/artifact/resolver/DefaultArtifactResolver.java
+@@ -460,6 +460,24 @@ public class DefaultArtifactResolver
+             return result;
+         } 
+ 
++        // When we find maven.test.skip property we remove dependencies
++        // with scope "test" from artifact set. Current implementation
++        // of artifacts doesn't implement "remove" method so create a
++        // new object and copy non-test artifacts there
++        if (System.getProperty("maven.local.mode") != null &&
++                System.getProperty("maven.test.skip") != null) {
++            Set<Artifact> newArtifacts = new LinkedHashSet<Artifact>();
++            for (Artifact artifact: artifacts)
++            {
++                String scope = artifact.getScope();
++                if (scope == null  || !scope.equals("test"))
++                {
++                    newArtifacts.add(artifact);
++                }
++            }
++            artifacts = newArtifacts;
++        }
++
+         // After the collection we will have the artifact object in the result but they will not be resolved yet.
+         result =
+             artifactCollector.collect( artifacts, rootArtifact, managedVersions, collectionRequest, source,
+diff --git a/maven-core/src/main/java/org/apache/maven/DefaultMaven.java b/maven-core/src/main/java/org/apache/maven/DefaultMaven.java
+index 7bff4a0..71bbd29 100644
+--- a/maven-core/src/main/java/org/apache/maven/DefaultMaven.java
++++ b/maven-core/src/main/java/org/apache/maven/DefaultMaven.java
+@@ -31,6 +31,7 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.Properties;
+ 
++import org.apache.maven.SkipTestScopeDependencySelector;
+ import org.apache.maven.artifact.ArtifactUtils;
+ import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager;
+ import org.apache.maven.eventspy.internal.EventSpyDispatcher;
+@@ -449,7 +450,10 @@ public class DefaultMaven
+ 
+         DependencySelector depFilter =
+             new AndDependencySelector( new ScopeDependencySelector( "test", "provided" ), new OptionalDependencySelector(),
+-                                     new ExclusionDependencySelector() );
++                                     new ExclusionDependencySelector());
++        if ( System.getProperty("maven.local.mode") != null) {
++            depFilter = new AndDependencySelector(depFilter, new SkipTestScopeDependencySelector() );
++        }
+         session.setDependencySelector( depFilter );
+ 
+         DependencyGraphTransformer transformer =
+diff --git a/maven-core/src/main/java/org/apache/maven/SkipTestScopeDependencySelector.java b/maven-core/src/main/java/org/apache/maven/SkipTestScopeDependencySelector.java
+new file mode 100644
+index 0000000..60be724
+--- /dev/null
++++ b/maven-core/src/main/java/org/apache/maven/SkipTestScopeDependencySelector.java
+@@ -0,0 +1,72 @@
++package org.apache.maven;
++
++
++import java.util.Arrays;
++import java.util.Collection;
++import java.util.Collections;
++import java.util.HashSet;
++
++import org.sonatype.aether.collection.DependencyCollectionContext;
++import org.sonatype.aether.collection.DependencySelector;
++import org.sonatype.aether.graph.Dependency;
++import org.sonatype.aether.RepositorySystemSession;
++
++/**
++ * A dependency selector that filters dependencies with scope "test"
++ * when tests are being skipped.
++ *
++ * @author Stanislav Ochotnicky
++ */
++public class SkipTestScopeDependencySelector
++    implements DependencySelector
++{
++
++    private boolean testSkip;
++
++    /**
++     * Creates a new selector
++     */
++    public SkipTestScopeDependencySelector()
++    {
++        testSkip = System.getProperty("maven.test.skip") !=  null ? true : false;
++    }
++
++    public boolean selectDependency( Dependency dependency )
++    {
++        if (testSkip && dependency.getScope().equals("test"))
++        {
++            return false;
++        }
++        else
++        {
++            return true;
++        }
++    }
++
++    public DependencySelector deriveChildSelector( DependencyCollectionContext context )
++    {
++        return this;
++    }
++
++    @Override
++    public boolean equals( Object obj )
++    {
++        if ( this == obj )
++        {
++            return true;
++        }
++        else if ( null == obj || !getClass().equals( obj.getClass() ) )
++        {
++            return false;
++        }
++
++        return true;
++    }
++
++    @Override
++    public int hashCode()
++    {
++        return 42;
++    }
++
++}
+-- 
+1.7.11.7
+
