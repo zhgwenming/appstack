@@ -148,7 +148,7 @@ BuildArch:      noarch
 %setup -q -n apache-%{name}-%{version}%{?ver_add}
 #%patch150 -p1
 #%patch151 -p1
-#%patch200 -p1
+%patch200 -p1
 #%patch201 -p1
 #%patch100 -p1
 #%patch101 -p1
