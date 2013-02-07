@@ -1,0 +1,12 @@
+diff -up ./apache-maven/src/bin/mvn.orig ./apache-maven/src/bin/mvn
+--- ./apache-maven/src/bin/mvn.orig	2013-02-07 11:58:35.656154657 +0800
++++ ./apache-maven/src/bin/mvn	2013-02-07 11:58:54.215223965 +0800
+@@ -166,7 +166,7 @@ fi
+ 
+ exec "$JAVACMD" \
+   $MAVEN_OPTS \
+-  -classpath "${M2_HOME}"/boot/plexus-classworlds-*.jar \
++  -classpath "${M2_HOME}"/boot/plexus-classworlds*.jar \
+   "-Dclassworlds.conf=${M2_HOME}/bin/m2.conf" \
+   "-Dmaven.home=${M2_HOME}"  \
+   ${CLASSWORLDS_LAUNCHER} "$@"

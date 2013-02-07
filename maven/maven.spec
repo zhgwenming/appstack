@@ -43,10 +43,12 @@ Patch151:         0003-Use-utf-8-source-encoding.patch
 Patch200:       0002-Use-custom-resolver.patch
 Patch201:       0004-Fix-text-scope-skipping-with-maven.test.skip.patch
 
+Patch901:       1001-plexus-classworlds-loadpatch-fix.patch
+
 BuildArch:      noarch
 
 %if %{bootstrap}
-BuildRequires: ant
+BuildRequires: ant >= 1.8
 %else
 BuildRequires:  aether >= 1.13.1
 BuildRequires:  aopalliance
@@ -113,6 +115,8 @@ Requires:       xerces-j2
 Requires:       yum-utils
 %endif
 
+Requires:	xml-commons-apis
+
 %if 0%{?fedora}
 Requires:       animal-sniffer >= 1.6-5
 %endif
@@ -148,6 +152,7 @@ BuildArch:      noarch
 #%patch201 -p1
 #%patch100 -p1
 #%patch101 -p1
+%patch901 -p1
 
 # get custom resolver in place
 mkdir -p maven-aether-provider/src/main/java/org/apache/maven/artifact/resolver \
@@ -207,8 +212,8 @@ mvn-rpmbuild -e install javadoc:aggregate
 
 #mkdir m2home
 (cd m2home
-tar --delay-directory-restore -xvf ../apache-maven/target/*tar.gz
-chmod -R +rwX apache-%{name}-%{version}%{?ver_add}
+#tar --delay-directory-restore -xvf ../apache-maven/target/*tar.gz
+#chmod -R +rwX apache-%{name}-%{version}%{?ver_add}
 chmod -x apache-%{name}-%{version}%{?ver_add}/conf/settings.xml
 )
 
@@ -265,20 +270,22 @@ cp -a $M2_HOME/conf/* $RPM_BUILD_ROOT%{_datadir}/%{name}/conf/
 ###############
 install -dm 755 $RPM_BUILD_ROOT%{_datadir}/%{name}/lib
 
+cp -a $M2_HOME/lib/* $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/
+
 # jdom is needed for our custom resolving code only
 (cd $RPM_BUILD_ROOT%{_datadir}/%{name}/lib
 
-  build-jar-repository -s -p . aether/api aether/connector-wagon aether/impl aether/spi aether/util \
-                               commons-cli guava google-guice nekohtml plexus/plexus-cipher \
-                               plexus/containers-component-annotations  \
-                               plexus/interpolation plexus/plexus-sec-dispatcher plexus/utils \
-                               sisu/sisu-inject-bean sisu/sisu-inject-plexus maven-wagon/file \
-                               maven-wagon/http-lightweight maven-wagon/http-shared maven-wagon/provider-api \
-                               xbean/xbean-reflect xerces-j2 atinject aopalliance cglib \
-                               slf4j/api slf4j/nop objectweb-asm
+#  build-jar-repository -s -p . aether/api aether/connector-wagon aether/impl aether/spi aether/util \
+#                               commons-cli guava google-guice nekohtml plexus/plexus-cipher \
+#                               plexus/containers-component-annotations  \
+#                               plexus/interpolation plexus/plexus-sec-dispatcher plexus/utils \
+#                               sisu/sisu-inject-bean sisu/sisu-inject-plexus maven-wagon/file \
+#                               maven-wagon/http-lightweight maven-wagon/http-shared maven-wagon/provider-api \
+#                               xbean/xbean-reflect xerces-j2 atinject aopalliance cglib \
+#                               slf4j/api slf4j/nop objectweb-asm
   # dependency of our resolver
-  mkdir ext/
-  build-jar-repository -s -p ext/ xml-commons-apis
+  #mkdir ext/
+  #build-jar-repository -s -p ext/ xml-commons-apis
 )
 
 ################
