@@ -146,12 +146,15 @@ BuildArch:      noarch
 
 %prep
 %setup -q -n apache-%{name}-%{version}%{?ver_add}
+# Causing "Component descriptor cannot be found in the component repository"
 #%patch150 -p1
-#%patch151 -p1
+
+%patch151 -p1
+
 %patch200 -p1
-#%patch201 -p1
-#%patch100 -p1
-#%patch101 -p1
+%patch201 -p1
+%patch100 -p1
+%patch101 -p1
 %patch901 -p1
 
 # get custom resolver in place
@@ -352,8 +355,8 @@ for module in maven-aether-provider maven-artifact maven-compat \
               maven-settings-builder;do
 
     pushd $module
-    install -m 644 target/$module-%{version}%{?ver_add}.jar $RPM_BUILD_ROOT%{_javadir}/%{name}/$module.jar
-    ln -s %{_javadir}/%{name}/$module.jar $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/$module.jar
+    install -m 644 target/$module-%{version}%{?ver_add}.jar $RPM_BUILD_ROOT%{_javadir}/%{name}/$module-%{version}.jar
+    ln -nsf %{_javadir}/%{name}/$module-%{version}.jar $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/$module-%{version}.jar
     install -m 644 pom.xml $RPM_BUILD_ROOT%{_datadir}/%{name}/poms/JPP.%{name}-$module.pom
     %add_to_maven_depmap org.apache.maven $module %{version} JPP/%{name} $module
     popd
