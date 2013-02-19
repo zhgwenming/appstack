@@ -1,0 +1,43 @@
+From 75c19c93fe901004940bd1715861267a8387e9c0 Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Fri, 24 Jun 2011 13:31:27 +0200
+Subject: [PATCH] Add plexus classworlds to pom
+
+---
+ maven-artifact-manager/pom.xml  |    4 ++++
+ maven-plugin-descriptor/pom.xml |    4 ++++
+ 2 files changed, 8 insertions(+), 0 deletions(-)
+
+diff --git a/maven-artifact-manager/pom.xml b/maven-artifact-manager/pom.xml
+index 81ab2d2..270470a 100644
+--- a/maven-artifact-manager/pom.xml
++++ b/maven-artifact-manager/pom.xml
+@@ -31,6 +31,10 @@ under the License.
+ 
+   <dependencies>
+     <dependency>
++      <groupId>org.codehaus.plexus</groupId>
++      <artifactId>plexus-classworlds</artifactId>
++    </dependency>
++    <dependency>
+       <groupId>org.apache.maven</groupId>
+       <artifactId>maven-repository-metadata</artifactId>
+     </dependency>
+diff --git a/maven-plugin-descriptor/pom.xml b/maven-plugin-descriptor/pom.xml
+index 4dbbaea..2645277 100644
+--- a/maven-plugin-descriptor/pom.xml
++++ b/maven-plugin-descriptor/pom.xml
+@@ -31,6 +31,10 @@ under the License.
+ 
+   <dependencies>
+     <dependency>
++      <groupId>org.codehaus.plexus</groupId>
++      <artifactId>plexus-classworlds</artifactId>
++    </dependency>
++    <dependency>
+       <groupId>org.apache.maven</groupId>
+       <artifactId>maven-plugin-api</artifactId>
+     </dependency>
+-- 
+1.7.5.4
+

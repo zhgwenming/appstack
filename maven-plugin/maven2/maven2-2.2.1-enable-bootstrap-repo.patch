@@ -1,0 +1,38 @@
+diff -up ./maven-project/src/main/resources/org/apache/maven/project/pom-4.0.0.xml.enable-bootstrap-repo ./maven-project/src/main/resources/org/apache/maven/project/pom-4.0.0.xml
+--- ./maven-project/src/main/resources/org/apache/maven/project/pom-4.0.0.xml.enable-bootstrap-repo	2009-08-07 03:11:38.000000000 +0800
++++ ./maven-project/src/main/resources/org/apache/maven/project/pom-4.0.0.xml	2013-02-19 16:30:46.000288089 +0800
+@@ -32,6 +32,15 @@ under the License.
+         <enabled>false</enabled>
+       </snapshots>
+     </repository>
++    <repository>
++      <id>__bootstrap_jpp_repo__</id>
++      <name>Maven Bootstrap Repository</name>
++      <layout>default</layout>
++      <url>file:///usr/share/maven2/bootstrap_repo</url>
++      <snapshots>
++        <enabled>true</enabled>
++      </snapshots>
++    </repository>
+   </repositories>
+ 
+   <pluginRepositories>
+@@ -47,6 +56,18 @@ under the License.
+         <updatePolicy>never</updatePolicy>
+       </releases>
+     </pluginRepository>
++    <pluginRepository>
++      <id>__bootstrap_jpp_repo__</id>
++      <name>Maven Bootstrap Repository</name>
++      <layout>default</layout>
++      <url>file:///usr/share/maven2/bootstrap_repo</url>
++      <snapshots>
++        <enabled>true</enabled>
++      </snapshots>
++      <releases>
++        <updatePolicy>never</updatePolicy>
++      </releases>
++    </pluginRepository>
+   </pluginRepositories>
+ 
+   <build>

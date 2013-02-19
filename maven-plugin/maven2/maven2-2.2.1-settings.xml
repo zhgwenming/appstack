@@ -1,0 +1,56 @@
+<settings>
+    <localRepository>__M2_LOCALREPO_PLACEHOLDER__</localRepository>
+    <mirrors>
+        <mirror>
+            <id>RPMCentralRepoMirror</id>
+            <name>RPM Central Repo Mirror</name>
+            <url>__M2_REMOTEREPO_PLACEHOLDER__</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
+    </mirrors>
+
+    <profiles>
+        <profile>
+            <id>build</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>RPMBuildRepo</id>
+                    <name>Repo used during rpmbuild</name>
+                    <releases>
+                        <enabled>true</enabled>
+                        <updatePolicy>never</updatePolicy>
+                        <checksumPolicy>warn</checksumPolicy>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                        <updatePolicy>never</updatePolicy>
+                        <checksumPolicy>warn</checksumPolicy>
+                    </snapshots>
+                    <url>__M2_REMOTEREPO_PLACEHOLDER__</url>
+                    <layout>default</layout>
+                </repository>
+            </repositories>
+            <pluginRepositories>
+                <pluginRepository>
+                    <id>RPMPluginBuildRepo</id>
+                    <name>Plugin repo used during rpmbuild</name>
+                    <releases>
+                        <enabled>true</enabled>
+                        <updatePolicy>never</updatePolicy>
+                        <checksumPolicy>warn</checksumPolicy>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                        <updatePolicy>never</updatePolicy>
+                        <checksumPolicy>warn</checksumPolicy>
+                    </snapshots>
+                    <url>__M2_REMOTEREPO_PLACEHOLDER__</url>
+                    <layout>default</layout>
+                </pluginRepository>
+            </pluginRepositories>
+        </profile>
+    </profiles>
+</settings>
