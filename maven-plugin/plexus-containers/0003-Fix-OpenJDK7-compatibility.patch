@@ -1,0 +1,16 @@
+diff --git a/plexus-component-javadoc/pom.xml b/plexus-component-javadoc/pom.xml
+index 8030819..bc780f3 100644
+--- a/plexus-component-javadoc/pom.xml
++++ b/plexus-component-javadoc/pom.xml
+@@ -21,10 +21,7 @@
+     <profile>
+       <id>default-tools.jar</id>
+       <activation>
+-        <property>
+-          <name>java.vendor</name>
+-          <value>Sun Microsystems Inc.</value>
+-        </property>
++        <activeByDefault>true</activeByDefault>
+       </activation>
+       <dependencies>
+         <dependency>

@@ -1,0 +1,27 @@
+From 5a2e4822c0e7bf27f86818e6e5e613dad8c556fa Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Tue, 28 Jun 2011 12:59:45 +0200
+Subject: [PATCH 2/2] Fix maven3 compatibility
+
+---
+ plexus-component-metadata/pom.xml |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/plexus-component-metadata/pom.xml b/plexus-component-metadata/pom.xml
+index adfb80c..c23af73 100644
+--- a/plexus-component-metadata/pom.xml
++++ b/plexus-component-metadata/pom.xml
+@@ -38,6 +38,10 @@
+     </dependency>
+     <dependency>
+       <groupId>org.apache.maven</groupId>
++      <artifactId>maven-core</artifactId>
++    </dependency>
++    <dependency>
++      <groupId>org.apache.maven</groupId>
+       <artifactId>maven-plugin-api</artifactId>
+     </dependency>
+     <dependency>
+-- 
+1.7.5.4
+
