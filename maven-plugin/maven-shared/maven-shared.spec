@@ -70,7 +70,6 @@ Source1:        %{name}-jpp-depmap.xml
 
 BuildRequires:  ant
 BuildRequires:  aqute-bnd
-BuildRequires:  dom4j
 BuildRequires:  easymock2
 BuildRequires:  jpackage-utils >= 0:1.7.2
 BuildRequires:  junit
@@ -105,13 +104,10 @@ BuildRequires:  plexus-component-api
 BuildRequires:  plexus-containers-component-metadata
 BuildRequires:  plexus-digest
 BuildRequires:  plexus-utils
-BuildRequires:  saxon
-BuildRequires:  saxon-scripts
 
 
 Requires:       ant
 Requires:       aqute-bnd
-Requires:       dom4j
 Requires:       jpackage-utils
 Requires:       maven
 Requires:       maven-wagon
@@ -119,8 +115,6 @@ Requires:       objectweb-asm
 Requires:       plexus-digest
 Requires:       plexus-utils
 Requires:       plexus-utils
-Requires:       saxon
-Requires:       saxon-scripts
 
 BuildArch:      noarch
 
