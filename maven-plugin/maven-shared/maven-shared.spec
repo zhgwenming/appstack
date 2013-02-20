@@ -76,9 +76,9 @@ BuildRequires:  junit
 BuildRequires:  maven
 BuildRequires:  maven-artifact-manager
 BuildRequires:  maven-compiler-plugin
-BuildRequires:  maven-doxia
-BuildRequires:  maven-doxia-sitetools
-BuildRequires:  maven-doxia-tools
+#BuildRequires:  maven-doxia
+#BuildRequires:  maven-doxia-sitetools
+#BuildRequires:  maven-doxia-tools
 BuildRequires:  maven-install-plugin
 BuildRequires:  maven-jar-plugin
 BuildRequires:  maven-javadoc-plugin
@@ -193,12 +193,11 @@ Summary:        Maven Reporting Implementation
 Group:          Development/Libraries
 Version:        %{reporting_impl_version}
 Requires:  %{name} = 0:%{shared_components_version}-%{release}
-Requires:  apache-commons-validator
 Requires:  jakarta-oro
 Requires:  maven
 Requires:  maven-project
-Requires:  maven-doxia
-Requires:  apache-commons-validator
+#Requires:  maven-doxia
+#Requires:  apache-commons-validator
 Requires:  plexus-utils
 
 %description reporting-impl
@@ -209,7 +208,8 @@ Summary:        Maven Repository Builder
 Group:          Development/Libraries
 Version:        %{repository_builder_version}
 Requires:  %{name} = 0:%{shared_components_version}-%{release}
-Requires:  %{name}-common-artifact-filters >= 0:%{common_artifact_filters_version}-%{release}
+#Requires:  %{name}-common-artifact-filters >= 0:%{common_artifact_filters_version}-%{release}
+#Requires:  %{name}-common-artifact-filters
 Requires:  maven
 Requires:  maven-artifact-manager
 Requires:  maven-project
@@ -239,7 +239,7 @@ Requires:  %{name} = 0:%{shared_components_version}-%{release}
 Requires:  maven
 Requires:  plexus-digest
 Requires:  bcel
-Requires:  apache-commons-collections
+#Requires:  apache-commons-collections
 
 %description jar
 Utilities that help identify the contents of a JAR,
@@ -287,7 +287,7 @@ Version:        %{reporting_api_version}
 Requires:  %{name} = 0:%{shared_components_version}-%{release}
 Requires:  ant
 Requires:  maven
-Requires:  maven-doxia
+#Requires:  maven-doxia
 
 %description reporting-api
 Maven Reporting API.
