@@ -1,0 +1,29 @@
+<dependencies>
+  <dependency>
+    <maven>
+      <groupId>junit-addons</groupId>
+      <artifactId>junit-addons</artifactId>
+      <version>1.4</version>
+    </maven>
+  </dependency>
+  <dependency>
+    <maven>
+      <groupId>jmock</groupId>
+      <artifactId>jmock</artifactId>
+      <version>1.1.0</version>
+    </maven>
+  </dependency>
+  <dependency>
+    <maven>
+      <groupId>org.apache.maven.reporting</groupId>
+      <artifactId>maven-reporting-api</artifactId>
+      <version>2.0</version>
+    </maven>
+    <jpp>
+      <groupId>JPP/maven-shared</groupId>
+      <artifactId>reporting-api</artifactId>
+      <version>2.0.8</version>
+    </jpp>
+  </dependency>
+
+</dependencies>
