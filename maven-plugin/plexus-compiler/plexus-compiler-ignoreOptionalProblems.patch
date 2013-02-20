@@ -1,0 +1,18 @@
+diff --git a/plexus-compilers/plexus-compiler-eclipse/src/main/java/org/codehaus/plexus/compiler/eclipse/EclipseJavaCompiler.java b/plexus-compilers/plexus-compiler-eclipse/src/main/java/org/codehaus/plexus/compiler/eclipse/EclipseJavaCompiler.java
+index 49d890d..b6952b9 100644
+--- a/plexus-compilers/plexus-compiler-eclipse/src/main/java/org/codehaus/plexus/compiler/eclipse/EclipseJavaCompiler.java
++++ b/plexus-compilers/plexus-compiler-eclipse/src/main/java/org/codehaus/plexus/compiler/eclipse/EclipseJavaCompiler.java
+@@ -404,6 +404,13 @@ public class EclipseJavaCompiler
+ 
+             return result;
+         }
++
++        // added in recent JDT versions
++        public boolean ignoreOptionalProblems() 
++        {
++            return false;
++        }
++
+     }
+ 
+     private class EclipseCompilerINameEnvironment
