@@ -1,0 +1,98 @@
+From a2052adcf52445e2c3a14fbb0b8fa28bbe763ee8 Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Thu, 26 Jan 2012 12:19:05 +0100
+Subject: [PATCH 2/2] Port to jetty 8.x
+
+---
+ pom.xml                                            |   30 ++++++++++++++-----
+ .../org/apache/maven/plugins/site/SiteRunMojo.java |   20 ++++++------
+ 2 files changed, 32 insertions(+), 18 deletions(-)
+
+diff --git a/pom.xml b/pom.xml
+index 8052e1c..5de9f4a 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -388,20 +388,34 @@ under the License.
+     </dependency>
+ 
+     <dependency>
+-      <groupId>org.mortbay.jetty</groupId>
+-      <artifactId>jetty</artifactId>
+-      <version>6.1.25</version>
+-    </dependency>
++      <groupId>org.eclipse.jetty</groupId>
++      <artifactId>jetty-server</artifactId>
++      <version>8.1.0.RC4</version>
++  </dependency>
++
++    <dependency>
++      <groupId>org.eclipse.jetty</groupId>
++      <artifactId>jetty-webapp</artifactId>
++      <version>8.1.0.RC4</version>
++  </dependency>
++
+     <dependency>
+-      <groupId>org.mortbay.jetty</groupId>
++      <groupId>org.eclipse.jetty</groupId>
+       <artifactId>jetty-util</artifactId>
+-      <version>6.1.25</version>
++      <version>8.1.0.RC4</version>
++    </dependency>
++
++    <dependency>
++      <groupId>org.eclipse.jetty</groupId>
++      <artifactId>jetty-servlet</artifactId>
++      <version>8.1.0.RC4</version>
++      <scope>test</scope>
+     </dependency>
+ 
+     <dependency>
+-      <groupId>org.mortbay.jetty</groupId>
++      <groupId>org.eclipse.jetty</groupId>
+       <artifactId>jetty-client</artifactId>
+-      <version>6.1.25</version>
++      <version>8.1.0.RC4</version>
+       <scope>test</scope>
+     </dependency>
+ 
+diff --git a/src/main/java/org/apache/maven/plugins/site/SiteRunMojo.java b/src/main/java/org/apache/maven/plugins/site/SiteRunMojo.java
+index 43ff85e..99b9382 100644
+--- a/src/main/java/org/apache/maven/plugins/site/SiteRunMojo.java
++++ b/src/main/java/org/apache/maven/plugins/site/SiteRunMojo.java
+@@ -40,12 +40,13 @@ import org.apache.maven.reporting.exec.MavenReportExecution;
+ 
+ import org.codehaus.plexus.util.IOUtil;
+ 
+-import org.mortbay.jetty.Connector;
+-import org.mortbay.jetty.Handler;
+-import org.mortbay.jetty.Server;
+-import org.mortbay.jetty.handler.DefaultHandler;
+-import org.mortbay.jetty.nio.SelectChannelConnector;
+-import org.mortbay.jetty.webapp.WebAppContext;
++import org.eclipse.jetty.server.Connector;
++import org.eclipse.jetty.server.Handler;
++import org.eclipse.jetty.server.handler.HandlerList;
++import org.eclipse.jetty.server.Server;
++import org.eclipse.jetty.server.handler.DefaultHandler;
++import org.eclipse.jetty.server.nio.SelectChannelConnector;
++import org.eclipse.jetty.webapp.WebAppContext;
+ 
+ /**
+  * Starts the site up, rendering documents as requested for faster editing.
+@@ -93,10 +94,9 @@ public class SiteRunMojo
+         DefaultHandler defaultHandler = new DefaultHandler();
+         defaultHandler.setServer( server );
+ 
+-        Handler[] handlers = new Handler[2];
+-        handlers[0] = webapp;
+-        handlers[1] = defaultHandler;
+-        server.setHandlers( handlers );
++        HandlerList handlers = new HandlerList();
++        handlers.setHandlers(new Handler[] { webapp, defaultHandler });
++        server.setHandler(handlers);
+ 
+         getLog().info( "Starting Jetty on http://localhost:" + port + "/" );
+         try
+-- 
+1.7.6.2
+
