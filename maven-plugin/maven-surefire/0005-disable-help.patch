@@ -1,0 +1,27 @@
+diff -up ./surefire-setup-integration-tests/pom.xml.help ./surefire-setup-integration-tests/pom.xml
+--- ./surefire-setup-integration-tests/pom.xml.help	2013-02-20 12:29:30.438204697 +0800
++++ ./surefire-setup-integration-tests/pom.xml	2013-02-20 12:29:58.026271683 +0800
+@@ -113,23 +113,6 @@
+   <build>
+     <plugins>
+       <plugin>
+-        <artifactId>maven-help-plugin</artifactId>
+-        <version>2.1</version>
+-        <executions>
+-          <execution>
+-            <id>settings.xml</id>
+-            <phase>generate-test-resources</phase>
+-            <goals>
+-              <goal>effective-settings</goal>
+-            </goals>
+-            <configuration>
+-              <output>${project.build.directory}/private/settings.xml</output>
+-              <showPasswords>${it.settings.showPasswords}</showPasswords>
+-            </configuration>
+-          </execution>
+-        </executions>
+-      </plugin>
+-      <plugin>
+         <artifactId>maven-compiler-plugin</artifactId>
+         <configuration>
+           <source>1.5</source>

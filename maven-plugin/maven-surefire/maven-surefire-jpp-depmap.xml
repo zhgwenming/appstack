@@ -1,0 +1,10 @@
+<dependency>
+  <maven>
+    <groupId>org.beanshell</groupId>
+    <artifactId>bsh</artifactId>
+  </maven>
+  <jpp>
+    <groupId>JPP</groupId>
+    <artifactId>bsh</artifactId>
+  </jpp>
+</dependency>

@@ -1,0 +1,27 @@
+From 9b6b5f1d2aa0acd775b3bfee11dd2e0e062ea75d Mon Sep 17 00:00:00 2001
+From: Stanislav Ochotnicky <sochotnicky@redhat.com>
+Date: Mon, 27 Jun 2011 16:15:23 +0200
+Subject: [PATCH 3/3] Fix maven3 compatibility
+
+---
+ maven-surefire-common/pom.xml |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/maven-surefire-common/pom.xml b/maven-surefire-common/pom.xml
+index 8bc98f1..e93ea97 100644
+--- a/maven-surefire-common/pom.xml
++++ b/maven-surefire-common/pom.xml
+@@ -40,6 +40,10 @@
+   <dependencies>
+     <dependency>
+       <groupId>org.apache.maven</groupId>
++      <artifactId>maven-compat</artifactId>
++    </dependency>
++    <dependency>
++      <groupId>org.apache.maven</groupId>
+       <artifactId>maven-plugin-api</artifactId>
+     </dependency>
+     <dependency>
+-- 
+1.7.5.4
+
