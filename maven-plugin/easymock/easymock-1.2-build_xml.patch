@@ -1,0 +1,30 @@
+--- build.xml.sav	2005-08-07 17:53:29.000000000 +0200
++++ build.xml	2006-02-24 16:25:45.000000000 +0100
+@@ -17,7 +17,7 @@
+ 		<property name="clover build directory" value="${temp directory}/bin-clover" />
+ 		<property name="clover report directory" value="${temp directory}/clover" />
+
+-		<property file="${user.home}/easymockbuild.properties" />
++		<property file="easymockbuild.properties" />
+ 		<property name="java 1.3" value="/System/Library/Frameworks/JavaVM.framework/Versions/1.3/Commands/java" />
+ 		<property name="java 1.4" value="/System/Library/Frameworks/JavaVM.framework/Versions/1.4/Commands/java" />
+ 		<property name="java 1.5" value="" />
+@@ -99,14 +99,16 @@
+ 	</junit>
+ </target>
+
+-<target name="test distribution" depends="test distribution 1.3, test distribution 1.4">
++<target name="test distribution" depends="test distribution 1.4">
+ </target>
+
+-<target name="all" depends="clean, build, javadoc, (clover), pack distribution, test distribution">
++<target name="all" depends="clean, build, javadoc, pack distribution">
+ <antcall target="clean" />
+ </target>
+
++<!--
+ <taskdef resource="clovertasks" />
++-->
+
+ <target name="(clover)" depends="(init clover), (build for clover), (test clover), (clover html), (check full coverage),(delete clover build)">
+ </target>
