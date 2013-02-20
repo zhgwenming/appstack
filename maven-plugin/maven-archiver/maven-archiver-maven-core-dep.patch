@@ -1,0 +1,22 @@
+diff --git a/pom.xml b/pom.xml
+index 365b10b..6f0f82b 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -53,11 +53,16 @@
+   <dependencies>
+     <dependency>
+       <groupId>org.apache.maven</groupId>
+-      <artifactId>maven-artifact</artifactId>
++      <artifactId>maven-core</artifactId>
+       <version>${mavenVersion}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.maven</groupId>
++      <artifactId>maven-artifact</artifactId>
++      <version>${mavenVersion}</version>
++    </dependency>
++  <dependency>
++      <groupId>org.apache.maven</groupId>
+       <artifactId>maven-model</artifactId>
+       <version>${mavenVersion}</version>
+     </dependency>
