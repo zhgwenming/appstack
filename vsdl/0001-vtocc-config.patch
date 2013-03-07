@@ -1,7 +1,7 @@
 diff -up ./p/vitess/go/cmd/vtocc/vtocc.go.orig ./p/vitess/go/cmd/vtocc/vtocc.go
 --- ./vitess/go/cmd/vtocc/vtocc.go.orig	2013-03-01 10:59:50.576023985 +0800
 +++ ./vitess/go/cmd/vtocc/vtocc.go	2013-03-01 11:05:57.032054695 +0800
-@@ -56,9 +56,11 @@ var config = ts.Config{
+@@ -56,9 +56,12 @@ var config = ts.Config{
  }
  
  var dbconfig = ts.DBConfig{
@@ -10,9 +10,10 @@ diff -up ./p/vitess/go/cmd/vtocc/vtocc.go.orig ./p/vitess/go/cmd/vtocc/vtocc.go
 -	Charset: "utf8",
 +	Host:       "localhost",
 +	Uname:      "vt_app",
-+	Dbname:     "vsdb",
++	Dbname:     "test",
 +	Charset:    "utf8",
 +	UnixSocket: "/var/lib/mysql/mysql.sock",
++	Memcache:   "127.0.0.1:11211"
  }
  
  func serveAuthRPC() {
