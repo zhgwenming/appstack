@@ -13,7 +13,7 @@ diff -up ./p/vitess/go/cmd/vtocc/vtocc.go.orig ./p/vitess/go/cmd/vtocc/vtocc.go
 +	Dbname:     "test",
 +	Charset:    "utf8",
 +	UnixSocket: "/var/lib/mysql/mysql.sock",
-+	Memcache:   "127.0.0.1:11211"
++	Memcache:   "127.0.0.1:11211",
  }
  
  func serveAuthRPC() {
