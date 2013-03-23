@@ -25,6 +25,10 @@
 %define mysql_vendor            Oracle and/or its affiliates
 %define percona_server_vendor	Percona, Inc
 
+# based on 5.5.29-23.7.2.389.rhel6
+%define wsrep_version 23.7.2
+%define revision 389
+
 %define mysql_version   5.5.29
 %define redhatversion %(lsb_release -rs | awk -F. '{ print $1}')
 %define majorversion 29
@@ -41,7 +45,7 @@
 %endif
 
 %define release_tag	%{nil}
-%define release         %{release_tag}%{wsrep_version}.%{revision}.%{distribution}
+%define release         %{release_tag}%{wsrep_version}.%{revision}
 
 #
 # Macros we use which are not available in all supported versions of RPM
@@ -89,7 +93,7 @@
 # Source name
 # ----------------------------------------------------------------------------
 %if %{undefined src_base}
-%define src_base Percona-XtraDB-Cluster
+%define src_base mysql-galera
 %endif
 %define src_dir %{src_base}-%{mysql_version}
 
@@ -225,15 +229,15 @@
 # Main spec file section
 ##############################################################################
 
-Name:           Percona-XtraDB-Cluster%{product_suffix}
-Summary:        A High Availability solution based in Percona Server
+Name:           mysql-galera
+Summary:        A High Availability solution based on Percona Server
 Group:          Applications/Databases
 Version:        %{mysql_version}
-Release:        %{release}
+Release:        %{release}%{?dist}
 Epoch:		1
 Distribution:   %{distro_description}
 License:        Copyright (c) 2000, 2010, %{mysql_vendor}.  All rights reserved.  Use is subject to license terms.  Under %{license_type} license as shown in the Description field.
-Source:         Percona-XtraDB-Cluster-%{mysql_version}.tar.gz
+Source:         mysql-galera-%{mysql_version}.tar.gz
 URL:            http://www.percona.com/
 Packager:       Percona MySQL Development Team <mysqldev@percona.com>
 Vendor:         %{percona_server_vendor}
@@ -260,14 +264,14 @@ be eligible for hot fixes, and boost your team's productivity.
 # Sub package definition
 ##############################################################################
 
-%package -n Percona-XtraDB-Cluster-server%{product_suffix}
+%package -n mysql-galera-server
 Summary:        Percona XtraDB Cluster - server package
 Group:          Applications/Databases
-Requires:       %{distro_requires} mysql-libs Percona-XtraDB-Cluster-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
+Requires:       %{distro_requires} mysql-libs mysql-galera-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
 Provides:       mysql-server MySQL-server Percona-Server-server
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
-%description -n Percona-XtraDB-Cluster-server%{product_suffix}
+%description -n mysql-galera-server
 Percona XtraDB Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 Percona XtraDB Cluster provides synchronous replication, supports
@@ -282,17 +286,17 @@ This package includes the Percona XtraDB Cluster binary
 as well as related utilities to run and administer Percona XtraDB Cluster.
 
 If you want to access and work with the database, you have to install
-package "Percona-XtraDB-Cluster-client%{product_suffix}" as well!
+package "mysql-galera-client" as well!
 
 # ----------------------------------------------------------------------------
-%package -n Percona-XtraDB-Cluster-client%{product_suffix}
+%package -n mysql-galera-client
 Summary:        Percona XtraDB Cluster - client package
 Group:          Applications/Databases
 Requires:       mysql-libs
-Provides:       mysql-client MySQL-client mysql MySQL Percona-XtraDB-Cluster-client
+Provides:       mysql-client MySQL-client mysql MySQL mysql-galera-client
 Conflicts:	Percona-Server-client-55 Percona-Server-client-51 Percona-SQL-client-50
 
-%description -n Percona-XtraDB-Cluster-client%{product_suffix}
+%description -n mysql-galera-client
 Percona XtraDB Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 Percona XtraDB Cluster provides synchronous replication, supports
@@ -309,15 +313,15 @@ For a description of Percona XtraDB Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n Percona-XtraDB-Cluster-test%{product_suffix}
-Requires:       Percona-XtraDB-Cluster-client%{product_suffix} perl
+%package -n mysql-galera-test%{product_suffix}
+Requires:       mysql-galera-client perl
 Summary:        Percona XtraDB Cluster - Test suite
 Group:          Applications/Databases
 Provides:       mysql-test Percona-Server-test
 Conflicts:	Percona-Server-test-55 Percona-Server-test-51
 AutoReqProv:    no
 
-%description -n Percona-XtraDB-Cluster-test%{product_suffix}
+%description -n mysql-galera-test%{product_suffix}
 Percona XtraDB Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 Percona XtraDB Cluster provides synchronous replication, supports
@@ -334,13 +338,13 @@ For a description of Percona XtraDB Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n Percona-XtraDB-Cluster-devel%{product_suffix}
+%package -n mysql-galera-devel%{product_suffix}
 Summary:        Percona XtraDB Cluster - Development header files and libraries
 Group:          Applications/Databases
 Provides:       mysql-devel Percona-Server-devel
 Conflicts:	Percona-Server-devel-55 Percona-Server-devel-51
 
-%description -n Percona-XtraDB-Cluster-devel%{product_suffix}
+%description -n mysql-galera-devel%{product_suffix}
 Percona XtraDB Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 Percona XtraDB Cluster provides synchronous replication, supports
@@ -358,13 +362,13 @@ For a description of Percona XtraDB Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n Percona-XtraDB-Cluster-shared%{product_suffix}
+%package -n mysql-galera-shared%{product_suffix}
 Summary:        Percona XtraDB Cluster - Shared libraries
 Group:          Applications/Databases
 Provides:       mysql-shared mysql-libs Percona-Server-shared
 Conflicts:	Percona-Server-shared-55 Percona-Server-shared-51
 
-%description -n Percona-XtraDB-Cluster-shared%{product_suffix}
+%description -n mysql-galera-shared%{product_suffix}
 Percona XtraDB Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 Percona XtraDB Cluster provides synchronous replication, supports
@@ -611,7 +615,7 @@ rm -f $RBR%{_mandir}/man1/make_win_bin_dist.1*
 #  Post processing actions, i.e. when installed
 ##############################################################################
 
-%pre -n Percona-XtraDB-Cluster-server%{product_suffix}
+%pre -n mysql-galera-server%{product_suffix}
 
 # ATTENTION: Parts of this are duplicated in the "triggerpostun" !
 
@@ -765,7 +769,7 @@ if [ -x %{_sysconfdir}/init.d/mysql ] ; then
         sleep 5
 fi
 
-%post -n Percona-XtraDB-Cluster-server%{product_suffix}
+%post -n mysql-galera-server%{product_suffix}
 
 # ATTENTION: Parts of this are duplicated in the "triggerpostun" !
 
@@ -892,7 +896,7 @@ mv -f  $STATUS_FILE ${STATUS_FILE}-LAST  # for "triggerpostun"
 #scheduled service packs and more.  Visit www.mysql.com/enterprise for more
 #information."
 
-%preun -n Percona-XtraDB-Cluster-server%{product_suffix}
+%preun -n mysql-galera-server%{product_suffix}
 
 # Which '$1' does this refer to?  Fedora docs have info:
 # " ... a count of the number of versions of the package that are installed.
@@ -921,7 +925,7 @@ fi
 # We do not remove the mysql user since it may still own a lot of
 # database files.
 
-%triggerpostun -n Percona-XtraDB-Cluster-server%{product_suffix} --MySQL-server-community
+%triggerpostun -n mysql-galera-server%{product_suffix} --MySQL-server-community
 
 # Setup: We renamed this package, so any existing "server-community"
 #   package will be removed when this "server" is installed.
@@ -982,7 +986,7 @@ echo "====="                                     >> $STATUS_HISTORY
 #  Files section
 ##############################################################################
 
-%files -n Percona-XtraDB-Cluster-server%{product_suffix}
+%files -n mysql-galera-server%{product_suffix}
 %defattr(-,root,root,0755)
 
 %if %{defined license_files_server}
@@ -1118,7 +1122,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_datadir}/mysql/
 
 # ----------------------------------------------------------------------------
-%files -n Percona-XtraDB-Cluster-client%{product_suffix}
+%files -n mysql-galera-client
 
 %defattr(-, root, root, 0755)
 %attr(755, root, root) %{_bindir}/msql2mysql
@@ -1153,7 +1157,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %attr(644, root, man) %{_mandir}/man1/mysqlslap.1*
 
 # ----------------------------------------------------------------------------
-%files -n Percona-XtraDB-Cluster-devel%{product_suffix} -f optional-files-devel
+%files -n mysql-galera-devel%{product_suffix} -f optional-files-devel
 %defattr(-, root, root, 0755)
 %doc %attr(644, root, man) %{_mandir}/man1/comp_err.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysql_config.1*
@@ -1170,7 +1174,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/libhsclient.la
 
 # ----------------------------------------------------------------------------
-%files -n Percona-XtraDB-Cluster-shared%{product_suffix}
+%files -n mysql-galera-shared%{product_suffix}
 %defattr(-, root, root, 0755)
 # Shared libraries (omit for architectures that don't support them)
 %{_libdir}/libmysql*.so*
@@ -1182,14 +1186,14 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/mysql/plugin/libmurmur_udf.a
 %{_libdir}/mysql/plugin/libmurmur_udf.la
 
-%post -n Percona-XtraDB-Cluster-shared%{product_suffix}
+%post -n mysql-galera-shared%{product_suffix}
 /sbin/ldconfig
 
-%postun -n Percona-XtraDB-Cluster-shared%{product_suffix}
+%postun -n mysql-galera-shared%{product_suffix}
 /sbin/ldconfig
 
 # ----------------------------------------------------------------------------
-%files -n Percona-XtraDB-Cluster-test%{product_suffix}
+%files -n mysql-galera-test%{product_suffix}
 %defattr(-, root, root, 0755)
 %attr(-, root, root) %{_datadir}/mysql-test
 %attr(755, root, root) %{_bindir}/mysql_client_test
