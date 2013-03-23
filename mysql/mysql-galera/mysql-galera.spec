@@ -602,7 +602,7 @@ mv -v $RBR/%{_libdir}/*.a $RBR/%{_libdir}/mysql/
 
 # Install logrotate and autostart
 install -m 644 $MBD/release/support-files/mysql-log-rotate $RBR%{_sysconfdir}/logrotate.d/mysql
-install -m 755 $MBD/release/support-files/mysql.server $RBR%{_sysconfdir}/init.d/mysql
+install -m 755 $MBD/release/support-files/mysql.server $RBR%{_sysconfdir}/init.d/mysqld
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
@@ -884,8 +884,8 @@ fi
 # Was the server running before the upgrade? If so, restart the new one.
 if [ "$SERVER_TO_START" = "true" ] ; then
 	# Restart in the same way that mysqld will be started normally.
-	if [ -x %{_sysconfdir}/init.d/mysql ] ; then
-		%{_sysconfdir}/init.d/mysql start
+	if [ -x %{_sysconfdir}/init.d/mysqld ] ; then
+		%{_sysconfdir}/init.d/mysqld start
 		echo "Giving mysqld 5 seconds to start"
 		sleep 5
 	fi
@@ -926,15 +926,15 @@ mv -f  $STATUS_FILE ${STATUS_FILE}-LAST  # for "triggerpostun"
  
 if [ $1 = 0 ] ; then
         # Stop MySQL before uninstalling it
-        if [ -x %{_sysconfdir}/init.d/mysql ] ; then
-                %{_sysconfdir}/init.d/mysql stop > /dev/null
+        if [ -x %{_sysconfdir}/init.d/mysqld ] ; then
+                %{_sysconfdir}/init.d/mysqld stop > /dev/null
                 # Remove autostart of MySQL
                 # use chkconfig on Enterprise Linux and newer SuSE releases
                 if [ -x /sbin/chkconfig ] ; then
                         /sbin/chkconfig --del mysql
                 # For older SuSE Linux versions
                 elif [ -x /sbin/insserv ] ; then
-                        /sbin/insserv -r %{_sysconfdir}/init.d/mysql
+                        /sbin/insserv -r %{_sysconfdir}/init.d/mysqld
                 fi
         fi
 fi
@@ -974,14 +974,14 @@ if [ -x /sbin/chkconfig ] ; then
         /sbin/chkconfig --add mysql
 # use insserv for older SuSE Linux versions
 elif [ -x /sbin/insserv ] ; then
-        /sbin/insserv %{_sysconfdir}/init.d/mysql
+        /sbin/insserv %{_sysconfdir}/init.d/mysqld
 fi
 
 # Was the server running before the upgrade? If so, restart the new one.
 if [ "$SERVER_TO_START" = "true" ] ; then
 	# Restart in the same way that mysqld will be started normally.
-	if [ -x %{_sysconfdir}/init.d/mysql ] ; then
-		%{_sysconfdir}/init.d/mysql start
+	if [ -x %{_sysconfdir}/init.d/mysqld ] ; then
+		%{_sysconfdir}/init.d/mysqld start
 		echo "Giving mysqld 5 seconds to start"
 		sleep 5
 	fi
@@ -1134,7 +1134,7 @@ echo "====="                                     >> $STATUS_HISTORY
 
 %attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/logrotate.d/mysql
 %attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/xinetd.d/mysqlchk
-%attr(755, root, root) %{_sysconfdir}/init.d/mysql
+%attr(755, root, root) %{_sysconfdir}/init.d/mysqld
 
 %attr(755, root, root) %{_datadir}/mysql/
 
@@ -1195,6 +1195,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %defattr(-, root, root, 0755)
 # Shared libraries (omit for architectures that don't support them)
 #%{_libdir}/libmysql*.so*
+%{_libdir}/mysql/libmysql*.so*
 # Maatkit UDF libs
 %{_libdir}/mysql/plugin/libfnv1a_udf.a
 %{_libdir}/mysql/plugin/libfnv1a_udf.la
