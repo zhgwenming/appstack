@@ -243,6 +243,7 @@ Packager:       Percona MySQL Development Team <mysqldev@percona.com>
 Vendor:         %{percona_server_vendor}
 Provides:       mysql-server
 BuildRequires:  %{distro_buildreq}
+BuildRequires:  pam-devel
 
 # Think about what you use here since the first step is to
 # run a rm -rf
@@ -403,7 +404,7 @@ BuildHandlerSocket() {
         --with-mysql-plugindir=%{_libdir}/mysql/plugin \
         --libdir=%{_libdir} \
         --prefix=%{_prefix}
-    make
+    make %{?_smp_mflags}
     cd -
 }
 
@@ -413,7 +414,18 @@ BuildUDF() {
         CXXFLAGS="$CXXFLAGS -I$RPM_BUILD_DIR/%{src_dir}/release/include" \
         ./configure --includedir=$RPM_BUILD_DIR/%{src_dir}/%{src_dir}/include \
         --libdir=%{_libdir}/mysql/plugin
-    make all
+    make %{?_smp_mflags} all
+    cd -
+}
+
+build_pam() {
+    cd plugin/percona-pam-for-mysql
+    bash -x ./autogen.sh
+    CXX="${UDF_CXX:-g++}"\
+        CXXFLAGS="$CXXFLAGS -I$RPM_BUILD_DIR/%{src_dir}/release/include" \
+        ./configure --includedir=$RPM_BUILD_DIR/%{src_dir}/%{src_dir}/include \
+        --libdir=%{_libdir}/mysql/plugin
+    make %{?_smp_mflags} all
     cd -
 }
 
@@ -475,14 +487,17 @@ mkdir debug
            -DCOMPILATION_COMMENT="%{compilation_comment_debug}" \
            -DWITH_WSREP=1 \
            -DWITH_INNODB_DISALLOW_WRITES=ON \
+           -DINSTALL_LIBDIR=%{_libdir}/mysql \
+           -DINSTALL_PLUGINDIR=%{_libdir}/mysql/plugin \
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
   echo BEGIN_DEBUG_CONFIG ; egrep '^#define' include/config.h ; echo END_DEBUG_CONFIG
-  make ${MAKE_JFLAG}
+  make %{?_smp_mflags} ${MAKE_JFLAG}
 )
 # Build full release
 mkdir release
 (
   cd release
+  #build_pam
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
   ${CMAKE} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
@@ -494,9 +509,11 @@ mkdir release
            -DCOMPILATION_COMMENT="%{compilation_comment_release}" \
            -DWITH_WSREP=1 \
            -DWITH_INNODB_DISALLOW_WRITES=ON \
+           -DINSTALL_LIBDIR=%{_libdir}/mysql \
+           -DINSTALL_PLUGINDIR=%{_libdir}/mysql/plugin \
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
   echo BEGIN_NORMAL_CONFIG ; egrep '^#define' include/config.h ; echo END_NORMAL_CONFIG
-  make ${MAKE_JFLAG}
+  make %{?_smp_mflags} ${MAKE_JFLAG}
   cd ../%{src_dir}
   d="`pwd`"
   BuildHandlerSocket
@@ -562,20 +579,20 @@ install -d $RBR%{_libdir}/mysql/plugin
 
 (
   cd $MBD/release
-  make DESTDIR=$RBR benchdir_root=%{_datadir} install
+  make %{?_smp_mflags} DESTDIR=$RBR benchdir_root=%{_datadir} install
   d="`pwd`"
   cd $MBD/%{src_dir}/storage/HandlerSocket-Plugin-for-MySQL
-  make DESTDIR=$RBR benchdir_root=%{_datadir} install
+  make %{?_smp_mflags} DESTDIR=$RBR benchdir_root=%{_datadir} install
   cd "$d"
   cd $MBD/%{src_dir}/UDF
-  make DESTDIR=$RBR benchdir_root=%{_datadir} install
+  make %{?_smp_mflags} DESTDIR=$RBR benchdir_root=%{_datadir} install
   cd "$d"
 )
 
 # Install all binaries
 (
   cd $MBD/release
-  make DESTDIR=$RBR install
+  make %{?_smp_mflags} DESTDIR=$RBR install
 )
 
 # FIXME: at some point we should stop doing this and just install everything
@@ -1177,7 +1194,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %files -n mysql-galera-shared%{product_suffix}
 %defattr(-, root, root, 0755)
 # Shared libraries (omit for architectures that don't support them)
-%{_libdir}/libmysql*.so*
+#%{_libdir}/libmysql*.so*
 # Maatkit UDF libs
 %{_libdir}/mysql/plugin/libfnv1a_udf.a
 %{_libdir}/mysql/plugin/libfnv1a_udf.la
