@@ -15,4 +15,4 @@ clean:
 	rm -fv *gz *rpm
 
 build: srpm
-	rpmbuild --rebuild mysql-galera-5.5.29.src.rpm
+	rpmbuild --rebuild mysql-galera-*.src.rpm
