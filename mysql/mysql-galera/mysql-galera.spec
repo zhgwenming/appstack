@@ -363,13 +363,13 @@ For a description of Percona XtraDB Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n mysql-galera-shared%{product_suffix}
+%package -n mysql-galera-libs%{product_suffix}
 Summary:        Percona XtraDB Cluster - Shared libraries
 Group:          Applications/Databases
 Provides:       mysql-shared mysql-libs Percona-Server-shared
 Conflicts:	Percona-Server-shared-55 Percona-Server-shared-51
 
-%description -n mysql-galera-shared%{product_suffix}
+%description -n mysql-galera-libs%{product_suffix}
 Percona XtraDB Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 Percona XtraDB Cluster provides synchronous replication, supports
@@ -1191,7 +1191,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/libhsclient.la
 
 # ----------------------------------------------------------------------------
-%files -n mysql-galera-shared%{product_suffix}
+%files -n mysql-galera-libs%{product_suffix}
 %defattr(-, root, root, 0755)
 # Shared libraries (omit for architectures that don't support them)
 #%{_libdir}/libmysql*.so*
@@ -1204,10 +1204,10 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/mysql/plugin/libmurmur_udf.a
 %{_libdir}/mysql/plugin/libmurmur_udf.la
 
-%post -n mysql-galera-shared%{product_suffix}
+%post -n mysql-galera-libs%{product_suffix}
 /sbin/ldconfig
 
-%postun -n mysql-galera-shared%{product_suffix}
+%postun -n mysql-galera-libs%{product_suffix}
 /sbin/ldconfig
 
 # ----------------------------------------------------------------------------
