@@ -108,10 +108,10 @@
 # Server comment strings
 # ----------------------------------------------------------------------------
 %if %{undefined compilation_comment_debug}
-%define compilation_comment_debug       Percona XtraDB Cluster - Debug (GPL)
+%define compilation_comment_debug       MySQL Galera Cluster - Debug (GPL)
 %endif
 %if %{undefined compilation_comment_release}
-%define compilation_comment_release     Percona XtraDB Cluster (GPL)
+%define compilation_comment_release     MySQL Galera Cluster (GPL)
 %endif
 
 # ----------------------------------------------------------------------------
@@ -251,9 +251,9 @@ BuildRoot:    %{_tmppath}/%{name}-%{version}-build
 
 # From the manual
 %description
-Percona XtraDB Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
-Percona XtraDB Cluster provides synchronous replication, supports
+MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
@@ -266,16 +266,16 @@ be eligible for hot fixes, and boost your team's productivity.
 ##############################################################################
 
 %package -n mysql-galera-server
-Summary:        Percona XtraDB Cluster - server package
+Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
 Requires:       %{distro_requires} mysql-libs mysql-galera-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
 Provides:       mysql-server MySQL-server Percona-Server-server
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
 %description -n mysql-galera-server
-Percona XtraDB Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
-Percona XtraDB Cluster provides synchronous replication, supports
+MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
@@ -283,24 +283,24 @@ Percona recommends that all production deployments be protected with a support
 contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
 be eligible for hot fixes, and boost your team's productivity.
 
-This package includes the Percona XtraDB Cluster binary 
-as well as related utilities to run and administer Percona XtraDB Cluster.
+This package includes the MySQL Galera Cluster binary 
+as well as related utilities to run and administer MySQL Galera Cluster.
 
 If you want to access and work with the database, you have to install
 package "mysql-galera-client" as well!
 
 # ----------------------------------------------------------------------------
 %package -n mysql-galera-client
-Summary:        Percona XtraDB Cluster - client package
+Summary:        MySQL Galera Cluster - client package
 Group:          Applications/Databases
 Requires:       mysql-libs
 Provides:       mysql-client MySQL-client mysql MySQL mysql-galera-client
 Conflicts:	Percona-Server-client-55 Percona-Server-client-51 Percona-SQL-client-50
 
 %description -n mysql-galera-client
-Percona XtraDB Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
-Percona XtraDB Cluster provides synchronous replication, supports
+MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
@@ -308,24 +308,24 @@ Percona recommends that all production deployments be protected with a support
 contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
 be eligible for hot fixes, and boost your team's productivity.
 
-This package contains the standard Percona XtraDB Cluster client and administration tools.
+This package contains the standard MySQL Galera Cluster client and administration tools.
 
-For a description of Percona XtraDB Cluster see
+For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
 %package -n mysql-galera-test%{product_suffix}
 Requires:       mysql-galera-client perl
-Summary:        Percona XtraDB Cluster - Test suite
+Summary:        MySQL Galera Cluster - Test suite
 Group:          Applications/Databases
 Provides:       mysql-test Percona-Server-test
 Conflicts:	Percona-Server-test-55 Percona-Server-test-51
 AutoReqProv:    no
 
 %description -n mysql-galera-test%{product_suffix}
-Percona XtraDB Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
-Percona XtraDB Cluster provides synchronous replication, supports
+MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
@@ -333,22 +333,22 @@ Percona recommends that all production deployments be protected with a support
 contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
 be eligible for hot fixes, and boost your team's productivity.
 
-This package contains the Percona XtraDB Cluster regression test suite.
+This package contains the MySQL Galera Cluster regression test suite.
 
-For a description of Percona XtraDB Cluster see
+For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
 %package -n mysql-galera-devel%{product_suffix}
-Summary:        Percona XtraDB Cluster - Development header files and libraries
+Summary:        MySQL Galera Cluster - Development header files and libraries
 Group:          Applications/Databases
 Provides:       mysql-devel Percona-Server-devel
 Conflicts:	Percona-Server-devel-55 Percona-Server-devel-51
 
 %description -n mysql-galera-devel%{product_suffix}
-Percona XtraDB Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
-Percona XtraDB Cluster provides synchronous replication, supports
+MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
@@ -357,22 +357,22 @@ contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
 be eligible for hot fixes, and boost your team's productivity.
 
 This package contains the development header files and libraries necessary
-to develop Percona XtraDB Cluster client applications.
+to develop MySQL Galera Cluster client applications.
 
-For a description of Percona XtraDB Cluster see
+For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
 %package -n mysql-galera-libs%{product_suffix}
-Summary:        Percona XtraDB Cluster - Shared libraries
+Summary:        MySQL Galera Cluster - Shared libraries
 Group:          Applications/Databases
 Provides:       mysql-shared mysql-libs Percona-Server-shared
 Conflicts:	Percona-Server-shared-55 Percona-Server-shared-51
 
 %description -n mysql-galera-libs%{product_suffix}
-Percona XtraDB Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
-Percona XtraDB Cluster provides synchronous replication, supports
+MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
@@ -381,7 +381,7 @@ contract (http://www.percona.com/mysql-suppport/) to ensure the highest uptime,
 be eligible for hot fixes, and boost your team's productivity.
 
 This package contains the shared libraries (*.so*) which certain languages
-and applications need to dynamically load and use Percona XtraDB Cluster.
+and applications need to dynamically load and use MySQL Galera Cluster.
 
 ##############################################################################
 %prep
@@ -891,7 +891,7 @@ if [ "$SERVER_TO_START" = "true" ] ; then
 	fi
 fi
 
-echo "Percona XtraDB Cluster is distributed with several useful UDFs from Percona Toolkit."
+echo "MySQL Galera Cluster is distributed with several useful UDFs from Percona Toolkit."
 echo "Run the following commands to create these functions:"
 echo "mysql -e \"CREATE FUNCTION fnv1a_64 RETURNS INTEGER SONAME 'libfnv1a_udf.so'\""
 echo "mysql -e \"CREATE FUNCTION fnv_64 RETURNS INTEGER SONAME 'libfnv_udf.so'\""
