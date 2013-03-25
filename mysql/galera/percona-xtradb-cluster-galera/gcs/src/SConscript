@@ -1,0 +1,61 @@
+#
+
+env = DefaultEnvironment()
+
+# Clone environment as we need to tune compilation flags
+libgcs_env = env.Clone()
+
+# Backends (TODO: Get from global options)
+libgcs_env.Append(CPPFLAGS = ' -DGCS_USE_GCOMM')
+
+gcs4garb_env = libgcs_env.Clone()
+
+libgcs_sources = Split('''
+                          gcs_params.c
+                          gcs_conf.c
+                          gcs_fifo_lite.c
+                          gcs_msg_type.c
+                          gcs_comp_msg.c
+                          gcs_sm.c
+                          gcs_backend.c
+                          gcs_dummy.c
+                          gcs_act_proto.c
+                          gcs_defrag.c
+                          gcs_state_msg.c
+                          gcs_node.c
+                          gcs_group.c
+                          gcs_core.c
+                          gcs_fc.c
+                          gcs.c
+                          gcs_gcomm.cpp
+                       ''')
+#libgcs_env.VariantDir('.gcs', '.', duplicate=0)
+libgcs_env.StaticLibrary('gcs', libgcs_sources)
+
+# TODO: How to tell scons portably that C++ linker should be used
+# and program should be linked statically
+gcs_test_env = libgcs_env.Clone()
+
+gcs_test_env.Prepend(LIBS = File('#/galerautils/src/libgalerautils.a'))
+gcs_test_env.Prepend(LIBS = File('#/galerautils/src/libgalerautils++.a'))
+gcs_test_env.Prepend(LIBS = File('#/gcomm/src/libgcomm.a'))
+gcs_test_env.Prepend(LIBS = File('#/gcache/src/libgcache.a'))
+gcs_test_env.Prepend(LIBS = File('#/gcs/src/libgcs.a'))
+
+gcs_test_env.Program(target = 'gcs_test',
+                     source = 'gcs_test.c',
+                     LINK = libgcs_env['CXX'])
+
+SConscript('unit_tests/SConscript')
+
+#
+env.Append(LIBGALERA_OBJS = libgcs_env.SharedObject(libgcs_sources))
+
+gcs4garb_env.Append(CPPFLAGS = ' -DGCS_FOR_GARB')
+garb_obj_dir = '.garb'
+gcs4garb_env.VariantDir(garb_obj_dir, '.', duplicate = 0)
+#garb_objects = [os.path.splitext(src)[0] + '_garb' + 
+#                env['OBJSUFFIX'] for src in libgcs_sources]
+garb_sources = [ garb_obj_dir + '/' + src for src in libgcs_sources ]
+gcs4garb_env.StaticLibrary('gcs4garb', garb_sources)
+

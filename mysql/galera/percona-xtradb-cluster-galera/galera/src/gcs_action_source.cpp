@@ -1,0 +1,169 @@
+//
+// Copyright (C) 2010 Codership Oy <info@codership.com>
+//
+
+#include "replicator.hpp"
+#include "gcs_action_source.hpp"
+#include "trx_handle.hpp"
+#include "serialization.hpp"
+
+extern "C"
+{
+#include "galera_info.h"
+}
+
+#include <cassert>
+
+// Exception-safe way to release action pointer when it goes out
+// of scope
+class Release
+{
+public:
+    Release(struct gcs_action& act, gcache::GCache& gcache)
+        :
+        act_(act),
+        gcache_(gcache)
+    { }
+    ~Release()
+    {
+        switch (act_.type)
+        {
+        case GCS_ACT_TORDERED:
+        case GCS_ACT_STATE_REQ:
+            gcache_.free(act_.buf);
+            break;
+        default:
+            free(const_cast<void*>(act_.buf));
+            break;
+        }
+    }
+private:
+    struct gcs_action& act_;
+    gcache::GCache&    gcache_;
+};
+
+
+static galera::Replicator::State state2repl(const gcs_act_conf_t& conf)
+{
+    switch (conf.my_state)
+    {
+    case GCS_NODE_STATE_NON_PRIM:
+        if (conf.my_idx >= 0) return galera::Replicator::S_CONNECTED;
+        else                  return galera::Replicator::S_CLOSING;
+    case GCS_NODE_STATE_PRIM:
+        return galera::Replicator::S_CONNECTED;
+    case GCS_NODE_STATE_JOINER:
+        return galera::Replicator::S_JOINING;
+    case GCS_NODE_STATE_JOINED:
+        return galera::Replicator::S_JOINED;
+    case GCS_NODE_STATE_SYNCED:
+        return galera::Replicator::S_SYNCED;
+    case GCS_NODE_STATE_DONOR:
+        return galera::Replicator::S_DONOR;
+    default:
+        gu_throw_fatal << "unhandled gcs state: " << conf.my_state;
+        throw;
+    }
+}
+
+
+galera::GcsActionTrx::GcsActionTrx(const struct gcs_action& act)
+    :
+    trx_(new TrxHandle())
+{
+    assert(act.seqno_l != GCS_SEQNO_ILL);
+    assert(act.seqno_g != GCS_SEQNO_ILL);
+
+    const gu::byte_t* const buf = reinterpret_cast<const gu::byte_t*>(act.buf);
+
+    size_t offset(unserialize(buf, act.size, 0, *trx_));
+
+    trx_->append_write_set(buf + offset, act.size - offset);
+    trx_->set_received(act.buf, act.seqno_l, act.seqno_g);
+    trx_->lock();
+}
+
+
+galera::GcsActionTrx::~GcsActionTrx()
+{
+    assert(trx_->refcnt() >= 1);
+    trx_->unlock();
+    trx_->unref();
+}
+
+
+void galera::GcsActionSource::dispatch(void*                 recv_ctx,
+                                       const struct gcs_action& act)
+{
+    assert(recv_ctx != 0);
+    assert(act.buf != 0);
+    assert(act.seqno_l > 0);
+
+    switch (act.type)
+    {
+    case GCS_ACT_TORDERED:
+    {
+        assert(act.seqno_g > 0);
+        GcsActionTrx trx(act);
+        trx.trx()->set_state(TrxHandle::S_REPLICATING);
+        replicator_.process_trx(recv_ctx, trx.trx());
+        break;
+    }
+    case GCS_ACT_COMMIT_CUT:
+    {
+        wsrep_seqno_t seq;
+        unserialize(reinterpret_cast<const gu::byte_t*>(act.buf), act.size, 0,
+                    seq);
+        replicator_.process_commit_cut(seq, act.seqno_l);
+        break;
+    }
+    case GCS_ACT_CONF:
+    {
+        const gcs_act_conf_t* conf(
+            reinterpret_cast<const gcs_act_conf_t*>(act.buf)
+            );
+
+        wsrep_view_info_t* view_info(
+            galera_view_info_create(conf, conf->my_state == GCS_NODE_STATE_PRIM)
+            );
+
+        replicator_.process_conf_change(recv_ctx, *view_info,
+                                        conf->repl_proto_ver,
+                                        state2repl(*conf), act.seqno_l);
+        free(view_info);
+        break;
+    }
+    case GCS_ACT_STATE_REQ:
+        replicator_.process_state_req(recv_ctx, act.buf, act.size, act.seqno_l,
+                                      act.seqno_g);
+        break;
+    case GCS_ACT_JOIN:
+    {
+        wsrep_seqno_t const seqno(
+            *(reinterpret_cast<const wsrep_seqno_t*>(act.buf)));
+        replicator_.process_join(seqno, act.seqno_l);
+        break;
+    }
+    case GCS_ACT_SYNC:
+        replicator_.process_sync(act.seqno_l);
+        break;
+    default:
+        gu_throw_fatal << "unrecognized action type: " << act.type;
+    }
+}
+
+
+ssize_t galera::GcsActionSource::process(void* recv_ctx)
+{
+    struct gcs_action act;
+
+    ssize_t rc(gcs_.recv(act));
+    if (rc > 0)
+    {
+        Release release(act, gcache_);
+        ++received_;
+        received_bytes_ += rc;
+        dispatch(recv_ctx, act);
+    }
+    return rc;
+}

@@ -1,0 +1,49 @@
+env = DefaultEnvironment()
+
+libgalerautils_env = env.Clone()
+
+# C part
+libgalerautils_sources = [
+    'gu_abort.c',
+    'gu_dbug.c',
+    'gu_fifo.c',
+    'gu_lock_step.c',
+    'gu_log.c',
+    'gu_mem.c',
+    'gu_mutex.c',
+    'gu_to.c',
+    'gu_utils.c',
+    'gu_uuid.c'
+]
+
+libgalerautils_env.StaticLibrary('galerautils', libgalerautils_sources)
+
+# C++ part
+libgalerautilsxx_sources = [
+    'gu_datetime.cpp',
+    'gu_exception.cpp',
+    'gu_logger.cpp',
+    'gu_prodcons.cpp',
+    'gu_regex.cpp',
+    'gu_string.cpp',
+    'gu_uri.cpp',
+    'gu_buffer.cpp',
+    'gu_utils++.cpp',
+    'gu_config.cpp',
+    'gu_resolver.cpp'
+]
+
+#if '-DGALERA_USE_GU_NETWORK' in libgalerautils_env['CPPFLAGS']:
+#    libgalerautilsxx_sources = [libgalerautilsxx_sources, 
+#                                'gu_resolver.cpp']
+
+# disable old style cast warnings
+libgalerautils_env.Append(CXXFLAGS = ' -Wno-old-style-cast')
+
+libgalerautils_env.StaticLibrary('galerautils++', libgalerautilsxx_sources)
+
+#
+env.Append(LIBGALERA_OBJS = libgalerautils_env.SharedObject(
+        libgalerautils_sources))
+env.Append(LIBGALERA_OBJS = libgalerautils_env.SharedObject(
+        libgalerautilsxx_sources))

@@ -1,0 +1,14 @@
+Source: percona-xtradb-cluster-galera-2.x
+Section: database
+Priority: extra
+Maintainer: Ignacio Nin <ignacio.nin@percona.com>
+Build-Depends: debhelper (>= 7.0.50~), scons, libboost-dev (>= 1.41),
+    libssl-dev, check, libboost-program-options-dev (>= 1.41)
+Standards-Version: 3.8.4
+
+Package: percona-xtradb-cluster-galera-2.x
+Architecture: any
+Provides: percona-xtradb-cluster-galera
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Galera components of Percona XtraDB Cluster
+ This package contains the Galera components required by Percona XtraDB Cluster.
