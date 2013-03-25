@@ -14,7 +14,7 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1301  USA.
 
-%define src_dir percona-xtradb-cluster-galera
+%define src_dir mysql-cluster-galera
 
 %define rhelver %(rpm -qf --qf '%%{version}\\n' /etc/redhat-release | sed -e 's/^\\([0-9]*\\).*/\\1/g')
 %if "%rhelver" == "5"
@@ -38,15 +38,16 @@
 %define redhatversion %(lsb_release -rs | awk -F. '{ print $1}')
 %define distribution  rhel%{redhatversion}
 
-Name:		Percona-XtraDB-Cluster-galera
+%define revision 113
+Name:		mysql-cluster-galera
 Version:	2.0
-Release:	1.%{revision}.%{?distribution}
+Release:	1.%{revision}%{?dist}
 Summary:	Galera components of Percona XtraDB Cluster
 
 Group:		Applications/Databases
 License:	GPLv3
-URL:		http://www.percona.com/
-Source0:        percona-xtradb-cluster-galera.tar.gz
+URL:		https://code.launchpad.net/percona-xtradb-cluster
+Source0:        mysql-cluster-galera.tar.gz
 BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 BuildRequires:	scons check-devel glibc-devel %{gcc_req} openssl-devel %{boost_req} check-devel
@@ -63,7 +64,7 @@ export CXX=g++44
 %endif
 export GALERA_REV=%{revision}
 export GALERA_VER=2.0
-scons revno=%{revision} garb/garbd libgalera_smm.so %{scons_arch} %{scons_args}
+scons %{?_smp_mflags} revno=%{revision} garb/garbd libgalera_smm.so %{scons_arch} %{scons_args}
 
 %install
 rm -rf $RPM_BUILD_ROOT
