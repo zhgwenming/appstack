@@ -93,7 +93,7 @@
 # Source name
 # ----------------------------------------------------------------------------
 %if %{undefined src_base}
-%define src_base mysql-galera
+%define src_base mysql-cluster
 %endif
 %define src_dir %{src_base}-%{mysql_version}
 
@@ -229,7 +229,7 @@
 # Main spec file section
 ##############################################################################
 
-Name:           mysql-galera
+Name:           mysql-cluster
 Summary:        A High Availability solution based on Percona Server
 Group:          Applications/Databases
 Version:        %{mysql_version}
@@ -237,11 +237,11 @@ Release:        %{release}%{?dist}
 Epoch:		1
 Distribution:   %{distro_description}
 License:        Copyright (c) 2000, 2010, %{mysql_vendor}.  All rights reserved.  Use is subject to license terms.  Under %{license_type} license as shown in the Description field.
-Source:         mysql-galera-%{mysql_version}.tar.gz
+Source:         mysql-cluster-%{mysql_version}.tar.gz
 URL:            http://www.percona.com/
 Packager:       Percona MySQL Development Team <mysqldev@percona.com>
 Vendor:         %{percona_server_vendor}
-Provides:       mysql-server
+Provides:       mysql-server mcluster
 BuildRequires:  %{distro_buildreq}
 BuildRequires:  pam-devel
 
@@ -265,14 +265,14 @@ be eligible for hot fixes, and boost your team's productivity.
 # Sub package definition
 ##############################################################################
 
-%package -n mysql-galera-server
+%package -n mysql-cluster-server
 Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
-Requires:       %{distro_requires} mysql-libs mysql-galera-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
-Provides:       mysql-server MySQL-server Percona-Server-server
+Requires:       %{distro_requires} mysql-libs mysql-cluster-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
+Provides:       mcluster mysql-server MySQL-server Percona-Server-server
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
-%description -n mysql-galera-server
+%description -n mysql-cluster-server
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
@@ -287,17 +287,17 @@ This package includes the MySQL Galera Cluster binary
 as well as related utilities to run and administer MySQL Galera Cluster.
 
 If you want to access and work with the database, you have to install
-package "mysql-galera-client" as well!
+package "mysql-cluster-client" as well!
 
 # ----------------------------------------------------------------------------
-%package -n mysql-galera-client
+%package -n mysql-cluster-client
 Summary:        MySQL Galera Cluster - client package
 Group:          Applications/Databases
 Requires:       mysql-libs
-Provides:       mysql-client MySQL-client mysql MySQL mysql-galera-client
+Provides:       mysql-client MySQL-client mysql MySQL mysql-cluster-client
 Conflicts:	Percona-Server-client-55 Percona-Server-client-51 Percona-SQL-client-50
 
-%description -n mysql-galera-client
+%description -n mysql-cluster-client
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
@@ -314,15 +314,15 @@ For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n mysql-galera-test%{product_suffix}
-Requires:       mysql-galera-client perl
+%package -n mysql-cluster-test%{product_suffix}
+Requires:       mysql-cluster-client perl
 Summary:        MySQL Galera Cluster - Test suite
 Group:          Applications/Databases
 Provides:       mysql-test Percona-Server-test
 Conflicts:	Percona-Server-test-55 Percona-Server-test-51
 AutoReqProv:    no
 
-%description -n mysql-galera-test%{product_suffix}
+%description -n mysql-cluster-test%{product_suffix}
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
@@ -339,13 +339,13 @@ For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n mysql-galera-devel%{product_suffix}
+%package -n mysql-cluster-devel%{product_suffix}
 Summary:        MySQL Galera Cluster - Development header files and libraries
 Group:          Applications/Databases
 Provides:       mysql-devel Percona-Server-devel
 Conflicts:	Percona-Server-devel-55 Percona-Server-devel-51
 
-%description -n mysql-galera-devel%{product_suffix}
+%description -n mysql-cluster-devel%{product_suffix}
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
@@ -363,13 +363,13 @@ For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n mysql-galera-libs%{product_suffix}
+%package -n mysql-cluster-libs%{product_suffix}
 Summary:        MySQL Galera Cluster - Shared libraries
 Group:          Applications/Databases
 Provides:       mysql-shared mysql-libs Percona-Server-shared
 Conflicts:	Percona-Server-shared-55 Percona-Server-shared-51
 
-%description -n mysql-galera-libs%{product_suffix}
+%description -n mysql-cluster-libs%{product_suffix}
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
@@ -632,7 +632,7 @@ rm -f $RBR%{_mandir}/man1/make_win_bin_dist.1*
 #  Post processing actions, i.e. when installed
 ##############################################################################
 
-%pre -n mysql-galera-server%{product_suffix}
+%pre -n mysql-cluster-server%{product_suffix}
 
 # ATTENTION: Parts of this are duplicated in the "triggerpostun" !
 
@@ -786,7 +786,7 @@ if [ -x %{_sysconfdir}/init.d/mysql ] ; then
         sleep 5
 fi
 
-%post -n mysql-galera-server%{product_suffix}
+%post -n mysql-cluster-server%{product_suffix}
 
 # ATTENTION: Parts of this are duplicated in the "triggerpostun" !
 
@@ -913,7 +913,7 @@ mv -f  $STATUS_FILE ${STATUS_FILE}-LAST  # for "triggerpostun"
 #scheduled service packs and more.  Visit www.mysql.com/enterprise for more
 #information."
 
-%preun -n mysql-galera-server%{product_suffix}
+%preun -n mysql-cluster-server%{product_suffix}
 
 # Which '$1' does this refer to?  Fedora docs have info:
 # " ... a count of the number of versions of the package that are installed.
@@ -942,7 +942,7 @@ fi
 # We do not remove the mysql user since it may still own a lot of
 # database files.
 
-%triggerpostun -n mysql-galera-server%{product_suffix} --MySQL-server-community
+%triggerpostun -n mysql-cluster-server%{product_suffix} --MySQL-server-community
 
 # Setup: We renamed this package, so any existing "server-community"
 #   package will be removed when this "server" is installed.
@@ -1003,7 +1003,7 @@ echo "====="                                     >> $STATUS_HISTORY
 #  Files section
 ##############################################################################
 
-%files -n mysql-galera-server%{product_suffix}
+%files -n mysql-cluster-server%{product_suffix}
 %defattr(-,root,root,0755)
 
 %if %{defined license_files_server}
@@ -1139,7 +1139,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_datadir}/mysql/
 
 # ----------------------------------------------------------------------------
-%files -n mysql-galera-client
+%files -n mysql-cluster-client
 
 %defattr(-, root, root, 0755)
 %attr(755, root, root) %{_bindir}/msql2mysql
@@ -1174,7 +1174,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %attr(644, root, man) %{_mandir}/man1/mysqlslap.1*
 
 # ----------------------------------------------------------------------------
-%files -n mysql-galera-devel%{product_suffix} -f optional-files-devel
+%files -n mysql-cluster-devel%{product_suffix} -f optional-files-devel
 %defattr(-, root, root, 0755)
 %doc %attr(644, root, man) %{_mandir}/man1/comp_err.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysql_config.1*
@@ -1191,7 +1191,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/libhsclient.la
 
 # ----------------------------------------------------------------------------
-%files -n mysql-galera-libs%{product_suffix}
+%files -n mysql-cluster-libs%{product_suffix}
 %defattr(-, root, root, 0755)
 # Shared libraries (omit for architectures that don't support them)
 #%{_libdir}/libmysql*.so*
@@ -1204,14 +1204,14 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/mysql/plugin/libmurmur_udf.a
 %{_libdir}/mysql/plugin/libmurmur_udf.la
 
-%post -n mysql-galera-libs%{product_suffix}
+%post -n mysql-cluster-libs%{product_suffix}
 /sbin/ldconfig
 
-%postun -n mysql-galera-libs%{product_suffix}
+%postun -n mysql-cluster-libs%{product_suffix}
 /sbin/ldconfig
 
 # ----------------------------------------------------------------------------
-%files -n mysql-galera-test%{product_suffix}
+%files -n mysql-cluster-test%{product_suffix}
 %defattr(-, root, root, 0755)
 %attr(-, root, root) %{_datadir}/mysql-test
 %attr(755, root, root) %{_bindir}/mysql_client_test
