@@ -1,5 +1,5 @@
-SPEC_FILE := percona-xtradb-cluster-galera.spec
-TARBALL := percona-xtradb-cluster-galera.tar.gz
+SPEC_FILE := mysql-cluster-galera.spec
+TARBALL := mysql-cluster-galera.tar.gz
 SRCDIR ?= ./
 DESTDIR ?= ./
 
@@ -8,7 +8,7 @@ DESTDIR ?= ./
 srpm: $(TARBALL) $(SPEC_FILE)
 	rpmbuild --define '_sourcedir $(SRCDIR)' --define '_srcrpmdir $(DESTDIR)' -bs $(SPEC_FILE)
 
-$(TARBALL): percona-xtradb-cluster-galera
+$(TARBALL): mysql-cluster-galera
 	tar zcf $@ $^
 
 clean:
