@@ -93,7 +93,7 @@ cp -R test %{buildroot}%{_datadir}/percona-xtrabackup-test
 %{_bindir}/innobackupex
 %{_bindir}/innobackupex-1.5.1
 %{_bindir}/xtrabackup
-#%{_bindir}/xtrabackup_51
+%{_bindir}/xtrabackup_51
 %{_bindir}/xtrabackup_55
 #%{_bindir}/xtrabackup_56
 %{_bindir}/xbstream
