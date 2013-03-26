@@ -18,7 +18,7 @@
 Summary: XtraBackup online backup for MySQL / InnoDB 
 Name: xtrabackup
 Version: %{xtrabackup_version}
-Release: %{release}
+Release: %{release}%{?dist}
 Group: Server/Databases
 License: GPLv2
 Packager: Percona Development Team <mysql-dev@percona.com>
@@ -34,6 +34,7 @@ BuildRequires: libaio-devel
 Source1: percona-server-5.1-xtrabackup.tar.bz2
 Source2: percona-server-5.5-xtrabackup.tar.bz2
 Source3: mysql-5.1.59.tar.gz
+Source4: mysql-5.5.16.tar.gz
 
 %description
 Percona XtraBackup is OpenSource online (non-blockable) backup solution for InnoDB and XtraDB engines.
@@ -52,7 +53,24 @@ This package contains the test suite for Percona Xtrabackup
 %setup -q
 %setup -T -D -a 1
 %setup -T -D -a 2
+
+# to put mysql-5.1 in topdir and percona-server 5.1
 cp %{SOURCE3} %{_builddir}/%{name}-%{version}/
+pushd %{_builddir}/%{name}-%{version}/percona-server-5.1-xtrabackup/ &&
+	ln -nsf ../mysql-5.1*.tar.gz ./
+popd
+
+#ln -sf ../mysql-5.1.59.tar.gz %{_builddir}/%{name}-%{version}/percona-server-5.1-xtrabackup/
+
+# to put mysql-5.5 in topdir and percona-server 5.5
+cp %{SOURCE4} %{_builddir}/%{name}-%{version}/
+pushd %{_builddir}/%{name}-%{version}/percona-server-5.5-xtrabackup/ &&
+	ln -nsf ../mysql-5.5*.tar.gz ./
+popd
+
+
+cp %{SOURCE3} %{_builddir}/%{name}-%{version}/
+ln -sf ../mysql-5.1.59.tar.gz %{_builddir}/%{name}-%{version}/percona-server-5.1-xtrabackup/
 
 %build
 set -ue
@@ -61,11 +79,14 @@ export CXX=${CXX-"gcc"}
 export CFLAGS="%{optflags} -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\"" 
 CXXFLAGS="${CXXFLAGS:-%optflags}"
 export CXXFLAGS="$CXXFLAGS -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\" -fno-exceptions" 
-AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
+#AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
+./utils/build.sh 5.1
 cp src/xtrabackup_51 src/xbstream .
-AUTO_DOWNLOAD=yes ./utils/build.sh xtradb
+#AUTO_DOWNLOAD=yes ./utils/build.sh xtradb
+./utils/build.sh xtradb
 cp src/xtrabackup .
-AUTO_DOWNLOAD=yes ./utils/build.sh xtradb55
+#AUTO_DOWNLOAD=yes ./utils/build.sh xtradb55
+./utils/build.sh xtradb55
 cp src/xtrabackup_55 .
 #CXX="${CXX_56-"g++"}" AUTO_DOWNLOAD=yes ./utils/build.sh xtradb56
 #cp src/xtrabackup_56 .
