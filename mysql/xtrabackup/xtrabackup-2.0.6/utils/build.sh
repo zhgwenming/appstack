@@ -202,10 +202,12 @@ function build_all()
     server_tarball=mysql-$mysql_version.tar.gz
     innodb_dir=$server_dir/storage/$innodb_name
 
-    echo "Downloading sources"
-    auto_download $server_tarball
+    if ! [ -f $server_tarball ]; then
+	    echo "Downloading sources"
+	    auto_download $server_tarball
 
-    test -d $server_dir && rm -r $server_dir
+	    test -d $server_dir && rm -r $server_dir
+    fi
 
     echo "Preparing sources"
     unpack_and_patch $server_tarball $server_patch
@@ -302,23 +304,27 @@ case "$type" in
 	fi
 
 
-	echo "Downloading sources"
-	
-	# Get Percona Server
-	if [ -d $branch_dir ]
-	then
-	    rm -rf $branch_dir
-	fi
-        if [ -d $branch_dir ]
-        then
-	    cd $branch_dir
-	    (bzr upgrade || true)
-	    bzr clean-tree --force --ignored
-	    bzr revert
-	    bzr pull --overwrite
+        if ! [ $branch_dir ]; then
+	    echo "Downloading sources"
+	    
+	    # Get Percona Server
+	    if [ -d $branch_dir ]
+	    then
+	        rm -rf $branch_dir
+	    fi
+            if [ -d $branch_dir ]
+            then
+	        cd $branch_dir
+	        (bzr upgrade || true)
+	        bzr clean-tree --force --ignored
+	        bzr revert
+	        bzr pull --overwrite
+	    else
+	        bzr branch -r tag:Percona-Server-$PS_51_VERSION \
+	    	lp:percona-server/5.1 $branch_dir
+	        cd $branch_dir
+	    fi
 	else
-	    bzr branch -r tag:Percona-Server-$PS_51_VERSION \
-		lp:percona-server/5.1 $branch_dir
 	    cd $branch_dir
 	fi
 
@@ -355,25 +361,29 @@ case "$type" in
 	fi
 
 
-	echo "Downloading sources"
-	
-	# Get Percona Server
-	if [ -d $branch_dir ]
-	then
-	    rm -rf $branch_dir
-	fi
-        if [ -d $branch_dir ]
-        then
-	    cd $branch_dir
-	    yes | bzr break-lock
-	    (bzr upgrade || true)
-	    bzr clean-tree --force --ignored
-	    bzr revert
-	    bzr pull --overwrite
+        if ! [ -d $branch_dir ]; then
+	   echo "Downloading sources"
+	   
+	   # Get Percona Server
+	   if [ -d $branch_dir ]
+	   then
+	       rm -rf $branch_dir
+	   fi
+           if [ -d $branch_dir ]
+           then
+	       cd $branch_dir
+	       yes | bzr break-lock
+	       (bzr upgrade || true)
+	       bzr clean-tree --force --ignored
+	       bzr revert
+	       bzr pull --overwrite
+	   else
+	       bzr branch -r tag:Percona-Server-$PS_55_VERSION \
+	   	lp:percona-server $branch_dir
+	       cd $branch_dir
+	   fi
 	else
-	    bzr branch -r tag:Percona-Server-$PS_55_VERSION \
-		lp:percona-server $branch_dir
-	    cd $branch_dir
+	   cd $branch_dir
 	fi
 
 	$MAKE_CMD PERCONA_SERVER=Percona-Server-5.5 main

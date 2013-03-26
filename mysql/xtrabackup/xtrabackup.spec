@@ -30,6 +30,11 @@ Provides: xtrabackup
 Obsoletes: xtrabackup
 BuildRequires: libaio-devel
 
+
+Source1: percona-server-5.1-xtrabackup.tar.bz2
+Source2: percona-server-5.5-xtrabackup.tar.bz2
+Source3: mysql-5.1.59.tar.gz
+
 %description
 Percona XtraBackup is OpenSource online (non-blockable) backup solution for InnoDB and XtraDB engines.
 
@@ -45,7 +50,9 @@ This package contains the test suite for Percona Xtrabackup
 
 %prep
 %setup -q
-
+%setup -T -D -a 1
+%setup -T -D -a 2
+cp %{SOURCE3} %{_builddir}/%{name}-%{version}/
 
 %build
 set -ue
@@ -54,14 +61,14 @@ export CXX=${CXX-"gcc"}
 export CFLAGS="%{optflags} -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\"" 
 CXXFLAGS="${CXXFLAGS:-%optflags}"
 export CXXFLAGS="$CXXFLAGS -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\" -fno-exceptions" 
-AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
-cp src/xtrabackup_51 src/xbstream .
+#AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
+#cp src/xtrabackup_51 src/xbstream .
 AUTO_DOWNLOAD=yes ./utils/build.sh xtradb
 cp src/xtrabackup .
 AUTO_DOWNLOAD=yes ./utils/build.sh xtradb55
 cp src/xtrabackup_55 .
-CXX="${CXX_56-"g++"}" AUTO_DOWNLOAD=yes ./utils/build.sh xtradb56
-cp src/xtrabackup_56 .
+#CXX="${CXX_56-"g++"}" AUTO_DOWNLOAD=yes ./utils/build.sh xtradb56
+#cp src/xtrabackup_56 .
 
 %install
 [ "%{buildroot}" != '/' ] && rm -rf %{buildroot}
@@ -71,7 +78,7 @@ install -d %{buildroot}%{_datadir}
 
 install -m 755 xtrabackup %{buildroot}%{_bindir}
 install -m 755 xtrabackup_55 %{buildroot}%{_bindir}
-install -m 755 xtrabackup_56 %{buildroot}%{_bindir}
+#install -m 755 xtrabackup_56 %{buildroot}%{_bindir}
 install -m 755 innobackupex %{buildroot}%{_bindir}
 ln -s innobackupex %{buildroot}%{_bindir}/innobackupex-1.5.1
 install -m 755 xtrabackup_51 %{buildroot}%{_bindir}
@@ -86,9 +93,9 @@ cp -R test %{buildroot}%{_datadir}/percona-xtrabackup-test
 %{_bindir}/innobackupex
 %{_bindir}/innobackupex-1.5.1
 %{_bindir}/xtrabackup
-%{_bindir}/xtrabackup_51
+#%{_bindir}/xtrabackup_51
 %{_bindir}/xtrabackup_55
-%{_bindir}/xtrabackup_56
+#%{_bindir}/xtrabackup_56
 %{_bindir}/xbstream
 %doc COPYING
 

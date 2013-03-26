@@ -1,5 +1,5 @@
 SPEC_FILE := xtrabackup.spec
-TARBALL := percona-xtrabackup.tar.gz
+TARBALL := xtrabackup-2.0.6.tar.gz
 SRCDIR ?= ./
 DESTDIR ?= ./
 
@@ -8,11 +8,11 @@ DESTDIR ?= ./
 srpm: $(TARBALL) $(SPEC_FILE)
 	rpmbuild --define '_sourcedir $(SRCDIR)' --define '_srcrpmdir $(DESTDIR)' -bs $(SPEC_FILE)
 
-$(TARBALL): percona-xtrabackup-2.0.6
+$(TARBALL): xtrabackup-2.0.6
 	tar zcf $@ $^
 
 clean:
-	rm -fv *gz *rpm
+	rm -fv xtrabackup-2.0.6.tar.gz *rpm
 
 build: srpm
 	rpmbuild --rebuild *.src.rpm
