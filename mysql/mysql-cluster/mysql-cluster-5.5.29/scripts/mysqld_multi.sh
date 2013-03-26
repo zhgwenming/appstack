@@ -255,10 +255,10 @@ sub report_mysqlds
 {
   my (@groups, $com, $i, @options, $pec);
 
-  print "Reporting MySQL (Percona XtraDB Cluster) servers\n";
+  print "Reporting MySQL (mCluster) servers\n";
   if (!$opt_no_log)
   {
-    w2log("\nReporting MySQL (Percona XtraDB Cluster) servers","$opt_log",0,0);
+    w2log("\nReporting MySQL (mCluster) servers","$opt_log",0,0);
   }
   @groups = &find_groups($groupids);
   for ($i = 0; defined($groups[$i]); $i++)
@@ -269,19 +269,19 @@ sub report_mysqlds
     $pec = $? >> 8;
     if ($pec)
     {
-      print "MySQL (Percona XtraDB Cluster) from group: $groups[$i] is not running\n";
+      print "MySQL (mCluster) from group: $groups[$i] is not running\n";
       if (!$opt_no_log)
       {
-	w2log("MySQL (Percona XtraDB Cluster) from group: $groups[$i] is not running",
+	w2log("MySQL (mCluster) from group: $groups[$i] is not running",
 	      "$opt_log", 0, 0);
       }
     }
     else
     {
-      print "MySQL (Percona XtraDB Cluster) from group: $groups[$i] is running\n";
+      print "MySQL (mCluster) from group: $groups[$i] is running\n";
       if (!$opt_no_log)
       {
-	w2log("MySQL (Percona XtraDB Cluster) from group: $groups[$i] is running",
+	w2log("MySQL (mCluster) from group: $groups[$i] is running",
 	      "$opt_log", 0, 0);
       }
     }
@@ -306,11 +306,11 @@ sub start_mysqlds()
 
   if (!$opt_no_log)
   {
-    w2log("\nStarting MySQL (Percona XtraDB Cluster)\n","$opt_log",0,0);
+    w2log("\nStarting MySQL (mCluster)\n","$opt_log",0,0);
   }
   else
   {
-    print "\nStarting MySQL (Percona XtraDB Cluster)\n";
+    print "\nStarting MySQL (mCluster)\n";
   }
   @groups = &find_groups($groupids);
   for ($i = 0; defined($groups[$i]); $i++)
@@ -381,7 +381,7 @@ sub start_mysqlds()
   }
   if (!$i && !$opt_no_log)
   {
-    w2log("No MySQL (Percona XtraDB Cluster) servers to be started (check your GNRs)",
+    w2log("No MySQL (mCluster) servers to be started (check your GNRs)",
 	  "$opt_log", 0, 0);
   }
 }
@@ -396,11 +396,11 @@ sub stop_mysqlds()
 
   if (!$opt_no_log)
   {
-    w2log("\nStopping MySQL (Percona XtraDB Cluster) servers\n","$opt_log",0,0);
+    w2log("\nStopping MySQL (mCluster) servers\n","$opt_log",0,0);
   }
   else
   {
-    print "\nStopping MySQL (Percona XtraDB Cluster) servers\n";
+    print "\nStopping MySQL (mCluster) servers\n";
   }
   @groups = &find_groups($groupids);
   for ($i = 0; defined($groups[$i]); $i++)
@@ -413,7 +413,7 @@ sub stop_mysqlds()
   }
   if (!$i && !$opt_no_log)
   {
-    w2log("No MySQL (Percona XtraDB Cluster) servers to be stopped (check your GNRs)",
+    w2log("No MySQL (mCluster) servers to be stopped (check your GNRs)",
 	  "$opt_log", 0, 0);
   }
 }

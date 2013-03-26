@@ -1,6 +1,6 @@
 #!/bin/bash 
 #
-# Script to make a proxy (ie HAProxy) capable of monitoring Percona XtraDB Cluster nodes properly
+# Script to make a proxy (ie HAProxy) capable of monitoring mCluster nodes properly
 #
 # Author: Olaf van Zandwijk <olaf.vanzandwijk@nedap.com>
 # Documentation and download: https://github.com/olafz/percona-clustercheck
@@ -20,19 +20,19 @@ WSREP_STATUS=`mysql --user=${MYSQL_USERNAME} --password=${MYSQL_PASSWORD} -e "SH
  
 if [[ "${WSREP_STATUS}" == "4" ]] || [[ "${WSREP_STATUS}" == "2" && ${AVAILABLE_WHEN_DONOR} == 1 ]]
 then 
-    # Percona XtraDB Cluster node local state is 'Synced' => return HTTP 200
+    # mCluster node local state is 'Synced' => return HTTP 200
     /bin/echo -en "HTTP/1.1 200 OK\r\n" 
     /bin/echo -en "Content-Type: text/plain\r\n" 
     /bin/echo -en "\r\n" 
-    /bin/echo -en "Percona XtraDB Cluster Node is synced.\r\n" 
+    /bin/echo -en "mCluster Node is synced.\r\n" 
     /bin/echo -en "\r\n" 
     exit 0
 else 
-    # Percona XtraDB Cluster node local state is not 'Synced' => return HTTP 503
+    # mCluster node local state is not 'Synced' => return HTTP 503
     /bin/echo -en "HTTP/1.1 503 Service Unavailable\r\n" 
     /bin/echo -en "Content-Type: text/plain\r\n" 
     /bin/echo -en "\r\n" 
-    /bin/echo -en "Percona XtraDB Cluster Node is not synced.\r\n" 
+    /bin/echo -en "mCluster Node is not synced.\r\n" 
     /bin/echo -en "\r\n"
     exit 1 
 fi 
