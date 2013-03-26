@@ -931,7 +931,7 @@ if [ $1 = 0 ] ; then
                 # Remove autostart of MySQL
                 # use chkconfig on Enterprise Linux and newer SuSE releases
                 if [ -x /sbin/chkconfig ] ; then
-                        /sbin/chkconfig --del mysql
+                        /sbin/chkconfig --del mysqld
                 # For older SuSE Linux versions
                 elif [ -x /sbin/insserv ] ; then
                         /sbin/insserv -r %{_sysconfdir}/init.d/mysqld
@@ -949,7 +949,7 @@ fi
 # Problem: RPM will first run the "pre" and "post" sections of this script,
 #   and only then the "preun" of that old community server.
 #   But this "preun" includes stopping the server and uninstalling the service,
-#   "chkconfig --del mysql" which removes the symlinks to the start script.
+#   "chkconfig --del mysqld" which removes the symlinks to the start script.
 # Solution: *After* the community server got removed, restart this server
 #   and re-install the service.
 #
@@ -971,7 +971,7 @@ fi
 echo "Analyzed: SERVER_TO_START=$SERVER_TO_START"
 
 if [ -x /sbin/chkconfig ] ; then
-        /sbin/chkconfig --add mysql
+        /sbin/chkconfig --add mysqld
 # use insserv for older SuSE Linux versions
 elif [ -x /sbin/insserv ] ; then
         /sbin/insserv %{_sysconfdir}/init.d/mysqld
