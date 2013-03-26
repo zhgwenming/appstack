@@ -61,8 +61,8 @@ export CXX=${CXX-"gcc"}
 export CFLAGS="%{optflags} -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\"" 
 CXXFLAGS="${CXXFLAGS:-%optflags}"
 export CXXFLAGS="$CXXFLAGS -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\" -fno-exceptions" 
-#AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
-#cp src/xtrabackup_51 src/xbstream .
+AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
+cp src/xtrabackup_51 src/xbstream .
 AUTO_DOWNLOAD=yes ./utils/build.sh xtradb
 cp src/xtrabackup .
 AUTO_DOWNLOAD=yes ./utils/build.sh xtradb55
