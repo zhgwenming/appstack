@@ -5,19 +5,25 @@
 %{!?buildnumber:%define buildnumber 1}
 %define distribution  rhel%{redhat_version}
 %define release       %{buildnumber}.%{distribution}
+
+# xtrabackup version 2.0.6-521
+%define xtrabackup_version 2.0.6
+%define release 521
+%define xtrabackup_revision 521
+
 %{!?xtrabackup_revision:%define xtrabackup_revision undefined}
 
 %define __os_install_post /usr/lib/rpm/brp-compress
 
 Summary: XtraBackup online backup for MySQL / InnoDB 
-Name: percona-xtrabackup
+Name: xtrabackup
 Version: %{xtrabackup_version}
 Release: %{release}
 Group: Server/Databases
 License: GPLv2
 Packager: Percona Development Team <mysql-dev@percona.com>
 URL: http://www.percona.com/software/percona-xtrabackup/
-Source: percona-xtrabackup-%{xtrabackup_version}.tar.gz
+Source: xtrabackup-%{xtrabackup_version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 Requires: mysql
 Provides: xtrabackup
@@ -30,25 +36,11 @@ Percona XtraBackup is OpenSource online (non-blockable) backup solution for Inno
 %package test
 Summary: Test suite for Percona Xtrabackup
 Group: Applications/Databases
-Requires: percona-xtrabackup
+Requires: xtrabackup
 AutoReqProv: no
 
 %description test
 This package contains the test suite for Percona Xtrabackup
-
-
-%changelog
-* Mon Sep 27 2010 Aleksandr Kuzminsky
-- Version 1.4
-
-* Wed Jun 30 2010 Aleksandr Kuzminsky
-- Version 1.3 ported on Percona Server 11
-
-* Thu Mar 11 2010 Aleksandr Kuzminsky
-- Ported to MySQL 5.1 with InnoDB plugin
-
-* Fri Mar 13 2009 Vadim Tkachenko
-- initial release
 
 
 %prep
@@ -59,7 +51,8 @@ This package contains the test suite for Percona Xtrabackup
 set -ue
 export CC=${CC-"gcc"}
 export CXX=${CXX-"gcc"}
-export CFLAGS="$CFLAGS -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\"" 
+export CFLAGS="%{optflags} -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\"" 
+CXXFLAGS="${CXXFLAGS:-%optflags}"
 export CXXFLAGS="$CXXFLAGS -DXTRABACKUP_VERSION=\\\"%{xtrabackup_version}\\\" -DXTRABACKUP_REVISION=\\\"%{xtrabackup_revision}\\\" -fno-exceptions" 
 AUTO_DOWNLOAD=yes ./utils/build.sh 5.1
 cp src/xtrabackup_51 src/xbstream .
@@ -99,11 +92,25 @@ cp -R test %{buildroot}%{_datadir}/percona-xtrabackup-test
 %{_bindir}/xbstream
 %doc COPYING
 
-%files -n percona-xtrabackup-test
+%files -n xtrabackup-test
 %{_datadir}/percona-xtrabackup-test
 
 ###
 ### eof
 ###
+
+
+%changelog
+* Mon Sep 27 2010 Aleksandr Kuzminsky
+- Version 1.4
+
+* Wed Jun 30 2010 Aleksandr Kuzminsky
+- Version 1.3 ported on Percona Server 11
+
+* Thu Mar 11 2010 Aleksandr Kuzminsky
+- Ported to MySQL 5.1 with InnoDB plugin
+
+* Fri Mar 13 2009 Vadim Tkachenko
+- initial release
 
 
