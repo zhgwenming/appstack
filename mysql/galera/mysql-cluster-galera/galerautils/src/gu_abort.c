@@ -3,7 +3,7 @@
 /**
  * @file Clean abort function
  *
- * $Id: gu_abort.c 2745 2012-03-17 00:00:23Z alex $
+ * $Id: gu_abort.c 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #include "gu_abort.h"

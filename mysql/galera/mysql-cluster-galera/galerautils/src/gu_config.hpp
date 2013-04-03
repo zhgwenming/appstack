@@ -1,10 +1,10 @@
-// Copyright (C) 2010 Codership Oy <info@codership.com>
- 
+// Copyright (C) 2010-2012 Codership Oy <info@codership.com>
+
 /**
  * @file
  * Configuration management class
  *
- * $Id: gu_config.hpp 2272 2011-07-28 23:24:41Z alex $
+ * $Id: gu_config.hpp 2875 2012-10-10 16:59:04Z alex $
  */
 
 #ifndef _gu_config_hpp_
@@ -96,7 +96,7 @@ public:
     }
 
     const std::string&
-    get(const std::string& key, const std::string& def) const throw (Exception)
+    get (const std::string& key, const std::string& def) const throw (Exception)
     {
         try               { return get(key); }
         catch (NotFound&) { return def     ; }

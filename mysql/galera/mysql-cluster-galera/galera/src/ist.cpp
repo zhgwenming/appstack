@@ -169,12 +169,16 @@ galera::ist::Receiver::Receiver(gu::Config& conf, const char* addr)
         recv_addr = conf_.get(RECV_ADDR);
         return;
     }
-    catch (gu::NotFound&) {} /* if not, check the alternative.
+    catch (gu::NotFound& e) {} /* if not, check the alternative.
                                 TODO: try to find from system. */
     if (addr)
     {
-        recv_addr = gu::URI(std::string("tcp://") + addr).get_host();
-        conf_.set(RECV_ADDR, recv_addr);
+        try
+        {
+            recv_addr = gu::URI(std::string("tcp://") + addr).get_host();
+            conf_.set(RECV_ADDR, recv_addr);
+        }
+        catch (gu::NotSet& e) {}
     }
 }
 
@@ -298,7 +302,8 @@ galera::ist::Receiver::prepare(wsrep_seqno_t first_seqno,
         // read recv_addr_ from acceptor_ in case zero port was specified
         recv_addr_ = uri.get_scheme()
             + "://"
-            + escape_addr(acceptor_.local_endpoint().address())
+            // + 
+            + uri.get_host()
             + ":"
             + gu::to_string(acceptor_.local_endpoint().port());
     }
@@ -322,7 +327,12 @@ galera::ist::Receiver::prepare(wsrep_seqno_t first_seqno,
 
     running_ = true;
 
-    log_info << "Prepared IST receiver, listening at: " << recv_addr_;
+    log_info << "Prepared IST receiver, listening at: "
+             << (uri.get_scheme()
+                 + "://"
+                 + escape_addr(acceptor_.local_endpoint().address())
+                 + ":"
+                 + gu::to_string(acceptor_.local_endpoint().port()));
     return recv_addr_;
 }
 

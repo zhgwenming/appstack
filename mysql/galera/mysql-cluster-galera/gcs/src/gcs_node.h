@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_node.h 2734 2012-03-08 10:47:53Z teemu $
+ * $Id: gcs_node.h 2847 2012-08-26 16:50:21Z alex $
  */
 
 /*!
@@ -21,8 +21,8 @@
 #include <gcache.h>
 
 #define NODE_NO_ID   "undefined"
-#define NODE_NO_NAME "unknown"
-#define NODE_NO_ADDR "unknown"
+#define NODE_NO_NAME "unspecified"
+#define NODE_NO_ADDR "unspecified"
 
 struct gcs_node
 {

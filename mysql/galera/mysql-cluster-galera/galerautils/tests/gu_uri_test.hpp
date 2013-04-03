@@ -1,6 +1,6 @@
 // Copyright (C) 2007 Codership Oy <info@codership.com>
 
-// $Id: gu_uri_test.hpp 2678 2012-01-17 11:10:13Z teemu $
+// $Id: gu_uri_test.hpp 2984 2013-03-05 10:38:09Z teemu $
 
 #ifndef __gu_uri_test__
 #define __gu_uri_test__

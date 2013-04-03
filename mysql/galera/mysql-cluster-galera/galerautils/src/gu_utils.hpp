@@ -3,7 +3,7 @@
 /**
  * @file General-purpose functions and templates
  *
- * $Id: gu_utils.hpp 2272 2011-07-28 23:24:41Z alex $
+ * $Id: gu_utils.hpp 2875 2012-10-10 16:59:04Z alex $
  */
 
 #ifndef _gu_utils_hpp_
@@ -63,8 +63,14 @@ from_string(const std::string& s,
     std::istringstream iss(s);
     T                  ret;
 
-    if ((iss >> f >> ret).fail()) throw NotFound();
-
+    try
+    {
+        if ((iss >> f >> ret).fail()) throw NotFound();
+    }
+    catch (gu::Exception& e)
+    {
+        throw NotFound();
+    }
     return ret;
 }
 
@@ -90,17 +96,23 @@ template <> inline void* from_string<void*>(const std::string& s,
     return ret;
 }
 
-extern bool _to_bool (const std::string& s) throw (NotFound);
+extern "C" const char* gu_str2bool (const char* str, bool*   bl);
+//extern bool _to_bool (const std::string& s) throw (NotFound);
 
 /*! Specialized template for reading bool. Tries both 1|0 and true|false */
 template <> inline bool from_string<bool> (const std::string& s,
                                            std::ios_base& (*f)(std::ios_base&))
     throw(NotFound)
 {
-    return _to_bool(s);
+    const char* const str(s.c_str());
+    bool ret;
+    const char* endptr(gu_str2bool(str, &ret));
+    if (endptr == 0 || *endptr != '\0') throw NotFound();
+    return ret;
+//    return _to_bool(s);
 }
 
-/*! 
+/*!
  * Substitute for the Variable Length Array on the stack from C99.
  * Provides automatic deallocation when out of scope:
  *

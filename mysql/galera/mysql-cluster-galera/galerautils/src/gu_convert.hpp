@@ -3,7 +3,7 @@
 /**
  * @file Routines for safe integer conversion
  *
- * $Id: gu_convert.hpp 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_convert.hpp 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #ifndef _gu_convert_hpp_

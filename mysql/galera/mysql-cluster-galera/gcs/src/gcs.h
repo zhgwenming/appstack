@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2008-2011 Codership Oy <info@codership.com>
+ * Copyright (C) 2008-2013 Codership Oy <info@codership.com>
  *
- * $Id: gcs.h 2683 2012-01-21 23:23:42Z alex $
+ * $Id: gcs.h 2942 2013-01-25 22:35:23Z alex $
  */
 
 /*!
@@ -34,6 +34,8 @@ static const gcs_seqno_t GCS_SEQNO_NIL   =  0;
 static const gcs_seqno_t GCS_SEQNO_FIRST =  1;
 /*! @def @brief history UUID length */
 #define GCS_UUID_LEN 16
+/*! @def @brief maximum supported size of an action (2GB - 1) */
+#define GCS_MAX_ACT_SIZE 0x7FFFFFFF
 
 /*! Connection handle type */
 typedef struct gcs_conn gcs_conn_t;
@@ -275,16 +277,18 @@ extern long gcs_request_state_transfer (gcs_conn_t  *conn,
                                         const void  *req,
                                         size_t       size,
                                         const char  *donor,
-                                        gcs_seqno_t *local_act_id);
+                                        gcs_seqno_t *seqno);
 
 /*! @brief Turns off flow control on the node.
  * Effectively desynchronizes the node from the cluster (while the node keeps on
  * receiving all the actions). Requires gcs_join() to return to normal.
  *
  * @param conn  connection to group
- * @return negative error code, local seqno in case of success
+ * @param seqno response to request was ordered with this seqno.
+ *              Must be skipped in local queues.
+ * @return negative error code, 0 in case of success.
  */
-extern gcs_seqno_t gcs_desync (gcs_conn_t* conn);
+extern long gcs_desync (gcs_conn_t* conn, gcs_seqno_t* seqno);
 
 /*! @brief Informs group on behalf of donor that state stransfer is over.
  * If status is non-negative, joiner will be considered fully joined to group.

@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2009 Codership Oy <info@codership.com>
  *
- * $Id: gu_lock_step.h 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_lock_step.h 2984 2013-03-05 10:38:09Z teemu $
  */
 
 // This is a small class to facilitate lock-stepping in multithreaded unit tests

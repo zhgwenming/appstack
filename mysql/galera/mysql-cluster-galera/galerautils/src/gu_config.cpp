@@ -1,10 +1,10 @@
-// Copyright (C) 2010 Codership Oy <info@codership.com>
- 
+// Copyright (C) 2010-2012 Codership Oy <info@codership.com>
+
 /**
  * @file
  * Configuration management implementation
  *
- * $Id: gu_config.cpp 2676 2012-01-16 19:10:50Z alex $
+ * $Id: gu_config.cpp 2875 2012-10-10 16:59:04Z alex $
  */
 
 #include "gu_config.h"

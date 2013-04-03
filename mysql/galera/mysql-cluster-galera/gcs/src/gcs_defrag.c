@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_defrag.c 2562 2011-11-28 03:21:13Z alex $
+ * $Id: gcs_defrag.c 2942 2013-01-25 22:35:23Z alex $
  */
 
 #include <errno.h>
@@ -97,8 +97,6 @@ gcs_defrag_handle_frag (gcs_defrag_t*         df,
     else {
         /* new action */
         if (gu_likely(0 == frg->frag_no)) {
-
-            assert (frg->act_size > 0);
 
             df->size    = frg->act_size;
             df->sent_id = frg->act_id;

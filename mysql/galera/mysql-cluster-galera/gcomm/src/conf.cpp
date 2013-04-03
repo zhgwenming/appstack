@@ -50,6 +50,9 @@ std::string const gcomm::Conf::GMCastMaxInitialReconnectAttempts =
     GMCastScheme + Delim + "mira";
 std::string const gcomm::Conf::GMCastPeerAddr =
     GMCastScheme + Delim + "peer_addr";
+std::string const gcomm::Conf::GMCastIsolate =
+    GMCastScheme + Delim + "isolate";
+
 // EVS
 std::string const gcomm::Conf::EvsScheme = "evs";
 std::string const gcomm::Conf::EvsVersion = 
@@ -80,6 +83,8 @@ std::string const gcomm::Conf::EvsUserSendWindow =
     EvsScheme + Delim + "user_send_window";
 std::string const gcomm::Conf::EvsUseAggregate =
     EvsScheme + Delim + "use_aggregate";
+std::string const gcomm::Conf::EvsCausalKeepalivePeriod =
+    EvsScheme + Delim + "causal_keepalive_period";
 std::string const gcomm::Conf::EvsMaxInstallTimeouts =
     EvsScheme + Delim + "max_install_timeouts";
 // PC
@@ -96,3 +101,4 @@ std::string const gcomm::Conf::PcBootstrap = PcScheme + Delim + "bootstrap";
 std::string const gcomm::Conf::PcWaitPrim = PcScheme + Delim + "wait_prim";
 std::string const gcomm::Conf::PcWaitPrimTimeout =
     PcScheme + Delim + "wait_prim_timeout";
+std::string const gcomm::Conf::PcWeight = PcScheme + Delim + "weight";

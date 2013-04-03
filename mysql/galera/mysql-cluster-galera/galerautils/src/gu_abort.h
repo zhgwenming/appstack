@@ -1,21 +1,19 @@
-// Copyright (C) 2011 Codership Oy <info@codership.com>
+// Copyright (C) 2012 Codership Oy <info@codership.com>
 
 /**
  * @file "Clean" abort function to avoid stack and core dumps
  *
- * $Id: gu_abort.h 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_abort.h 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #ifndef _gu_abort_h_
 #define _gu_abort_h_
 
-#include <stdbool.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* This function is for clean aborts, when we can't gracefully exit otherwise*/
+/* This function is for clean aborts, when we can't gracefully exit otherwise */
 extern void gu_abort();
 
 #ifdef __cplusplus

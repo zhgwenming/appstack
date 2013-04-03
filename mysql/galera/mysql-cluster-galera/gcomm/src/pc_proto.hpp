@@ -84,69 +84,79 @@ public:
         current_view_  (V_NONE),
         pc_view_       (V_NON_PRIM),
         views_         (),
-        mtu_           (std::numeric_limits<int32_t>::max())
+        mtu_           (std::numeric_limits<int32_t>::max()),
+        weight_        (check_range(Conf::PcWeight,
+                                    param<int>(conf, uri, Conf::PcWeight, "1"),
+                                    0, 0xff))
     {
         log_info << "PC version " << version_;
+        set_weight(weight_);
+
         conf.set(Conf::PcVersion,      gu::to_string(version_));
         conf.set(Conf::PcNpvo,         gu::to_string(npvo_));
         conf.set(Conf::PcIgnoreSb,     gu::to_string(ignore_sb_));
         conf.set(Conf::PcIgnoreQuorum, gu::to_string(ignore_quorum_));
         conf.set(Conf::PcChecksum,     gu::to_string(checksum_));
+        conf.set(Conf::PcWeight,       gu::to_string(weight_));
     }
 
     ~Proto() { }
 
-    const UUID& get_uuid() const { return my_uuid_; }
+    const UUID& uuid() const { return my_uuid_; }
 
-    bool get_prim() const { return NodeMap::get_value(self_i_).get_prim(); }
+    bool prim() const { return NodeMap::value(self_i_).prim(); }
 
-    void set_prim(const bool val) { NodeMap::get_value(self_i_).set_prim(val); }
+    void set_prim(const bool val) { NodeMap::value(self_i_).set_prim(val); }
 
     void mark_non_prim();
 
 
-    const ViewId& get_last_prim() const
-    { return NodeMap::get_value(self_i_).get_last_prim(); }
+    const ViewId& last_prim() const
+    { return NodeMap::value(self_i_).last_prim(); }
 
     void set_last_prim(const ViewId& vid)
     {
-        gcomm_assert(vid.get_type() == V_PRIM);
-        NodeMap::get_value(self_i_).set_last_prim(vid);
+        gcomm_assert(vid.type() == V_PRIM);
+        NodeMap::value(self_i_).set_last_prim(vid);
     }
 
-    uint32_t get_last_seq() const
-    { return NodeMap::get_value(self_i_).get_last_seq(); }
+    uint32_t last_seq() const
+    { return NodeMap::value(self_i_).last_seq(); }
 
     void set_last_seq(const uint32_t seq)
-    { NodeMap::get_value(self_i_).set_last_seq(seq); }
+    { NodeMap::value(self_i_).set_last_seq(seq); }
 
-    int64_t get_to_seq() const
-    { return NodeMap::get_value(self_i_).get_to_seq(); }
+    int64_t to_seq() const
+    { return NodeMap::value(self_i_).to_seq(); }
 
     void set_to_seq(const int64_t seq)
-    { NodeMap::get_value(self_i_).set_to_seq(seq); }
+    { NodeMap::value(self_i_).set_to_seq(seq); }
+
+    void set_weight(int weight)
+    { NodeMap::value(self_i_).set_weight(weight); }
+
 
     class SMMap : public Map<const UUID, Message> { };
 
-    const View& get_current_view() const { return current_view_; }
+    const View& current_view() const { return current_view_; }
 
     const UUID& self_id() const { return my_uuid_; }
 
-    State       get_state()   const { return state_; }
+    State       state()   const { return state_; }
 
     void shift_to    (State);
     void send_state  ();
-    void send_install(bool bootstrap);
+    void send_install(bool bootstrap, int weight = -1);
 
     void handle_first_trans (const View&);
     void handle_trans       (const View&);
     void handle_reg         (const View&);
 
-    void handle_msg  (const Message&, const gu::Datagram&,
+    void handle_msg  (const Message&, const Datagram&,
                       const ProtoUpMeta&);
-    void handle_up   (const void*, const gu::Datagram&,
+    void handle_up   (const void*, const Datagram&,
                       const ProtoUpMeta&);
-    int  handle_down (gu::Datagram&, const ProtoDownMeta&);
+    int  handle_down (Datagram&, const ProtoDownMeta&);
 
     void connect(bool first)
     {
@@ -170,13 +180,14 @@ private:
 
     bool requires_rtr() const;
     bool is_prim() const;
-    bool have_quorum(const View&) const;
+    bool have_quorum(const View&, const View&) const;
     bool have_split_brain(const View&) const;
     void validate_state_msgs() const;
     void cleanup_instances();
     void handle_state(const Message&, const UUID&);
     void handle_install(const Message&, const UUID&);
-    void handle_user(const Message&, const gu::Datagram&,
+    void handle_trans_install(const Message&, const UUID&);
+    void handle_user(const Message&, const Datagram&,
                      const ProtoUpMeta&);
     void deliver_view(bool bootstrap = false);
 
@@ -199,6 +210,7 @@ private:
     View              pc_view_;       // PC view
     std::list<View>   views_;         // List of seen views
     size_t            mtu_;           // Maximum transmission unit
+    int               weight_;        // Node weight in voting
 };
 
 

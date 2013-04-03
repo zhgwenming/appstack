@@ -3,7 +3,7 @@
 /*!
  * @file GaleraUtils main header file
  *
- * $Id: galerautils.hpp 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: galerautils.hpp 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #ifndef _galerautils_hpp_

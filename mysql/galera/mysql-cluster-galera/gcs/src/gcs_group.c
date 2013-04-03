@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_group.c 2763 2012-03-30 00:23:30Z alex $
+ * $Id: gcs_group.c 2928 2013-01-14 19:25:09Z alex $
  */
 
 #include "gcs_group.h"
@@ -198,6 +198,8 @@ group_redo_last_applied (gcs_group_t* group)
             last_applied = seqno;
             last_node    = n;
         }
+        // extra diagnostic, ignore
+        //else if (!count) { gu_warn("not counting %d", n); }
     }
 
     if (gu_likely (last_node >= 0)) {
@@ -228,7 +230,7 @@ group_go_non_primary (gcs_group_t* group)
 }
 
 static const char group_empty_id[GCS_COMP_MEMB_ID_MAX_LEN + 1] = { 0, };
- 
+
 static void
 group_check_donor (gcs_group_t* group)
 {
@@ -289,7 +291,7 @@ group_post_state_exchange (gcs_group_t* group)
             group->last_applied_proto_ver = 0;
         }
         else {
-            group->last_applied_proto_ver = 1;            
+            group->last_applied_proto_ver = 1;
         }
     }
     else {
@@ -602,7 +604,7 @@ gcs_group_handle_last_msg (gcs_group_t* group, const gcs_recv_msg_t* msg)
     assert (GCS_MSG_LAST        == msg->type);
     assert (sizeof(gcs_seqno_t) == msg->size);
 
-    seqno = gcs_seqno_le(*(gcs_seqno_t*)(msg->buf));
+    seqno = gcs_seqno_gtoh(*(gcs_seqno_t*)(msg->buf));
 
     // This assert is too restrictive. It requires application to send
     // last applied messages while holding TO, otherwise there's a race
@@ -618,7 +620,12 @@ gcs_group_handle_last_msg (gcs_group_t* group, const gcs_recv_msg_t* msg)
 
         group_redo_last_applied (group);
 
-        if (old_val < group->last_applied) return group->last_applied;
+        if (old_val < group->last_applied) {
+            gu_debug ("New COMMIT CUT %lld after %lld from %d",
+                      (long long)group->last_applied,
+                      (long long)seqno, msg->sender_idx);
+            return group->last_applied;
+        }
     }
 
     return 0;
@@ -640,7 +647,7 @@ gcs_group_handle_join_msg  (gcs_group_t* group, const gcs_recv_msg_t* msg)
     if (GCS_NODE_STATE_DONOR  == sender->status ||
         GCS_NODE_STATE_JOINER == sender->status) {
         long j;
-        gcs_seqno_t seqno     = gcs_seqno_le(*(gcs_seqno_t*)msg->buf);
+        gcs_seqno_t seqno     = gcs_seqno_gtoh(*(gcs_seqno_t*)msg->buf);
         gcs_node_t* peer      = NULL;
         const char* peer_id   = NULL;
         const char* peer_name = "left the group";
@@ -656,7 +663,7 @@ gcs_group_handle_join_msg  (gcs_group_t* group, const gcs_recv_msg_t* msg)
             assert (group->last_applied_proto_ver >= 0);
 
             if (0 == group->last_applied_proto_ver) {
-                /* #454 - we don't switch to JOINED here, 
+                /* #454 - we don't switch to JOINED here,
                  *        instead going straignt to SYNCED */
             }
             else {

@@ -1,6 +1,6 @@
 // Copyright (C) 2009 Codership Oy <info@codership.com>
 
-// $Id: gu_tests++.hpp 2678 2012-01-17 11:10:13Z teemu $
+// $Id: gu_tests++.hpp 2984 2013-03-05 10:38:09Z teemu $
 
 /*!
  * @file: package specific part of the main test file.

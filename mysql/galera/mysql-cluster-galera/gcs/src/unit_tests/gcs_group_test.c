@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_group_test.c 2734 2012-03-08 10:47:53Z teemu $
+ * $Id: gcs_group_test.c 2832 2012-06-25 20:06:26Z alex $
  */
 
 #include <check.h>
@@ -382,13 +382,13 @@ END_TEST
 static inline void
 group_set_last_msg (gcs_recv_msg_t* msg, gcs_seqno_t seqno)
 {
-    *(gcs_seqno_t*)(msg->buf) = gcs_seqno_le (seqno);
+    *(gcs_seqno_t*)(msg->buf) = gcs_seqno_htog (seqno);
 }
 
 static inline gcs_seqno_t
 group_get_last_msg (gcs_recv_msg_t* msg)
 {
-    return gcs_seqno_le(*(gcs_seqno_t*)(msg->buf));
+    return gcs_seqno_gtoh(*(gcs_seqno_t*)(msg->buf));
 }
 
 // This tests last applied functionality

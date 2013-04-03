@@ -103,7 +103,9 @@ namespace galera
             throw (gu::Exception);
         void process_sync(wsrep_seqno_t seqno_l)
             throw (gu::Exception);
-        const struct wsrep_stats_var* stats() const;
+
+        const struct wsrep_stats_var* stats_get()  const;
+        static void                   stats_free(struct wsrep_stats_var*);
 
         // helper function
         void           set_param (const std::string& key,
@@ -134,6 +136,8 @@ namespace galera
         {
             static const std::string commit_order;
             static const std::string causal_read_timeout;
+            static const std::string base_host;
+            static const std::string base_port;
         };
 
         typedef std::pair<std::string, std::string> Default;
@@ -147,16 +151,26 @@ namespace galera
         static const Defaults defaults;
         // both a list of parameters and a list of default values
 
-        inline void report_last_committed()
+        wsrep_seqno_t last_committed()
+        {
+            return co_mode_ != CommitOrder::BYPASS ?
+                   commit_monitor_.last_left() : apply_monitor_.last_left();
+        }
+
+        void report_last_committed()
         {
             if (gu_unlikely(cert_.index_purge_required()))
-                service_thd_.report_last_committed(apply_monitor_.last_left());
+            {
+                wsrep_seqno_t const purge_seqno(cert_.get_safe_to_discard_seqno());
+                service_thd_.report_last_committed(purge_seqno);
+            }
         }
 
         wsrep_status_t cert(TrxHandle* trx);
         wsrep_status_t cert_for_aborted(TrxHandle* trx);
 
         void update_state_uuid (const wsrep_uuid_t& u);
+        void update_incoming_list (const wsrep_view_info_t& v);
 
         /* aborts/exits the program in a clean way */
         void abort() throw();
@@ -263,7 +277,7 @@ namespace galera
                 switch (mode_)
                 {
                 case BYPASS:
-                    gu_throw_fatal 
+                    gu_throw_fatal
                         << "commit order condition called in bypass mode";
                     throw;
                 case OOOC:
@@ -383,7 +397,6 @@ namespace galera
          * |------------------------------------------------------
          * | protocol_version_ | trx_proto_ver_ | str_proto_ver_ |
          * |------------------------------------------------------
-         * |                 0 |              0 |              0 |
          * |                 1 |              1 |              0 |
          * |                 2 |              1 |              1 |
          * |                 3 |              2 |              1 |
@@ -437,15 +450,15 @@ namespace galera
         // action sources
         ActionSource*   as_;
         GcsActionSource gcs_as_;
-        ist::Receiver ist_receiver_;
+        ist::Receiver   ist_receiver_;
         ist::AsyncSenderMap ist_senders_;
         // trx processing
         Wsdb            wsdb_;
         Certification   cert_;
 
         // concurrency control
-        Monitor<LocalOrder> local_monitor_;
-        Monitor<ApplyOrder> apply_monitor_;
+        Monitor<LocalOrder>  local_monitor_;
+        Monitor<ApplyOrder>  apply_monitor_;
         Monitor<CommitOrder> commit_monitor_;
         gu::datetime::Period causal_read_timeout_;
 
@@ -459,6 +472,10 @@ namespace galera
         gu::Atomic<long long> local_bf_aborts_;
         gu::Atomic<long long> local_replays_;
         gu::Atomic<long long> causal_reads_;
+
+        // non-atomic stats
+        std::string           incoming_list_;
+        mutable gu::Mutex     incoming_mutex_;
 
         mutable std::vector<struct wsrep_stats_var> wsrep_stats_;
     };

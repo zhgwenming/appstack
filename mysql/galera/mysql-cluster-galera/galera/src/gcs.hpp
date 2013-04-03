@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2010 Codership Oy <info@codership.com>
+// Copyright (C) 2010-2013 Codership Oy <info@codership.com>
 //
 
 #ifndef GALERA_GCS_HPP
@@ -39,7 +39,7 @@ namespace galera
         virtual ssize_t request_state_transfer(const void* req, ssize_t req_len,
                                                const std::string& sst_donor,
                                                gcs_seqno_t* seqno_l) = 0;
-        virtual gcs_seqno_t desync() throw () = 0;
+        virtual ssize_t desync(gcs_seqno_t* seqno_l) throw () = 0;
         virtual void    join(gcs_seqno_t seqno) throw (gu::Exception) = 0;
         virtual void    get_stats(gcs_stats*) const = 0;
 
@@ -47,8 +47,10 @@ namespace galera
                                    const std::string& value)
             throw (gu::Exception, gu::NotFound) = 0;
 
-        virtual char*   param_get (const std::string& key) const 
+        virtual char*   param_get (const std::string& key) const
             throw (gu::Exception, gu::NotFound) = 0;
+
+        virtual size_t  max_action_size() const = 0;
     };
 
     class Gcs : public GcsI
@@ -76,7 +78,10 @@ namespace galera
         ssize_t connect(const std::string& cluster_name,
                         const std::string& cluster_url)
         {
-            return gcs_open(conn_, cluster_name.c_str(), cluster_url.c_str());
+            if (cluster_url != "bootstrap")
+                return gcs_open(conn_,cluster_name.c_str(),cluster_url.c_str());
+            else
+                return gcs_open(conn_,cluster_name.c_str(),"gcomm://");
         }
 
         ssize_t set_initial_position(const wsrep_uuid_t& uuid,
@@ -133,21 +138,9 @@ namespace galera
                                               sst_donor.c_str(), seqno_l);
         }
 
-        gcs_seqno_t desync () throw ()
+        ssize_t desync (gcs_seqno_t* seqno_l) throw ()
         {
-            gcs_seqno_t ret;
-
-            // WARNING: Here we have application block on this call which
-            //          may prevent application from resolving the issue.
-            //          (Not that we expect that application can resolve it.)
-            for (long i = 0; i < 100 && (-EAGAIN == (ret = gcs_desync(conn_)));
-                 ++i) // limit blocking time to 10s
-            {
-                log_warn << "Retrying DESYNC request.";
-                usleep (100000); // 0.1s
-            }
-
-            return ret;
+            return gcs_desync(conn_, seqno_l);
         }
 
         void join (gcs_seqno_t seqno) throw (gu::Exception)
@@ -187,6 +180,8 @@ namespace galera
             gu_throw_error(ENOSYS) << "Not implemented: " << __FUNCTION__;
             return 0;
         }
+
+        size_t  max_action_size() const { return GCS_MAX_ACT_SIZE; }
 
     private:
 
@@ -255,7 +250,7 @@ namespace galera
                 }
             }
 
-            if (gu_likely(0 != gcache_ && ret > 0)) 
+            if (gu_likely(0 != gcache_ && ret > 0))
             {
                 assert (ret == act.size);
                 void* ptr = gcache_->malloc(act.size);
@@ -299,8 +294,9 @@ namespace galera
             return -ENOSYS;
         }
 
-        gcs_seqno_t desync () throw ()
+        ssize_t desync (gcs_seqno_t* seqno_l) throw ()
         {
+            *seqno_l = GCS_SEQNO_ILL;
             return -ENOTCONN;
         }
 
@@ -321,6 +317,8 @@ namespace galera
         char* param_get (const std::string& key) const
             throw (gu::Exception, gu::NotFound)
         { return 0; }
+
+        size_t  max_action_size() const { return 0x7FFFFFFF; }
 
     private:
 

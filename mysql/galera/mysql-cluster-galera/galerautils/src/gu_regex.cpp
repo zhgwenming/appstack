@@ -3,7 +3,7 @@
 /**
  * @file Regular expressions parser based on POSIX regex functions in <regex.h>
  *
- * $Id: gu_regex.cpp 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_regex.cpp 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #include "gu_utils.hpp"

@@ -3,7 +3,7 @@
 /**
  * @file Assert macro definition
  *
- * $Id: gu_assert.hpp 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_assert.hpp 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #ifndef _gu_assert_hpp_

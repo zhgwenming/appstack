@@ -16,8 +16,9 @@ env.Prepend(LIBS=File('#/galerautils/src/libgalerautils++.a'))
 env.Prepend(LIBS=File('#/gcomm/src/libgcomm.a'))
 env.Prepend(LIBS=File('#/gcs/src/libgcs4garb.a'))
 
-# Add libboost_program_options to garbd environment.
-garbd_env = env.Clone()
+#bpo_static = '/usr/lib/libboost_program_options.a'
+#bpo_local_static = '/usr/local/lib/libboost_program_options.a'
+
 Import('LIBBOOST_PROGRAM_OPTIONS_A')
 
 import os
@@ -36,10 +37,10 @@ if not os.path.isfile(LIBBOOST_PROGRAM_OPTIONS_A):
                     LIBBOOST_PROGRAM_OPTIONS_A = '/usr/lib64/libboost_program_options.a'
 
 if os.path.isfile(LIBBOOST_PROGRAM_OPTIONS_A):
-    garbd_env.Append(LIBS=File(LIBBOOST_PROGRAM_OPTIONS_A))
+    env.Append(LIBS=File(LIBBOOST_PROGRAM_OPTIONS_A))
 else:
     # as a last resort try shared library
-    garbd_env.Append(LIBS=['boost_program_options'])
+    env.Append(LIBS=['boost_program_options'])
 
 # special environment for garb_config.cpp
 conf_env = env.Clone()
@@ -47,7 +48,7 @@ Import('GALERA_VER', 'GALERA_REV')
 conf_env.Append(CPPFLAGS = ' -DGALERA_VER=\\"' + GALERA_VER + '\\"')
 conf_env.Append(CPPFLAGS = ' -DGALERA_REV=\\"' + GALERA_REV + '\\"')
 
-garb = garbd_env.Program(target = 'garbd',
+garb = env.Program(target = 'garbd',
                    source = Split('''
                                   garb_logger.cpp
                                   garb_gcs.cpp

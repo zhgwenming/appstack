@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2010 Codership Oy <info@codership.com>
+// Copyright (C) 2010-2012 Codership Oy <info@codership.com>
 //
 
 #ifndef GALERA_CERTIFICATION_HPP
@@ -17,45 +17,24 @@
 
 namespace galera
 {
-
-    class KeyEntry
-    {
-    public:
-        KeyEntry(const Key& row_key);
-        ~KeyEntry();
-        Key get_key(int version) const;
-        void ref(TrxHandle* trx, bool full_key);
-        void unref(TrxHandle* trx, bool full_key);
-        void ref_shared(TrxHandle* trx, bool full_key);
-        void unref_shared(TrxHandle* trx, bool full_key);
-        const TrxHandle* ref_trx() const;
-        const TrxHandle* ref_full_trx() const;
-        const TrxHandle* ref_shared_trx() const;
-        const TrxHandle* ref_full_shared_trx() const;
-    private:
-        KeyEntry(const KeyEntry& other);
-        void operator=(const KeyEntry&);
-        gu::byte_t* key_buf_;
-        TrxHandle* ref_trx_;
-        TrxHandle* ref_full_trx_;
-        TrxHandle* ref_shared_trx_;
-        TrxHandle* ref_full_shared_trx_;
-    };
-
     class Certification
     {
     public:
-        typedef gu::UnorderedMap<Key, KeyEntry*, KeyHash> CertIndex;
-    private:
-        class DiscardRK
+        struct Param
         {
-        public:
-            void operator()(CertIndex::value_type& vt) const
-            {
-                delete vt.second;
-            }
+#define CERTIFICATION_PARAM_LOG_CONFLICTS_STR "cert.log_conflicts"
+            static const std::string log_conflicts;
         };
 
+        struct Defaults
+        {
+#define CERTIFICATION_DEFAULTS_LOG_CONFLICTS_STR "no"
+            static const std::string log_conflicts;
+        };
+
+        typedef gu::UnorderedSet<KeyEntry*,
+                                 KeyEntryPtrHash, KeyEntryPtrEqual> CertIndex;
+    private:
         typedef std::multiset<wsrep_seqno_t>        DepsSet;
 
         typedef std::map<wsrep_seqno_t, TrxHandle*> TrxMap;
@@ -68,7 +47,7 @@ namespace galera
             TEST_FAILED
         } TestResult;
 
-        Certification(const gu::Config& conf = gu::Config());
+        Certification(gu::Config& conf);
         ~Certification();
 
         void assign_initial_position(wsrep_seqno_t seqno, int versiono);
@@ -119,6 +98,8 @@ namespace galera
                     (key_count_ += count /* restore count */, false));
         }
 
+        void set_log_conflicts(const std::string& str);
+
     private:
         TestResult do_test(TrxHandle*, bool);
         TestResult do_test_v0(TrxHandle*, bool);
@@ -146,10 +127,10 @@ namespace galera
                         log_warn << "trx not committed in purge and discard: "
                                  << *trx;
                     }
-                    cert_.purge_for_trx(trx);
 
                     if (trx->depends_seqno() > -1)
                     {
+                        cert_.purge_for_trx(trx);
                         cert_.n_certified_--;
                         cert_.deps_dist_ -=
                             (trx->global_seqno() - trx->depends_seqno());
@@ -197,8 +178,10 @@ namespace galera
         unsigned long const max_length_check_; /* Mask how often to check */
         static unsigned long  const max_length_check_default;
 
-        static long const purge_interval_ = (1UL<<10);
-        gu::Atomic<long> key_count_;
+        bool                log_conflicts_;
+
+        static long   const purge_interval_ = (1UL<<10);
+        gu::Atomic<long>    key_count_;
     };
 }
 

@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_core_test.h 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gcs_core_test.h 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #ifndef __gcs_core_test__

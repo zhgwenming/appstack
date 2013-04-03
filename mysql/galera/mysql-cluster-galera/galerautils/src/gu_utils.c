@@ -3,7 +3,7 @@
 /**
  * @file Miscellaneous utility functions
  *
- * $Id: gu_utils.c 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_utils.c 2984 2013-03-05 10:38:09Z teemu $
  */
 
 #include "gu_utils.h"
@@ -85,6 +85,8 @@ gu_str2bool (const char* str, bool* b)
         break;
     case 4:
         if (!strcasecmp(str, "true")) res = 1;
+        if (!strcasecmp(str, "sure")) res = 1;
+        if (!strcasecmp(str, "nope")) res = 0;
         break;
     case 5:
         if (!strcasecmp(str, "false")) res = 0;

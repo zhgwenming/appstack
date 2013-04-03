@@ -1,11 +1,11 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_core.c 2745 2012-03-17 00:00:23Z alex $
+ * $Id: gcs_core.c 2858 2012-09-27 08:42:59Z alex $
  *
  *
  * Implementation of the generic communication layer.
- * See gcs_core.h 
+ * See gcs_core.h
  */
 
 #include <string.h> // for mempcpy
@@ -605,7 +605,9 @@ core_handle_last_msg (gcs_core_t*          core,
             /* commit cut changed */
             if ((act->buf = malloc (sizeof (commit_cut)))) {
                 act->type                 = GCS_ACT_COMMIT_CUT;
-                *((gcs_seqno_t*)act->buf) = commit_cut;
+                /* #701 - everything that goes into the action buffer
+                 *        is expected to be serialized. */
+                *((gcs_seqno_t*)act->buf) = gcs_seqno_htog(commit_cut);
                 act->buf_len              = sizeof(commit_cut);
                 return act->buf_len;
             }
@@ -667,7 +669,7 @@ core_handle_comp_msg (gcs_core_t*          core,
             ret = -ENOTRECOVERABLE;
         }
         else {
-            if (0 == gcs_proto_ver) { core->proto_ver = 0; } 
+            if (0 == gcs_proto_ver) { core->proto_ver = 0; }
         }
         assert (ret == act->buf_len);
         break;
@@ -929,14 +931,6 @@ core_msg_to_action (gcs_core_t*          core,
         }
     }
     else {
-/* Remove. JOIN message resend was implemented for #603 and #606
-        if (GCS_MSG_JOIN == msg->type && group->my_idx == msg->sender_idx) {
-            // workaround for #594
-            gu_fatal ("JOIN message unrecoverably lost in configuration change."
-                      " Restart required.");
-            return -ENOTRECOVERABLE;
-        }
-*/
         gu_warn ("%s message from member %ld in non-primary configuration. "
                  "Ignored.", gcs_msg_type_string[msg->type], msg->sender_idx);
     }
@@ -948,15 +942,20 @@ static long core_msg_causal(gcs_core_t* conn,
                             struct gcs_recv_msg* msg)
 {
     causal_act_t* act;
-    if (msg->size != sizeof(*act))
+    if (gu_unlikely(msg->size != sizeof(*act)))
     {
         gu_error("invalid causal act len %ld, expected %ld",
                  msg->size, sizeof(*act));
         return -EPROTO;
     }
+
+    gcs_seqno_t const causal_seqno =
+        GCS_GROUP_PRIMARY == conn->group.state ?
+        conn->group.act_id : GCS_SEQNO_ILL;
+
     act = (causal_act_t*)msg->buf;
     gu_mutex_lock(act->mtx);
-    *act->act_id = conn->group.act_id;
+    *act->act_id = causal_seqno;
     gu_cond_signal(act->cond);
     gu_mutex_unlock(act->mtx);
     return msg->size;
@@ -1195,10 +1194,10 @@ gcs_core_set_pkt_size (gcs_core_t* core, long pkt_size)
 static inline long
 core_send_seqno (gcs_core_t* core, gcs_seqno_t seqno, gcs_msg_type_t msg_type)
 {
-    gcs_seqno_t seqno_le = gcs_seqno_le (seqno);
-    ssize_t     ret      = core_msg_send_retry (core, &seqno_le,
-                                                sizeof(seqno_le),
-                                                msg_type);
+    gcs_seqno_t const htogs = gcs_seqno_htog (seqno);
+    ssize_t           ret   = core_msg_send_retry (core, &htogs,
+                                                   sizeof(htogs),
+                                                   msg_type);
     if (ret > 0) {
         assert(ret == sizeof(seqno));
         ret = 0;

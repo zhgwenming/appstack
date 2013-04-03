@@ -1,11 +1,12 @@
 //
-// Copyright (C) 2010 Codership Oy <info@codership.com>
+// Copyright (C) 2010-2012 Codership Oy <info@codership.com>
 //
 
 #include "replicator.hpp"
 #include "gcs_action_source.hpp"
 #include "trx_handle.hpp"
-#include "serialization.hpp"
+
+#include "gu_serialize.hpp"
 
 extern "C"
 {
@@ -78,7 +79,8 @@ galera::GcsActionTrx::GcsActionTrx(const struct gcs_action& act)
 
     size_t offset(unserialize(buf, act.size, 0, *trx_));
 
-    trx_->append_write_set(buf + offset, act.size - offset);
+    // trx_->append_write_set(buf + offset, act.size - offset);
+    trx_->set_write_set_buffer(buf + offset, act.size - offset);
     trx_->set_received(act.buf, act.seqno_l, act.seqno_g);
     trx_->lock();
 }
@@ -92,7 +94,7 @@ galera::GcsActionTrx::~GcsActionTrx()
 }
 
 
-void galera::GcsActionSource::dispatch(void*                 recv_ctx,
+void galera::GcsActionSource::dispatch(void*                    recv_ctx,
                                        const struct gcs_action& act)
 {
     assert(recv_ctx != 0);
@@ -112,8 +114,8 @@ void galera::GcsActionSource::dispatch(void*                 recv_ctx,
     case GCS_ACT_COMMIT_CUT:
     {
         wsrep_seqno_t seq;
-        unserialize(reinterpret_cast<const gu::byte_t*>(act.buf), act.size, 0,
-                    seq);
+        gu::unserialize8(reinterpret_cast<const gu::byte_t*>(act.buf),
+                         act.size, 0, seq);
         replicator_.process_commit_cut(seq, act.seqno_l);
         break;
     }
@@ -139,9 +141,10 @@ void galera::GcsActionSource::dispatch(void*                 recv_ctx,
         break;
     case GCS_ACT_JOIN:
     {
-        wsrep_seqno_t const seqno(
-            *(reinterpret_cast<const wsrep_seqno_t*>(act.buf)));
-        replicator_.process_join(seqno, act.seqno_l);
+        wsrep_seqno_t seq;
+        gu::unserialize8(reinterpret_cast<const gu::byte_t*>(act.buf),
+                         act.size, 0, seq);
+        replicator_.process_join(seq, act.seqno_l);
         break;
     }
     case GCS_ACT_SYNC:

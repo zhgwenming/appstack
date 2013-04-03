@@ -38,7 +38,8 @@
 %define redhatversion %(lsb_release -rs | awk -F. '{ print $1}')
 %define distribution  rhel%{redhatversion}
 
-%define revision 113
+%define revision 147
+
 Name:		mysql-cluster-galera
 Version:	2.0
 Release:	1.%{revision}%{?dist}

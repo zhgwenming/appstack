@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gu_to.c 2678 2012-01-17 11:10:13Z teemu $
+ * $Id: gu_to.c 2984 2013-03-05 10:38:09Z teemu $
  */
 
 /*! \file \brief Total order access "class" implementation.

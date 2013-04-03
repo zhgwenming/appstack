@@ -1,157 +1,251 @@
-/* Copyright (C) 2009 Codership Oy <info@codership.com> */
-// THIS IS UNFINISHED!
-#include <string.h>
-#include <stdio.h>
-#include "../src/galerautils.h"
-#include "../src/gu_fnv.h"
+// Copyright (C) 2012 Codership Oy <info@codership.com>
 
-#define SAMPLE_LEN (1<<16)
+/*
+ * This unit test is mostly to check that Galera hash definitions didn't change:
+ * correctness of hash algorithms definitions is checked in respective unit
+ * tests.
+ *
+ * By convention checks are made against etalon byte arrays, so integers must be
+ * converted to little-endian.
+ *
+ * $Id: gu_hash_test.c 2822 2012-06-20 19:59:58Z alex $
+ */
 
-int s0[SAMPLE_LEN] = { 0, };
-int s1[SAMPLE_LEN] = { 0, };
-int s2[SAMPLE_LEN] = { 0, };
-int s3[SAMPLE_LEN] = { 0, };
+#include "gu_hash_test.h"
 
-int*   samples[]   = { s0, s1, s2, s3 };
-size_t samples_len = sizeof(samples)/sizeof(samples[0]);
+#include "../src/gu_hash.h"
+#include "../src/gu_log.h"
+#include "../src/gu_print_buf.h"
 
-void clear()
+/* checks equivalence of two buffers, returns true if check fails and logs
+ * buffer contents. */
+static bool
+check (const void* const exp, const void* const got, ssize_t size)
 {
-    size_t i;
-    for (i = 0; i < samples_len; i++)
-        memset (samples[i], 0, SAMPLE_LEN*sizeof(*samples[i]));
-}
+    if (memcmp (exp, got, size))
+    {
+        ssize_t str_size = size * 2.2 + 1;
+        char c[str_size], r[str_size];
 
-#define DIST_LEN SAMPLE_LEN
-int dist[DIST_LEN];
+        gu_print_buf (exp, size, c, sizeof(c), false);
+        gu_print_buf (got, size, r, sizeof(r), false);
 
-long print_histogram (int dist[], long max)
-{
-    size_t i;
-    int    max_dist  = dist[1];
-    int    max_scale = 10;
-    double scale     = 60; // hist width in symbols
+        gu_info ("expected hash value:\n%s\nfound:\n%s\n", c, r);
 
-    for (i = 1; i < DIST_LEN; i++)
-        max_dist = max_dist < dist[i] ? dist[i] : max_dist;
-
-    while (max_scale < max_dist) max_scale *= 10;
-
-    scale /= max_scale;
-    max = max < DIST_LEN ? max : DIST_LEN - 1;
-
-    printf ("Distribution:\n");
-    for (i = 1; i <= max; i++) {
-        int j;
-        printf ("%5zu: %5d ", i, dist[i]);
-        for (j = 0; j < (int)(scale * dist[i] + 0.5); j++) printf ("#");
-        printf ("\n");
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
-static long analyze_sample (int s[], uint64_t tries)
+static const char test_msg[2048] = { 0, };
+
+#define GU_HASH_TEST_LENGTH 43 /* some random prime */
+
+static const uint8_t gu_hash128_check[16] = {
+0xFA,0x2C,0x78,0x67,0x35,0x99,0xD9,0x84,0x73,0x41,0x3F,0xA5,0xEB,0x27,0x40,0x2F
+};
+
+static const uint8_t gu_hash64_check[8]  = {
+0xFA,0x2C,0x78,0x67,0x35,0x99,0xD9,0x84
+};
+
+static const uint8_t gu_hash32_check[4]  = { 0xFA,0x2C,0x78,0x67 };
+
+/* Tests partial hashing functions */
+START_TEST (gu_hash_test)
 {
-    size_t i;
-    long max = 0;
-    size_t max_i = 0;
-    long total = 0;
+    gu_hash_t h;
 
-    memset (dist, 0, DIST_LEN*sizeof(dist[0]));
+    gu_hash_init(&h);
+    gu_hash_append(&h, test_msg, GU_HASH_TEST_LENGTH);
 
-    for (i = 0; i < SAMPLE_LEN; i++) {
-        s[i]  -= (s[i] != 0); // remove single occurences
-        total +=  s[i];
-        if (s[i] < DIST_LEN) dist[s[i]]++;
-        max = max < s[i] ? (max_i = i, s[i]) : max;
-    }
+    uint8_t res128[16];
+    gu_hash_get128 (&h, res128);
+    fail_if (check (gu_hash128_check, res128, sizeof(res128)),
+             "gu_hash_get128() failed.");
 
-    printf ("Total collisions: %ld (%f)\n", total, ((double)total)/tries);
-    printf ("Max collisions: %ld at %04zX\n", max, max_i);
-    print_histogram (dist, max);
-    return max;
+    uint64_t res64 = gu_hash_get64(&h);
+    fail_if (gu_hash64(test_msg, GU_HASH_TEST_LENGTH) != res64);
+    res64 = gu_le64(res64);
+    fail_if (check (gu_hash64_check, &res64, sizeof(res64)),
+             "gu_hash_get64() failed.");
+
+    uint32_t res32 = gu_hash_get32(&h);
+    fail_if (gu_hash32(test_msg, GU_HASH_TEST_LENGTH) != res32);
+    res32 = gu_le32(res32);
+    fail_if (check (gu_hash32_check, &res32, sizeof(res32)),
+             "gu_hash_get32() failed.");
 }
+END_TEST
 
-void analyze (uint64_t tries)
+static const uint8_t fast_hash128_check0   [16] = {
+0xA9,0xCE,0x5A,0x56,0x0C,0x0B,0xF7,0xD6,0x63,0x4F,0x6F,0x81,0x0E,0x0B,0xF2,0x0A
+};
+static const uint8_t fast_hash128_check511 [16] = {
+0xC6,0x7F,0x4C,0xE7,0x6F,0xE0,0xDA,0x14,0xCC,0x9F,0x21,0x76,0xAF,0xB5,0x12,0x1A
+};
+static const uint8_t fast_hash128_check512 [16] = {
+0x38,0x8D,0x2B,0x90,0xC8,0x7F,0x11,0x53,0x3F,0xB4,0x32,0xC1,0xD7,0x2B,0x04,0x39
+};
+static const uint8_t fast_hash128_check2011[16] = {
+0xB7,0xCE,0x75,0xC7,0xB4,0x31,0xBC,0xC8,0x95,0xB3,0x41,0xB8,0x5B,0x8E,0x77,0xF9
+};
+
+static const uint8_t fast_hash64_check0   [8] = {
+    0x6C, 0x55, 0xB8, 0xA1, 0x02, 0xC6, 0x21, 0xCA
+};
+static const uint8_t fast_hash64_check15  [8] = {
+    0x28, 0x49, 0xE8, 0x34, 0x7A, 0xAB, 0x49, 0x34
+};
+static const uint8_t fast_hash64_check16  [8] = {
+    0x44, 0x40, 0x2C, 0x82, 0xD3, 0x8D, 0xAA, 0xFE
+};
+static const uint8_t fast_hash64_check511 [8] = {
+    0xC6, 0x7F, 0x4C, 0xE7, 0x6F, 0xE0, 0xDA, 0x14
+};
+static const uint8_t fast_hash64_check512 [8] = {
+    0x38, 0x8D, 0x2B, 0x90, 0xC8, 0x7F, 0x11, 0x53
+};
+static const uint8_t fast_hash64_check2011[8] = {
+    0xB7, 0xCE, 0x75, 0xC7, 0xB4, 0x31, 0xBC, 0xC8
+};
+
+static const uint8_t fast_hash32_check0   [4] = { 0x0B, 0x7C, 0x3E, 0xAB };
+static const uint8_t fast_hash32_check31  [4] = { 0x1E, 0xFF, 0x48, 0x38 };
+static const uint8_t fast_hash32_check32  [4] = { 0x63, 0xC2, 0x53, 0x0D };
+static const uint8_t fast_hash32_check511 [4] = { 0xC6, 0x7F, 0x4C, 0xE7 };
+static const uint8_t fast_hash32_check512 [4] = { 0x38, 0x8D, 0x2B, 0x90 };
+static const uint8_t fast_hash32_check2011[4] = { 0xB7, 0xCE, 0x75, 0xC7 };
+
+/* Tests fast hash functions */
+START_TEST (gu_fast_hash_test)
 {
-    size_t i;
+    uint8_t res128[16];
 
-    for (i = 0; i < samples_len; i++) analyze_sample (samples[i], tries);
+    gu_fast_hash128 (test_msg, 0, res128);
+    fail_if (check (fast_hash128_check0, res128, sizeof(res128)));
+
+    gu_fast_hash128 (test_msg, 511, res128);
+    fail_if (check (fast_hash128_check511, res128, sizeof(res128)));
+
+    gu_fast_hash128 (test_msg, 512, res128);
+    fail_if (check (fast_hash128_check512, res128, sizeof(res128)));
+
+    gu_fast_hash128 (test_msg, 2011, res128);
+    fail_if (check (fast_hash128_check2011, res128, sizeof(res128)));
+
+    uint64_t res64;
+
+    res64 = gu_fast_hash64 (test_msg, 0); res64 = gu_le64(res64);
+    fail_if (check (fast_hash64_check0, &res64, sizeof(res64)));
+
+    res64 = gu_fast_hash64 (test_msg, 15); res64 = gu_le64(res64);
+    fail_if (check (fast_hash64_check15, &res64, sizeof(res64)));
+
+    res64 = gu_fast_hash64 (test_msg, 16); res64 = gu_le64(res64);
+    fail_if (check (fast_hash64_check16, &res64, sizeof(res64)));
+
+    res64 = gu_fast_hash64 (test_msg, 511); res64 = gu_le64(res64);
+    fail_if (check (fast_hash64_check511, &res64, sizeof(res64)));
+
+    res64 = gu_fast_hash64 (test_msg, 512); res64 = gu_le64(res64);
+    fail_if (check (fast_hash64_check512, &res64, sizeof(res64)));
+
+    res64 = gu_fast_hash64 (test_msg, 2011); res64 = gu_le64(res64);
+    fail_if (check (fast_hash64_check2011, &res64, sizeof(res64)));
+
+    uint32_t res32;
+
+    res32 = gu_fast_hash32 (test_msg, 0); res32 = gu_le32(res32);
+    fail_if (check (fast_hash32_check0, &res32, sizeof(res32)));
+
+    res32 = gu_fast_hash32 (test_msg, 31); res32 = gu_le32(res32);
+    fail_if (check (fast_hash32_check31, &res32, sizeof(res32)));
+
+    res32 = gu_fast_hash32 (test_msg, 32); res32 = gu_le32(res32);
+    fail_if (check (fast_hash32_check32, &res32, sizeof(res32)));
+
+    res32 = gu_fast_hash32 (test_msg, 511); res32 = gu_le32(res32);
+    fail_if (check (fast_hash32_check511, &res32, sizeof(res32)));
+
+    res32 = gu_fast_hash32 (test_msg, 512); res32 = gu_le32(res32);
+    fail_if (check (fast_hash32_check512, &res32, sizeof(res32)));
+
+    res32 = gu_fast_hash32 (test_msg, 2011); res32 = gu_le32(res32);
+    fail_if (check (fast_hash32_check2011, &res32, sizeof(res32)));
 }
+END_TEST
 
-#if 0
-static void validate (uint16_t* h, uint64_t hsh)
+/* Tests table hash functions:
+ * - for 64-bit platforms table hash should be identical to fast 64-bit hash,
+ * - for 32-bit platforms table hash is different.
+ */
+#if GU_WORDSIZE == 64
+
+START_TEST (gu_table_hash_test)
 {
-    uint16_t h0 =  hash & 0x000000000000ffffULL;
-    uint16_t h1 = (hash & 0x00000000ffff0000ULL) >> 16;
-    uint16_t h2 = (hash & 0x0000ffff00000000ULL) >> 32;
-    uint16_t h3 = (hash & 0xffff000000000000ULL) >> 48;
+    size_t res;
 
-    if (h[0] != h0 || h[1] != h1 || h[2] != h2 || h[3] != h3) {
-        printf ("h[0] = %04hX, h0 = %04hX\n", h[0], h0);
-        printf ("h[1] = %04hX, h1 = %04hX\n", h[1], h1);
-        printf ("h[2] = %04hX, h2 = %04hX\n", h[2], h2);
-        printf ("h[3] = %04hX, h3 = %04hX\n", h[3], h3);
-        puts ("-");
-    }
+    fail_if (sizeof(res) > 8);
+
+    res = gu_table_hash (test_msg, 0); res = gu_le64(res);
+    fail_if (check (fast_hash64_check0, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 15); res = gu_le64(res);
+    fail_if (check (fast_hash64_check15, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 16); res = gu_le64(res);
+    fail_if (check (fast_hash64_check16, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 511); res = gu_le64(res);
+    fail_if (check (fast_hash64_check511, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 512); res = gu_le64(res);
+    fail_if (check (fast_hash64_check512, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 2011); res = gu_le64(res);
+    fail_if (check (fast_hash64_check2011, &res, sizeof(res)));
 }
+END_TEST
+
+#elif GU_WORDSIZE == 32
+
+static const uint8_t table_hash32_check0   [4] = { 0x0B, 0x7C, 0x3E, 0xAB };
+static const uint8_t table_hash32_check32  [4] = { 0x65, 0x16, 0x17, 0x42 };
+static const uint8_t table_hash32_check2011[4] = { 0xF9, 0xBC, 0xEF, 0x7A };
+
+START_TEST (gu_table_hash_test)
+{
+    size_t res;
+
+    fail_if (sizeof(res) > 4);
+
+    res = gu_table_hash (test_msg, 0); res = gu_le32(res);
+    fail_if (check (table_hash32_check0, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 32); res = gu_le32(res);
+    fail_if (check (table_hash32_check32, &res, sizeof(res)));
+
+    res = gu_table_hash (test_msg, 2011); res = gu_le32(res);
+    fail_if (check (table_hash32_check2011, &res, sizeof(res)));
+}
+END_TEST
+
+#else /* GU_WORDSIZE == 32 */
+#  error "Unsupported word size"
 #endif
 
-#define TEST_DIST(hash_name,hash_len)                                   \
-    {                                                                   \
-        clock_t  start;                                                 \
-        double   spent;                                                 \
-        long     iter;                                                  \
-        long     iter_max = 1ULL << 8;                                  \
-        uint64_t msg[] = { GU_FNV_64_INIT, GU_FNV_64_INIT };            \
-        size_t   msg_size = 8;                                          \
-        uint64_t p = 1;                                                 \
-        clear();                                                        \
-        start = clock();                                                \
-        for (iter = 0; iter < iter_max; iter++, p <<= 1, val ^= p) {    \
-            size_t i;                                                   \
-            uint64_t hash = hash_name(msg, msg_size);                   \
-            for (i = 0; i < (hash_len >> 1); i++) {                     \
-                samples[i][(uint16_t)hash]++;                           \
-                hash >>= 16;                                            \
-            }                                                           \
-            if (!p) { msg[0] *= msg[0]; p = 1; }                        \
-        }                                                               \
-        spent = gu_clock_diff (clock(), start);                         \
-        printf ("Spent %f seconds (%f bytes/second)\n",                 \
-                spent, (1.0/spent) * iter_max * val_size);              \
-        analyze (iter_max);                                             \
-    }
-
-#define TEST_SPEED(hash_name, msg, msg_len)                             \
-    {                                                                   \
-        volatile uint64_t hash = 0;                                     \
-        clock_t  start;                                                 \
-        double   spent;                                                 \
-        long     iter;                                                  \
-        long     iter_max = 1ULL << 28;                                 \
-        start = clock();                                                \
-        for (iter = 0; iter < iter_max; iter++) {                       \
-            hash = hash_name(msg, msg_len);                             \
-        }                                                               \
-        spent = gu_clock_diff (clock(), start);                         \
-        printf ("Spent %f seconds (%f bytes/second)\n",                 \
-                spent, (1.0/spent) * iter_max * msg_len);               \
-    }
-
-int main (int argc, char* argv[])
+Suite *gu_hash_suite(void)
 {
-    uint64_t msg[32] = { 1, 2, };
+  Suite *s  = suite_create("Galera hash");
+  TCase *tc = tcase_create("gu_hash");
 
-    printf ("FNV-1a\n");
-    TEST_SPEED (gu_fnv1a, msg, sizeof(msg));
+  suite_add_tcase (s, tc);
+  tcase_add_test  (tc, gu_hash_test);
+  tcase_add_test  (tc, gu_fast_hash_test);
+  tcase_add_test  (tc, gu_table_hash_test);
 
-//    printf ("FNV-1a optimized\n");
-//    TEST (gu_fnv1a_opt, 0);
-
-    printf ("FNV-1a 2-byte opt\n");
-    TEST_SPEED (gu_fnv1a_2, msg, sizeof(msg));
-
-    return 0;
+  return s;
 }
+

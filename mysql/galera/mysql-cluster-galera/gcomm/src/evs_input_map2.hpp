@@ -19,15 +19,11 @@
 #ifndef EVS_INPUT_MAP2_HPP
 #define EVS_INPUT_MAP2_HPP
 
-#include "gu_datagram.hpp"
-
 #include "evs_message2.hpp"
 #include "gcomm/map.hpp"
-
-#include <boost/pool/pool_alloc.hpp>
+#include "gcomm/datagram.hpp"
 
 #include <vector>
-
 
 
 namespace gcomm
@@ -48,6 +44,7 @@ namespace gcomm
     }
 }
 
+
 /* Internal msg representation */
 class gcomm::InputMapMsgKey
 {
@@ -57,8 +54,8 @@ public:
         seq_   (seq)
     { }
 
-    size_t       get_index() const { return index_; }
-    evs::seqno_t get_seq  () const { return seq_;   }
+    size_t       index() const { return index_; }
+    evs::seqno_t seq  () const { return seq_;   }
 
     bool operator<(const InputMapMsgKey& cmp) const
     {
@@ -71,42 +68,32 @@ private:
 };
 
 
-
 /* Internal message representation */
 class gcomm::evs::InputMapMsg
 {
 public:
-    InputMapMsg(const UserMessage&       msg_,
-                const gu::Datagram& rb_   ) :
-        msg  (msg_ ),
-        rb   (rb_  )
+    InputMapMsg(const UserMessage&  msg,
+                const Datagram&     rb)
+        :
+        msg_(msg),
+        rb_ (rb)
     { }
-
-    InputMapMsg(const InputMapMsg& m) :
-        msg  (m.msg ),
-        rb   (m.rb  )
-    { }
-
+    InputMapMsg(const InputMapMsg& m) : msg_(m.msg_), rb_ (m.rb_) { }
     ~InputMapMsg() { }
 
-    const UserMessage& get_msg () const { return msg;  }
-    const gu::Datagram&    get_rb  () const { return rb;   }
+    const UserMessage&  msg () const { return msg_;  }
+    const Datagram& rb  () const { return rb_;   }
 private:
     void operator=(const InputMapMsg&);
 
-    UserMessage const msg;
-    gu::Datagram rb;
+    UserMessage const msg_;
+    Datagram          rb_;
 };
 
 
-#if 1
+#if defined(GALERA_USE_BOOST_POOL_ALLOC)
 
-class DummyMutex
-{
-public:
-    void lock() { }
-    void unlock() {}
-};
+#include <boost/pool/pool_alloc.hpp>
 
 class gcomm::evs::InputMapMsgIndex :
     public Map<InputMapMsgKey, InputMapMsg,
@@ -116,18 +103,19 @@ class gcomm::evs::InputMapMsgIndex :
                         boost::fast_pool_allocator<
                             std::pair<const InputMapMsgKey, InputMapMsg>,
                             boost::default_user_allocator_new_delete,
-                            DummyMutex> > >
-{ };
-#else
+                            boost::details::pool::null_mutex
+                            >
+                        >
+               >
+{};
+
+#else /* GALERA_USE_BOOST_POOL_ALLOC */
 
 class gcomm::evs::InputMapMsgIndex :
-    public Map<InputMapMsgKey, InputMapMsg> { };
-//               std::map<InputMapMsgKey,
-//                        InputMapMsg,
-//                        std::less<InputMapMsgKey>,
-//                        boost::fast_pool_allocator<
-//                            std::pair<const InputMapMsgKey, InputMapMsg> > > >
-#endif // 0
+    public Map<InputMapMsgKey, InputMapMsg>
+{};
+
+#endif /* GALERA_USE_BOOST_POOL_ALLOC */
 
 /* Internal node representation */
 class gcomm::evs::InputMapNode
@@ -139,9 +127,9 @@ public:
     void   set_safe_seq  (const seqno_t s)       { safe_seq_  = s; }
     void   set_index     (const size_t  i)       { idx_       = i; }
 
-    Range   get_range     ()               const { return range_;     }
-    seqno_t get_safe_seq  ()               const { return safe_seq_;  }
-    size_t  get_index     ()               const { return idx_;       }
+    Range   range     ()               const { return range_;     }
+    seqno_t safe_seq  ()               const { return safe_seq_;  }
+    size_t  index     ()               const { return idx_;       }
 
 private:
     size_t  idx_;
@@ -180,14 +168,14 @@ public:
      *
      * @return Current value of aru_seq
      */
-    seqno_t get_aru_seq () const { return aru_seq_;  }
+    seqno_t aru_seq () const { return aru_seq_;  }
 
     /*!
      * Get current value of safe_seq.
      *
      * @return Current value of safe_seq
      */
-    seqno_t get_safe_seq() const { return safe_seq_; }
+    seqno_t safe_seq() const { return safe_seq_; }
 
     /*!
      * Set sequence number safe for node.
@@ -210,10 +198,10 @@ public:
      *
      * @throws FatalException if node was not found
      */
-    seqno_t get_safe_seq(const size_t uuid) const
+    seqno_t safe_seq(const size_t uuid) const
         throw (gu::Exception)
     {
-        return node_index_->at(uuid).get_safe_seq();
+        return node_index_->at(uuid).safe_seq();
     }
 
     /*!
@@ -225,16 +213,16 @@ public:
      *
      * @throws FatalException if node was not found
      */
-    Range get_range   (const size_t uuid) const
+    Range range   (const size_t uuid) const
         throw (gu::Exception)
     {
-        return node_index_->at(uuid).get_range();
+        return node_index_->at(uuid).range();
     }
 
-    seqno_t get_min_hs() const
+    seqno_t min_hs() const
         throw (gu::Exception);
 
-    seqno_t get_max_hs() const
+    seqno_t max_hs() const
         throw (gu::Exception);
 
     /*!
@@ -259,7 +247,7 @@ public:
     bool is_safe  (iterator i) const
         throw (gu::Exception)
     {
-        const seqno_t seq(InputMapMsgIndex::get_key(i).get_seq());
+        const seqno_t seq(InputMapMsgIndex::key(i).seq());
         return (seq <= safe_seq_);
     }
 
@@ -271,7 +259,7 @@ public:
     bool is_agreed(iterator i) const
         throw (gu::Exception)
     {
-        const seqno_t seq(InputMapMsgIndex::get_key(i).get_seq());
+        const seqno_t seq(InputMapMsgIndex::key(i).seq());
         return (seq <= aru_seq_);
     }
 
@@ -283,10 +271,10 @@ public:
     bool is_fifo  (iterator i) const
         throw (gu::Exception)
     {
-        const seqno_t seq(InputMapMsgIndex::get_key(i).get_seq());
+        const seqno_t seq(InputMapMsgIndex::key(i).seq());
         const InputMapNode& node((*node_index_)[
-                                     InputMapMsgIndex::get_key(i).get_index()]);
-        return (node.get_range().get_lu() > seq);
+                                     InputMapMsgIndex::key(i).index()]);
+        return (node.range().lu() > seq);
     }
 
     bool has_deliverables() const
@@ -323,7 +311,7 @@ public:
      *         number is out of allowed range
      */
     Range insert(const size_t uuid, const UserMessage& msg,
-                 const gu::Datagram& dg = gu::Datagram())
+                 const Datagram& dg = Datagram())
         throw (gu::Exception);
 
     /*!

@@ -2,16 +2,20 @@
 
 /*!
  * @file Benchmark for different hash implementations:
- *       fnv32, fnv64, fnv128, md5 from libssl and md5 from crypto++
+ *       fnv32, fnv64, fnv128, mmh3, md5 from libssl and md5 from crypto++
  *
  * To compile:
- * g++ -O3 -Wall -Werror -march=core2 gu_fnv_bench.c -lssl -lcrypto++
+ * g++ -DHAVE_ENDIAN_H -DHAVE_BYTESWAP_H -O3 -Wall -Werror -march=core2 \
+ *     gu_fnv_bench.c gu_mmh3.c -lssl/-lcrypto -lcrypto++
  *
  * To run:
  * gu_fnv_bench <buffer size> <N loops>
  */
 
 #include "gu_fnv.h"
+#include "gu_mmh3.h"
+#include "gu_spooky.h"
+#include "gu_hash.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +33,14 @@ enum algs
     FNV32,
     FNV64,
     FNV128,
+    MMH32,
+    MMH128,
+    SPOOKYS,
+    SPOOKY,
     MD5SSL,
-    MD5CPP
+    MD5CPP,
+    FAST128,
+    TABLE
 };
 
 static int timer (const void* const buf, ssize_t const len,
@@ -39,8 +49,8 @@ static int timer (const void* const buf, ssize_t const len,
     double begin, end;
     struct timeval tv;
     const char* alg = "undefined";
-    uint64_t volatile h; // this variable serves to prevet compiler from 
-                         // optimizeing out the calls
+    size_t volatile h; // this variable serves to prevent compiler from
+                       // optimizing out the calls
 
     gettimeofday (&tv, NULL); begin = (double)tv.tv_sec + 1.e-6 * tv.tv_usec;
 
@@ -65,7 +75,7 @@ static int timer (const void* const buf, ssize_t const len,
         alg = "fnv32a";
         INTERNAL_LOOP_BEGIN
             uint32_t hash = GU_FNV32_SEED;
-            gu_fnv32a (buf, len, &hash);
+            gu_fnv32a_internal (buf, len, &hash);
             h = hash;
         INTERNAL_LOOP_END
         break;
@@ -75,7 +85,7 @@ static int timer (const void* const buf, ssize_t const len,
         alg = "fnv64a";
         INTERNAL_LOOP_BEGIN
             uint64_t hash = GU_FNV64_SEED;;
-            gu_fnv64a (buf, len, &hash);
+            gu_fnv64a_internal (buf, len, &hash);
             h = hash;
         INTERNAL_LOOP_END
         break;
@@ -85,12 +95,54 @@ static int timer (const void* const buf, ssize_t const len,
         alg = "fnv128";
         INTERNAL_LOOP_BEGIN
             gu_uint128_t hash = GU_FNV128_SEED;
-            gu_fnv128a (buf, len, &hash);
-#if (GU_WORDSIZE == 64)
+            gu_fnv128a_internal (buf, len, &hash);
+#if defined(__SIZEOF_INT128__)
             h = hash;
 #else
             h = hash.u32[GU_32LO];
 #endif
+        INTERNAL_LOOP_END
+        break;
+    }
+    case MMH32:
+    {
+        alg = "mmh32";
+        INTERNAL_LOOP_BEGIN
+            h = gu_mmh32 (buf, len);
+        INTERNAL_LOOP_END
+        break;
+    }
+    case MMH128:
+    {
+        alg = "mmh128";
+        INTERNAL_LOOP_BEGIN
+            gu_uint128_t hash;
+            gu_mmh128 (buf, len, &hash);
+#if defined(__SIZEOF_INT128__)
+            h = hash;
+#else
+            h = hash.u32[GU_32LO];
+#endif
+        INTERNAL_LOOP_END
+        break;
+    }
+    case SPOOKYS:
+    {
+        alg = "SpookyS";
+        INTERNAL_LOOP_BEGIN
+            uint64_t hash[2];
+            gu_spooky_short (buf, len, hash);
+            h = hash[0];
+        INTERNAL_LOOP_END
+        break;
+    }
+    case SPOOKY:
+    {
+        alg = "Spooky";
+        INTERNAL_LOOP_BEGIN
+            uint64_t hash[2];
+            gu_spooky_inline (buf, len, hash);
+            h = hash[0];
         INTERNAL_LOOP_END
         break;
     }
@@ -112,14 +164,33 @@ static int timer (const void* const buf, ssize_t const len,
         INTERNAL_LOOP_END
         break;
     }
+    case FAST128:
+    {
+        alg = "fast128";
+        INTERNAL_LOOP_BEGIN
+            uint64_t hash[2];
+            gu_fast_hash128 (buf, len, hash);
+            h = hash[0];
+        INTERNAL_LOOP_END
+        break;
+    }
+    case TABLE:
+    {
+        alg = "table";
+        INTERNAL_LOOP_BEGIN
+            h = gu_table_hash (buf, len);
+        INTERNAL_LOOP_END
+        break;
+    }
     }
     EXTERNAL_LOOP_END
 
     gettimeofday (&tv, NULL); end   = (double)tv.tv_sec + 1.e-6 * tv.tv_usec;
 
     end -= begin;
-    return printf ("%s: %lld loops, %7.3f seconds, %7.3f Mb/sec\n",
-                   alg, loops, end, (double)(loops * len)/end/1024/1024);
+    return printf ("%s: %lld loops, %6.3f seconds, %8.3f Mb/sec%s\n",
+                   alg, loops, end, (double)(loops * len)/end/1024/1024,
+                   h ? "" : " ");
 }
 
 int main (int argc, char* argv[])
@@ -139,8 +210,14 @@ int main (int argc, char* argv[])
     timer (buf, buf_size, loops, FNV32);
     timer (buf, buf_size, loops, FNV64);
     timer (buf, buf_size, loops, FNV128);
+    timer (buf, buf_size, loops, MMH32);
+    timer (buf, buf_size, loops, MMH128);
+    timer (buf, buf_size, loops, SPOOKYS);
+    timer (buf, buf_size, loops, SPOOKY);
     timer (buf, buf_size, loops, MD5SSL);
     timer (buf, buf_size, loops, MD5CPP);
+    timer (buf, buf_size, loops, FAST128);
+    timer (buf, buf_size, loops, TABLE);
 
     return 0;
 }

@@ -19,6 +19,7 @@ PAUSE_RND=${3:-"20"}
 
 # Start load
 SQLGEN=${SQLGEN:-"$DIST_BASE/bin/sqlgen"}
+LD_PRELOAD=$GLB_PRELOAD \
 $SQLGEN --user $DBMS_TEST_USER --pswd $DBMS_TEST_PSWD --host $DBMS_HOST \
         --port $DBMS_PORT --users $DBMS_CLIENTS --duration 999999999 \
         --stat-interval 99999999 >/dev/null 2>$BASE_RUN/seesaw.err &
@@ -51,6 +52,11 @@ cycle()
 
     echo "Signaling node $node_id with CONT..."
     signal_node CONT $node
+
+    sleep 10 # this pause needed to get node to notice that it lost the PC
+             # if it did...
+
+    wait_node_state $node 4 # 4 - SYNCED
 }
 
 node=0
@@ -67,7 +73,6 @@ do
 
     cycle $node
 
-    pause 1 5
     consistency_check $sqlgen_pid
     pause 2
 

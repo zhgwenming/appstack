@@ -1,13 +1,14 @@
 //
-// Copyright (C) 2011 Codership Oy <info@codership.com>
+// Copyright (C) 2011-2012 Codership Oy <info@codership.com>
 //
 
 #ifndef GALERA_KEY_HPP
 #define GALERA_KEY_HPP
 
-#include "serialization.hpp"
 #include "wsrep_api.h"
 
+#include "gu_hash.h"
+#include "gu_serialize.hpp"
 #include "gu_unordered.hpp"
 #include "gu_throw.hpp"
 #include "gu_vlq.hpp"
@@ -30,45 +31,10 @@ namespace galera
     }
 
 
-    class KeyPart0
+    class KeyPart
     {
     public:
-        KeyPart0(const gu::byte_t* key) : key_(key) { }
-        const gu::byte_t* buf() const { return key_; }
-        size_t size()           const { return (1 + key_[0]); }
-        size_t key_len()        const { return key_[0]      ; }
-        const gu::byte_t* key() const { return &key_[1]     ; }
-        bool operator==(const KeyPart0& other) const
-        {
-            return (key_[0] == other.key_[0] &&
-                    memcmp(key_ + 1, other.key_ + 1, key_[0]) == 0);
-        }
-    private:
-        const gu::byte_t* key_;
-    };
-
-
-    inline std::ostream& operator<<(std::ostream& os, const KeyPart0& kp)
-    {
-        const std::ostream::fmtflags prev_flags(os.flags(std::ostream::hex));
-        const char                   prev_fill(os.fill('0'));
-
-        for (const gu::byte_t* i(kp.key()); i != kp.key() + kp.key_len();
-             ++i)
-        {
-            os << std::setw(2) << static_cast<int>(*i);
-        }
-        os.flags(prev_flags);
-        os.fill(prev_fill);
-
-        return os;
-    }
-
-
-    class KeyPart1
-    {
-    public:
-        KeyPart1(const gu::byte_t* buf, size_t buf_size)
+        KeyPart(const gu::byte_t* buf, size_t buf_size)
             :
             buf_(buf),
             buf_size_(buf_size)
@@ -94,7 +60,7 @@ namespace galera
             return buf_ + gu::uleb128_decode(buf_, buf_size_, 0, not_used);
         }
 #endif
-        bool operator==(const KeyPart1& other) const
+        bool operator==(const KeyPart& other) const
         {
             return (other.buf_size_ == buf_size_ &&
                     memcmp(other.buf_, buf_, buf_size_) == 0);
@@ -105,7 +71,7 @@ namespace galera
     };
 
 
-    inline std::ostream& operator<<(std::ostream& os, const KeyPart1& kp)
+    inline std::ostream& operator<<(std::ostream& os, const KeyPart& kp)
     {
         const std::ostream::fmtflags prev_flags(os.flags(std::ostream::hex));
         const char                   prev_fill(os.fill('0'));
@@ -147,22 +113,6 @@ namespace galera
 
             switch (version)
             {
-            case 0:
-                for (size_t i(0); i < keys_len; ++i)
-                {
-                    if (keys[i].buf_len > 256)
-                    {
-                        gu_throw_error(EINVAL)
-                            << "key part length " << keys[i].buf_len
-                            << " greater than max 256";
-                    }
-                    gu::byte_t len(keys[i].buf_len);
-                    const gu::byte_t* base(reinterpret_cast<const gu::byte_t*>(
-                                               keys[i].buf));
-                    keys_.push_back(len);
-                    keys_.insert(keys_.end(), base, base + len);
-                }
-                break;
             case 1:
             case 2:
                 for (size_t i(0); i < keys_len; ++i)
@@ -206,31 +156,7 @@ namespace galera
         int version() const { return version_; }
 
         template <class C>
-        C key_parts0() const
-        {
-            C ret;
-            size_t i;
-            size_t const keys_size(keys_.size());
-
-            for (i = 0; i < keys_size; )
-            {
-                size_t const key_len(1 + keys_[i]);
-                if (gu_unlikely(i + key_len > keys_size))
-                {
-                    gu_throw_fatal
-                        << "Keys buffer overflow by " << i+key_len - keys_size
-                        << " bytes: " << i + key_len << '/' << keys_size;
-                }
-
-                KeyPart0 kp(&keys_[i]);
-                ret.push_back(kp);
-                i += key_len;
-            }
-            return ret;
-        }
-
-        template <class C>
-        C key_parts1() const
+        C key_parts() const
         {
             C ret;
             size_t i(0);
@@ -253,7 +179,7 @@ namespace galera
                         << " bytes: " << i + key_len << '/' << keys_size;
                 }
 
-                KeyPart1 kp(&keys_[i], key_len);
+                KeyPart kp(&keys_[i], key_len);
                 ret.push_back(kp);
                 i += key_len;
             }
@@ -269,8 +195,29 @@ namespace galera
             return (keys_ == other.keys_);
         }
 
+        bool equal_all(const Key& other) const
+        {
+            return (version_ == other.version_ &&
+                    flags_   == other.flags_   &&
+                    keys_    == other.keys_);
+        }
+
+        size_t size() const
+        {
+            return keys_.size() + sizeof(*this);
+        }
+
+        size_t hash() const
+        {
+            return gu_table_hash(&keys_[0], keys_.size());
+        }
+
+        size_t hash_with_flags() const
+        {
+            return hash() ^ gu_table_hash(&flags_, sizeof(flags_));
+        }
+
     private:
-        friend class KeyHash;
         friend size_t serialize(const Key&, gu::byte_t*, size_t, size_t);
         friend size_t unserialize(const gu::byte_t*, size_t, size_t, Key&);
         friend size_t serial_size(const Key&);
@@ -285,21 +232,14 @@ namespace galera
         std::ostream::fmtflags flags(os.flags());
         switch (key.version_)
         {
-        case 0:
-        {
-            std::deque<KeyPart0> dq(key.key_parts0<std::deque<KeyPart0> >());
-            std::copy(dq.begin(), dq.end(),
-                      std::ostream_iterator<KeyPart0>(os, " "));
-            break;
-        }
         case 2:
             os << std::hex << static_cast<int>(key.flags()) << " ";
             // Fall through
         case 1:
         {
-            std::deque<KeyPart1> dq(key.key_parts1<std::deque<KeyPart1> >());
+            std::deque<KeyPart> dq(key.key_parts<std::deque<KeyPart> >());
             std::copy(dq.begin(), dq.end(),
-                      std::ostream_iterator<KeyPart1>(os, " "));
+                      std::ostream_iterator<KeyPart>(os, " "));
             break;
         }
         default:
@@ -311,36 +251,18 @@ namespace galera
     }
 
 
-    class KeyHash
-    {
-    public:
-        size_t operator()(const Key& k) const
-        {
-            size_t prime(5381);
-            for (gu::Buffer::const_iterator i(k.keys_.begin());
-                 i != k.keys_.end(); ++i)
-            {
-                prime = ((prime << 5) + prime) + *i;
-            }
-            return prime;
-        }
-    };
-
     inline size_t serialize(const Key& key, gu::byte_t* buf, size_t buflen,
                             size_t offset)
     {
         switch (key.version_)
         {
 #ifndef GALERA_KEY_VLQ
-        case 0:
         case 1:
-            return serialize<uint16_t>(key.keys_, buf, buflen, offset);
+            return gu::serialize2(key.keys_, buf, buflen, offset);
         case 2:
-            offset = serialize<uint8_t>(key.flags_, buf, buflen, offset);
-            return serialize<uint16_t>(key.keys_, buf, buflen, offset);
+            offset = gu::serialize1(key.flags_, buf, buflen, offset);
+            return gu::serialize2(key.keys_, buf, buflen, offset);
 #else
-        case 0:
-            return serialize<uint16_t>(key.keys_, buf, buflen, offset);
         case 1:
         {
             size_t keys_size(key.keys_.size());
@@ -348,6 +270,7 @@ namespace galera
             assert (offset + key_size <= buflen);
             std::copy(&key.keys_[0], &key.keys_[0] + keys_size, buf + offset);
             return (offset + keys_size);
+        }
 #endif
         default:
             log_fatal << "Internal error: unsupported key version: "
@@ -363,15 +286,12 @@ namespace galera
         switch (key.version_)
         {
 #ifndef GALERA_KEY_VLQ
-        case 0:
         case 1:
-            return unserialize<uint16_t>(buf, buflen, offset, key.keys_);
+            return gu::unserialize2(buf, buflen, offset, key.keys_);
         case 2:
-            offset = unserialize(buf, buflen, offset, key.flags_);
-            return unserialize<uint16_t>(buf, buflen, offset, key.keys_);
+            offset = gu::unserialize1(buf, buflen, offset, key.flags_);
+            return gu::unserialize2(buf, buflen, offset, key.keys_);
 #else
-        case 0:
-            return unserialize<uint16_t>(buf, buflen, offset, key.keys_);
         case 1:
         {
             size_t len;
@@ -393,14 +313,11 @@ namespace galera
         switch (key.version_)
         {
 #ifndef GALERA_KEY_VLQ
-        case 0:
         case 1:
-            return serial_size<uint16_t>(key.keys_);
+            return gu::serial_size2(key.keys_);
         case 2:
-            return (serial_size(key.flags_) + serial_size<uint16_t>(key.keys_));
+            return (gu::serial_size(key.flags_) + gu::serial_size2(key.keys_));
 #else
-        case 0:
-            return serial_size<uint16_t>(key.keys_);
         case 1:
         {
             size_t size(gu::uleb128_size(key.keys_.size()));

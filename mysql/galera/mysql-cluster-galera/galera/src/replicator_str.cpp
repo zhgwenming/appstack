@@ -55,9 +55,10 @@ ReplicatorSMM::sst_received(const wsrep_uuid_t& uuid,
                             const void*         state,
                             size_t              state_len)
 {
-    log_info << "Received SST: " << uuid << ':' << seqno;
+    log_info << "SST received: " << uuid << ':' << seqno;
 
     gu::Lock lock(sst_mutex_);
+
     if (state_() != S_JOINING)
     {
         log_error << "not JOINING when sst_received() called, state: "
@@ -288,8 +289,10 @@ std::istream& operator>>(std::istream& is, IST_request& istr)
 static bool
 sst_is_trivial (const void* const req, size_t const len)
 {
-    return (len == (strlen(ReplicatorSMM::TRIVIAL_SST) + 1) &&
-            !memcmp (req, ReplicatorSMM::TRIVIAL_SST, len));
+    /* Check that the first string in request == ReplicatorSMM::TRIVIAL_SST */
+    size_t const trivial_len = strlen(ReplicatorSMM::TRIVIAL_SST) + 1;
+    return (len >= trivial_len &&
+            !memcmp (req, ReplicatorSMM::TRIVIAL_SST, trivial_len));
 }
 
 void ReplicatorSMM::process_state_req(void*       recv_ctx,
@@ -442,8 +445,13 @@ ReplicatorSMM::prepare_for_IST (void*& ptr, ssize_t& len,
     }
 
     wsrep_seqno_t const local_seqno(apply_monitor_.last_left());
-    assert(local_seqno < group_seqno); // we should not be here if GTIDs match
-    assert(local_seqno >= 0);
+
+    if (local_seqno < 0)
+    {
+        gu_throw_error (EPERM) << "Local state seqno is undefined";
+    }
+
+    assert(local_seqno < group_seqno);
 
     std::ostringstream os;
 
@@ -675,7 +683,7 @@ ReplicatorSMM::request_state_transfer (void* recv_ctx,
                 commit_monitor_.set_initial_position(sst_seqno_);
             }
 
-            log_info << "SST received: " << state_uuid_ << ":" << sst_seqno_;
+            log_debug << "Installed new state: " << state_uuid_ << ":" << sst_seqno_;
         }
     }
     else
@@ -737,6 +745,10 @@ void ReplicatorSMM::recv_IST(void* recv_ctx)
                 }
                 else
                 {
+                    // replicating and certifying stages have been
+                    // processed on donor, just adjust states here
+                    trx->set_state(TrxHandle::S_REPLICATING);
+                    trx->set_state(TrxHandle::S_CERTIFYING);
                     apply_trx(recv_ctx, trx);
                 }
                 trx->unref();

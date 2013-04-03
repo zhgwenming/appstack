@@ -42,6 +42,7 @@ fi
 uname -m | grep -q i686 && CPU=pentium || CPU=amd64 # this works for x86 Solaris too
 DEBUG=no
 DEBUG_LEVEL=1
+GALERA_DEBUG=no
 NO_STRIP=no
 RELEASE=""
 TAR=no
@@ -124,6 +125,9 @@ do
         --dl|--debug-level)
             shift;
             DEBUG_LEVEL=$1
+            ;;
+        --gd|--galera-debug)
+            GALERA_DEBUG="yes"
             ;;
         -r|--release)
             RELEASE="$2"    # Compile without debug
@@ -261,7 +265,12 @@ GALERA_SRC=$(cd $GALERA_SRC; pwd -P; cd $BUILD_ROOT)
 if [ "$TAR" == "yes" ] || [ "$BIN_DIST" == "yes" ]
 then
     cd $GALERA_SRC
-    scripts/build.sh # options are passed via environment variables
+    debug_opt=""
+    if [ $GALERA_DEBUG == "yes" ]
+    then
+        debug_opt="-d"
+    fi
+    scripts/build.sh $debug_opt # options are passed via environment variables
     GALERA_REV=$(bzr revno 2>/dev/null)     || \
     GALERA_REV=$(svnversion | sed s/\:/,/g) || \
     GALERA_REV=$(echo "xxxx")
@@ -287,7 +296,7 @@ then
     then
         mysql_orig_tar_gz=$mysql_tag.tar.gz
         url2=http://ftp.sunet.se/pub/unix/databases/relational/mysql/Downloads/MySQL-$MYSQL_MAJOR
-        url1=http://downloads.mysql.com/archives/mysql-$MYSQL_MAJOR
+        url1=ftp://sunsite.informatik.rwth-aachen.de/pub/mirror/www.mysql.com/Downloads/MySQL-$MYSQL_MAJOR
         if [ ! -r $mysql_orig_tar_gz ]
         then
             echo "Downloading $mysql_orig_tar_gz... currently works only for 5.1.x"
@@ -408,6 +417,7 @@ install_mysql_5.1_demo()
         install -m 755 -s -t $MYSQL_BINS  $MYSQL_CLIENTS/mysqladmin
     fi
 
+    install -m 755 -t $MYSQL_BINS     $MYSQL_SRC/scripts/wsrep_sst_common
     install -m 755 -t $MYSQL_BINS     $MYSQL_SRC/scripts/wsrep_sst_mysqldump
     install -m 755 -t $MYSQL_BINS     $MYSQL_SRC/scripts/wsrep_sst_rsync
     install -m 755 -d $MYSQL_CHARSETS
@@ -415,8 +425,8 @@ install_mysql_5.1_demo()
     install -m 644 -t $MYSQL_CHARSETS $MYSQL_SRC/sql/share/charsets/README
 }
 
-install_mysql_5.5_demo() {
-
+install_mysql_5.5_demo()
+{
     export DESTDIR=$BUILD_ROOT/dist/mysql
 
     mkdir -p $DIST_DIR/mysql/etc
@@ -449,7 +459,7 @@ if [ $TAR == "yes" ]; then
         install_mysql_5.1_demo
         install -m 644 -D my-5.1.cnf $MYSQL_DIST_CNF
     else
-        install_mysql_5.5_demo
+        install_mysql_5.5_demo > /dev/null
         install -m 644 -D my-5.5.cnf $MYSQL_DIST_CNF
     fi
 
@@ -462,7 +472,7 @@ if [ $TAR == "yes" ]; then
     # Copy required Galera libraries
     GALERA_BINS=$GALERA_DIST_DIR/bin
     GALERA_LIBS=$GALERA_DIST_DIR/lib
-    install -m 644 -D LICENSE.galera $GALERA_DIST_DIR/LICENSE.galera
+    install -m 644 -D ../../LICENSE $GALERA_DIST_DIR/LICENSE.galera
     install -m 755 -d $GALERA_BINS
     install -m 755 -d $GALERA_LIBS
 

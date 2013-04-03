@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 Codership Oy <info@codership.com>
  *
- * $Id: gcs_core_test.c 2745 2012-03-17 00:00:23Z alex $
+ * $Id: gcs_core_test.c 2984 2013-03-05 10:38:09Z teemu $
  */
 
 /*
@@ -43,6 +43,7 @@
 
 #include "../gcs_core.h"
 #include "../gcs_dummy.h"
+#include "../gcs_seqno.h"
 #include "gcs_core_test.h"
 
 extern ssize_t gcs_tests_get_allocated();
@@ -332,7 +333,7 @@ core_test_init ()
     fail_if (ret != 0, "gcs_core_send_sync(): %ld (%s)",
              ret, strerror(-ret));
     fail_if (CORE_RECV_ACT(&act,NULL,sizeof(gcs_seqno_t),GCS_ACT_SYNC));
-    fail_if (Seqno != *(gcs_seqno_t*)act.data);
+    fail_if (Seqno != gcs_seqno_gtoh(*(gcs_seqno_t*)act.data));
 
     gcs_core_send_lock_step (Core, true);
     mark_point();
@@ -414,7 +415,7 @@ START_TEST (gcs_core_test_api)
                  ret, strerror(-ret));
         fail_if (CORE_RECV_ACT (&act_r, NULL, sizeof(gcs_seqno_t),
                                 GCS_ACT_COMMIT_CUT));
-        fail_if (Seqno != *(gcs_seqno_t*)act_r.data);
+        fail_if (Seqno != gcs_seqno_gtoh(*(gcs_seqno_t*)act_r.data));
         free ((void*)act_r.data);
     }
 
@@ -475,7 +476,7 @@ START_TEST (gcs_core_test_own)
 {
 #undef ACT
 #define ACT act2
-    long     tout = 100; // 100 ms timeout
+    long     tout = 1000; // 100 ms timeout
     size_t   act_size = sizeof(ACT);
     action_t act_s    = { ACT, NULL, act_size, GCS_ACT_TORDERED, -1, -1 };
     action_t act_r    = { NULL, NULL, -1, -1, -1, -1 };
@@ -624,7 +625,7 @@ START_TEST (gcs_core_test_own)
     fail_if (CORE_SEND_STEP (Core, tout, 1)); // 1st frag
     fail_if (DUMMY_INJECT_COMPONENT (Backend, non_prim));
     fail_if (CORE_SEND_STEP (Core, tout, 1)); // 2nd frag
-    usleep (500000);
+    usleep (1000000);
     fail_if (gcs_dummy_set_component(Backend, non_prim));
     fail_if (CORE_SEND_STEP (Core, 4*tout, 1)); // 3rd frag
     fail_if (CORE_RECV_ACT (&act_r, NULL, UNKNOWN_SIZE, GCS_ACT_CONF));
@@ -658,5 +659,6 @@ Suite *gcs_core_suite(void)
   tcase_add_test  (tcase, gcs_core_test_api);
   tcase_add_test  (tcase, gcs_core_test_own);
 //  tcase_add_test  (tcase, gcs_core_test_foreign);
+  tcase_set_timeout(tcase, 60);
   return suite;
 }

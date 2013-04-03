@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2012 Codership Oy <info@codership.com>
  *
- * $Id: gcs_params.c 2779 2012-05-08 20:09:15Z alex $
+ * $Id: gcs_params.c 2887 2012-10-24 16:32:16Z alex $
  */
 
 #include "gcs_params.h"
@@ -19,7 +19,7 @@ const char* const GCS_PARAMS_RECV_Q_HARD_LIMIT = "gcs.recv_q_hard_limit";
 const char* const GCS_PARAMS_RECV_Q_SOFT_LIMIT = "gcs.recv_q_soft_limit";
 const char* const GCS_PARAMS_MAX_THROTTLE      = "gcs.max_throttle";
 
-static double  const GCS_PARAMS_DEFAULT_FC_FACTOR         = 0.5;
+static double  const GCS_PARAMS_DEFAULT_FC_FACTOR         = 1.0;
 static long    const GCS_PARAMS_DEFAULT_FC_LIMIT          = 16;
 static bool    const GCS_PARAMS_DEFAULT_FC_MASTER_SLAVE   = false;
 static long    const GCS_PARAMS_DEFAULT_FC_DEBUG          = 0;

@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2010 Codership Oy <info@codership.com>
+// Copyright (C) 2010-2012 Codership Oy <info@codership.com>
 //
 
 
@@ -9,18 +9,20 @@
 #include "write_set.hpp"
 #include "mapped_buffer.hpp"
 #include "fsm.hpp"
+#include "key_entry.hpp"
 
 #include "wsrep_api.h"
 #include "gu_mutex.hpp"
 #include "gu_atomic.hpp"
 #include "gu_datetime.hpp"
+#include "gu_unordered.hpp"
 
 #include <set>
 
 namespace galera
 {
 
-    class KeyEntry; // Forward declaration
+//    class KeyEntry; // Forward declaration
 
     static const std::string working_dir = "/tmp";
 
@@ -47,6 +49,11 @@ namespace galera
         bool has_annotation() const
         {
             return ((write_set_flags_ & F_ANNOTATION) != 0);
+        }
+
+        bool is_toi() const
+        {
+            return ((write_set_flags_ & F_ISOLATION) != 0);
         }
 
         bool pa_safe() const
@@ -151,6 +158,7 @@ namespace galera
             timestamp_         (gu_time_calendar()),
             mac_               (),
             annotation_        (),
+            write_set_buffer_  (0, 0),
             cert_keys_         ()
         { }
 
@@ -283,6 +291,33 @@ namespace galera
             return write_set_collection_;
         }
 
+        void set_write_set_buffer(const gu::byte_t* buf, size_t buf_len)
+        {
+            write_set_buffer_.first = buf;
+            write_set_buffer_.second = buf_len;
+        }
+
+        std::pair<const gu::byte_t*, size_t>
+        write_set_buffer() const
+        {
+            // If external write set buffer location not specified,
+            // return location from write_set_colletion_. This is still
+            // needed for unit tests and IST which don't use GCache
+            // storage.
+            if (write_set_buffer_.first == 0)
+            {
+                size_t off(serial_size(*this));
+                if (write_set_collection_.size() < off)
+                {
+                    gu_throw_fatal << "Write set buffer not populated";
+                }
+                return std::make_pair(&write_set_collection_[0] + off,
+                                      write_set_collection_.size() - off);
+            }
+            return write_set_buffer_;
+        }
+
+
         bool empty() const
         {
             return (write_set_.empty() == true &&
@@ -342,10 +377,19 @@ namespace galera
         Mac                    mac_;
         gu::Buffer             annotation_;
 
+        // Write set buffer location if stored outside TrxHandle.
+        std::pair<const gu::byte_t*, size_t> write_set_buffer_;
+
         //
         friend class Wsdb;
         friend class Certification;
-        typedef std::list<std::pair<KeyEntry*, std::pair<bool, bool> > > CertKeySet;
+//        typedef std::list<std::pair<KeyEntry*, std::pair<bool, bool> > > CertKeySet;
+public:
+        typedef gu::UnorderedMap<KeyEntry*,
+                                 std::pair<bool, bool>,
+                                 KeyEntryPtrHash,
+                                 KeyEntryPtrEqualAll> CertKeySet;
+private:
         CertKeySet cert_keys_;
 
         friend size_t serialize(const TrxHandle&, gu::byte_t* buf,

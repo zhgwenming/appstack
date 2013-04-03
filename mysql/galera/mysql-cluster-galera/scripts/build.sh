@@ -1,6 +1,6 @@
 #!/bin/bash -eu
 
-# $Id: build.sh 2745 2012-03-17 00:00:23Z alex $
+# $Id: build.sh 3004 2013-03-10 17:14:10Z teemu $
 
 get_cores()
 {
@@ -37,6 +37,7 @@ Options:
     --source        build source packages
     --sb            skip actual build, use the existing binaries
     --scons         build using Scons build system (yes)
+    --so            Sconscript option
     -j|--jobs       how many parallel jobs to use for Scons (1)
     "\nSet DISABLE_GCOMM/DISABLE_VSBES to 'yes' to disable respective modules"
 EOF
@@ -52,6 +53,7 @@ SOURCE=${SOURCE:-"no"}
 DEBUG=${DEBUG:-"no"}
 DEBUG_LEVEL=${DEBUG_LEVEL:-"1"}
 SCONS=${SCONS:-"yes"}
+SCONS_OPTS=${SCONS_OPTS:-""}
 JOBS=${JOBS:-"$(get_cores)"}
 SCRATCH=${SCRATCH:-"no"}
 OPT="yes"
@@ -144,6 +146,10 @@ do
 	--scons)
 	    SCONS="yes"
 	    ;;
+	--so)
+	    SCONS_OPTS="$SCONS_OPTS $2"
+	    shift
+	    ;;
 	-j|--jobs)
 	    JOBS=$2
 	    shift
@@ -210,7 +216,8 @@ get_arch()
 
 build_packages()
 {
-    pushd $build_base/scripts/packages
+    local PKG_DIR=$build_base/scripts/packages
+    pushd $PKG_DIR
 
     local ARCH=$(get_arch)
     local WHOAMI=$(whoami)
@@ -243,6 +250,13 @@ build_packages()
 
     set -e
 
+    popd
+    if [ $DEBIAN -ne 0 ]
+    then
+        mv -f $PKG_DIR/$ARCH/*.deb ./
+    else
+        mv -f $PKG_DIR/$ARCH/*.rpm ./
+    fi
     return $RET
 }
 
@@ -312,12 +326,12 @@ then
 
     if [ "$SCRATCH" == "yes" ]
     then
-        scons -Q -c --conf=force $scons_args
+        scons -Q -c --conf=force $scons_args $SCONS_OPTS
     fi
 
     if [ "$SKIP_BUILD" != "yes" ]
     then
-        scons $scons_args -j $JOBS
+        scons $scons_args -j $JOBS $SCONS_OPTS
     fi
 
 elif test "$SKIP_BUILD" == "no"; then # Build using autotools

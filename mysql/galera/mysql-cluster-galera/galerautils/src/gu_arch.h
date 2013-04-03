@@ -3,7 +3,7 @@
 /**
  * @file CPU architecture related functions/macros
  *
- * $Id: gu_arch.h 2745 2012-03-17 00:00:23Z alex $
+ * $Id: gu_arch.h 2801 2012-06-02 12:53:41Z alex $
  */
 
 #ifndef _gu_arch_h_
@@ -45,5 +45,8 @@
 #if (GU_WORDSIZE != 32) && (GU_WORDSIZE != 64)
 # error "Unsupported wordsize"
 #endif
+
+/* I'm not aware of the platforms that don't, but still */
+#define GU_ALLOW_UNALIGNED_READS 1
 
 #endif /* _gu_arch_h_ */
