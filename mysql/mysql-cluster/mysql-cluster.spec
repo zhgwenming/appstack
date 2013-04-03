@@ -245,6 +245,9 @@ Provides:       mysql-server mcluster
 BuildRequires:  %{distro_buildreq}
 BuildRequires:  pam-devel
 
+Source3: my.cnf
+Source4: mcluster-bootstrap
+
 # Think about what you use here since the first step is to
 # run a rm -rf
 BuildRoot:    %{_tmppath}/%{name}-%{version}-build
@@ -601,8 +604,11 @@ install -d $RBR%{_libdir}/mysql/plugin
 mv -v $RBR/%{_libdir}/*.a $RBR/%{_libdir}/mysql/
 
 # Install logrotate and autostart
-install -m 644 $MBD/release/support-files/mysql-log-rotate $RBR%{_sysconfdir}/logrotate.d/mysql
+install -m 644 $MBD/release/support-files/mysql-log-rotate $RBR%{_sysconfdir}/logrotate.d/mysqld
 install -m 755 $MBD/release/support-files/mysql.server $RBR%{_sysconfdir}/init.d/mysqld
+
+install -m 0644 %{SOURCE3} $RPM_BUILD_ROOT/etc/my.cnf
+install -m 0755 %{SOURCE4} $RPM_BUILD_ROOT/%{_datadir}/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
@@ -1132,11 +1138,14 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_libdir}/mysql/%{malloc_lib_target}
 %endif
 
-%attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/logrotate.d/mysql
+%attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/logrotate.d/mysqld
 %attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/xinetd.d/mysqlchk
+
+%config(noreplace) /etc/my.cnf
 %attr(755, root, root) %{_sysconfdir}/init.d/mysqld
 
-%attr(755, root, root) %{_datadir}/mysql/
+%{_datadir}/mysql/
+#%attr(755, root, root) %{_datadir}/mysql/
 
 # ----------------------------------------------------------------------------
 %files -n mysql-cluster-client
