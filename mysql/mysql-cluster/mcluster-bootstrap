@@ -2,10 +2,28 @@
 #
 
 if ! service mysqld status >/dev/null; then
-	echo "Danger!! This will setup a new cluster, press Ctrl-C to cancel, otherwise the process will start in 10 secs"
-	sleep 10
+        echo 
+        echo "Danger!! This will setup a new cluster."
+        echo "Press Ctrl-C to cancel"
+
+        echo
+
+        echo -n "The process will start in 10 secs: "
+        echo -e -n "----------\r"
+
+        echo -n "The process will start in 10 secs: "
+        for i in `seq 1 10`; do
+                echo -n .
+                sleep 1
+        done
+
+        echo " DONE"
+
+
+        mysql_install_db
+
 	echo "Starting new mysql cluster"
 	/etc/init.d/mysqld start --wsrep-cluster-address="gcomm://"
 else
-	echo "Attention! This will setup a new cluster, please stop the mysql first then try this again."
+	echo "This will setup a new cluster, if this is what want to do, please stop the mysql first then try this again."
 fi
