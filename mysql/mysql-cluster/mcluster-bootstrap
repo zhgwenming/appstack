@@ -1,6 +1,35 @@
 #!/bin/bash
 #
 
+function rand_pass()
+{
+	head -c6 /dev/urandom | base64
+}
+
+function sst_user()
+{
+	local rootpwd="$1"
+	local sstpwd="$2"
+
+	if [ x"$sstpwd" == x ]; then
+		echo "sst user password is empty"
+		return 1
+	fi
+
+	echo The sstuser password is "$sstpwd"
+
+#CREATE USER 'sstuser'@'localhost' IDENTIFIED BY 's3cret';
+	mysql -uroot -p"$rootpwd" <<EOF
+CREATE USER 'sstuser'@'localhost' IDENTIFIED BY '$sstpwd';
+GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT ON *.* TO 'sstuser'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+}
+
+
+SSTPASS="`rand_pass`"
+
 if ! service mysqld status >/dev/null; then
         echo 
         echo "Danger!! This will setup a new cluster."
@@ -22,8 +51,26 @@ if ! service mysqld status >/dev/null; then
 
         mysql_install_db
 
+	echo Setting up /etc/my.cnf
+	sed -i "s/^wsrep_sst_auth=.*$/wsrep_sst_auth='sstuser:$SSTPASS'/" /etc/my.cnf
+
 	echo "Starting new mysql cluster"
 	/etc/init.d/mysqld start --wsrep-cluster-address="gcomm://"
+
+	echo -n "Waiting the new mcluster to be ready.."
+	while :; do
+		sleep 1
+		if service mysqld status >/dev/null 2>&1; then
+			mysqladmin -uroot password 'Mcluster' >/dev/null 2>&1 && break 
+		fi
+		echo -n .
+	done
+
+	echo " DONE"
+
+	sst_user Mcluster "$SSTPASS"
+	
+	echo "New mcluster started, you can copy the /etc/my.cnf to other nodes"
 else
 	echo "This will setup a new cluster, if this is what want to do, please stop the mysql first then try this again."
 fi
