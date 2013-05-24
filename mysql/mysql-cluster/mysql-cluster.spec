@@ -26,7 +26,7 @@
 %define mysql_server_vendor	Percona, Inc
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 901.23.7.2
+%define wsrep_version 902.23.7.2
 %define revision 389
 
 %define mysql_version   5.5.29
