@@ -40,7 +40,7 @@ not actively maintained. No code from that version is used in MySQLdb.
 %build
 rm -f doc/*~
 export libdirname=%{_lib}
-CFLAGS="$RPM_OPT_FLAGS" python setup.py build
+CFLAGS="$RPM_OPT_FLAGS -L/usr/lib64/mysql" python setup.py build
 
 %install
 rm -rf $RPM_BUILD_ROOT
