@@ -1179,13 +1179,13 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %attr(644, root, man) %{_mandir}/man1/mysqlimport.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysqlshow.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysqlslap.1*
+%doc %attr(644, root, man) %{_mandir}/man1/mysql_config.1*
+%attr(755, root, root) %{_bindir}/mysql_config
 
 # ----------------------------------------------------------------------------
 %files -n mysql-devel%{product_suffix} -f optional-files-devel
 %defattr(-, root, root, 0755)
 %doc %attr(644, root, man) %{_mandir}/man1/comp_err.1*
-%doc %attr(644, root, man) %{_mandir}/man1/mysql_config.1*
-%attr(755, root, root) %{_bindir}/mysql_config
 %dir %attr(755, root, root) %{_includedir}/mysql
 %dir %attr(755, root, root) %{_libdir}/mysql
 %{_includedir}/mysql/*
