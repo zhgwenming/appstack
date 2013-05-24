@@ -1,0 +1,53 @@
+mysql 5.5 does not export a HAVE_OPENSSL symbol, thus breaking MySQL-python's
+rather-misguided-anyway conditional compilation for SSL support.  Since we
+have no intention of ever shipping a non-SSL-enabled mysql in Fedora/RHEL,
+we can just drop the conditionals, pending some other fix upstream.
+(Since mysql_ssl_set is supposed to exist anyway, this might well be a
+suitable fix for upstream too.)
+
+
+diff -Naur MySQL-python-1.2.3.orig/_mysql.c MySQL-python-1.2.3/_mysql.c
+--- MySQL-python-1.2.3.orig/_mysql.c	2010-06-17 03:21:56.000000000 -0400
++++ MySQL-python-1.2.3/_mysql.c	2012-07-14 16:49:31.590349235 -0400
+@@ -475,10 +475,8 @@
+ 	MYSQL *conn = NULL;
+ 	PyObject *conv = NULL;
+ 	PyObject *ssl = NULL;
+-#if HAVE_OPENSSL
+ 	char *key = NULL, *cert = NULL, *ca = NULL,
+ 		*capath = NULL, *cipher = NULL;
+-#endif
+ 	char *host = NULL, *user = NULL, *passwd = NULL,
+ 		*db = NULL, *unix_socket = NULL;
+ 	unsigned int port = 0;
+@@ -519,18 +517,12 @@
+         PyErr_Clear();}
+ 
+ 	if (ssl) {
+-#if HAVE_OPENSSL
+ 		PyObject *value = NULL;
+ 		_stringsuck(ca, value, ssl);
+ 		_stringsuck(capath, value, ssl);
+ 		_stringsuck(cert, value, ssl);
+ 		_stringsuck(key, value, ssl);
+ 		_stringsuck(cipher, value, ssl);
+-#else
+-		PyErr_SetString(_mysql_NotSupportedError,
+-				"client library does not have SSL support");
+-		return -1;
+-#endif
+ 	}
+ 
+ 	Py_BEGIN_ALLOW_THREADS ;
+@@ -556,11 +548,9 @@
+ 	if (local_infile != -1)
+ 		mysql_options(&(self->connection), MYSQL_OPT_LOCAL_INFILE, (char *) &local_infile);
+ 
+-#if HAVE_OPENSSL
+ 	if (ssl)
+ 		mysql_ssl_set(&(self->connection),
+ 			      key, cert, ca, capath, cipher);
+-#endif
+ 
+ 	conn = mysql_real_connect(&(self->connection), host, user, passwd, db,
+ 				  port, unix_socket, client_flag);
