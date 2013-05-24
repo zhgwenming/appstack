@@ -23,7 +23,7 @@
 %define mysql_old_vendor        MySQL AB
 %define mysql_vendor_2          Sun Microsystems, Inc.
 %define mysql_vendor            Oracle and/or its affiliates
-%define percona_server_vendor	Percona, Inc
+%define mysql_server_vendor	Percona, Inc
 
 # based on 5.5.29-23.7.2.389.rhel6
 %define wsrep_version 901.23.7.2
@@ -230,7 +230,7 @@
 ##############################################################################
 
 Name:           mysql-cluster
-Summary:        A High Availability solution based on Percona Server
+Summary:        A High Availability solution based on galera
 Group:          Applications/Databases
 Version:        %{mysql_version}
 Release:        %{release}%{?dist}
@@ -239,8 +239,8 @@ Distribution:   %{distro_description}
 License:        Copyright (c) 2000, 2010, %{mysql_vendor}.  All rights reserved.  Use is subject to license terms.  Under %{license_type} license as shown in the Description field.
 Source:         mysql-cluster-%{mysql_version}.tar.gz
 URL:            http://www.percona.com/
-Packager:       Percona MySQL Development Team <mysqldev@percona.com>
-Vendor:         %{percona_server_vendor}
+Packager:       MySQL Development Team
+Vendor:         %{mysql_server_vendor}
 Provides:       mysql-server mcluster
 BuildRequires:  %{distro_buildreq}
 BuildRequires:  pam-devel
@@ -254,15 +254,12 @@ BuildRoot:    %{_tmppath}/%{name}-%{version}-build
 
 # From the manual
 %description
-MySQL Galera Cluster is based on the Percona Server database server and
+MySQL Galera Cluster is based on the Percona/galera Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
-Percona recommends that all production deployments be protected with a support
-contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
-be eligible for hot fixes, and boost your team's productivity.
 
 ##############################################################################
 # Sub package definition
@@ -272,7 +269,7 @@ be eligible for hot fixes, and boost your team's productivity.
 Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
 Requires:       %{distro_requires} mysql-libs mysql-cluster-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
-Provides:       mcluster mysql-server MySQL-server Percona-Server-server
+Provides:       mcluster mysql-server MySQL-server 
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
 %description -n mysql-cluster-server
@@ -282,34 +279,24 @@ MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
 
-Percona recommends that all production deployments be protected with a support
-contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
-be eligible for hot fixes, and boost your team's productivity.
-
 This package includes the MySQL Galera Cluster binary 
 as well as related utilities to run and administer MySQL Galera Cluster.
 
 If you want to access and work with the database, you have to install
-package "mysql-cluster-client" as well!
+package "mysql" as well!
 
 # ----------------------------------------------------------------------------
-%package -n mysql-cluster-client
+%package -n mysql
 Summary:        MySQL Galera Cluster - client package
 Group:          Applications/Databases
 Requires:       mysql-libs
-Provides:       mysql-client MySQL-client mysql MySQL mysql-cluster-client
+Provides:       mysql-client MySQL-client mysql MySQL
 Conflicts:	Percona-Server-client-55 Percona-Server-client-51 Percona-SQL-client-50
 
-%description -n mysql-cluster-client
-MySQL Galera Cluster is based on the Percona Server database server and
-provides a High Availability solution.
+%description -n mysql
 MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
-
-Percona recommends that all production deployments be protected with a support
-contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
-be eligible for hot fixes, and boost your team's productivity.
 
 This package contains the standard MySQL Galera Cluster client and administration tools.
 
@@ -318,7 +305,7 @@ http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
 %package -n mysql-cluster-test%{product_suffix}
-Requires:       mysql-cluster-client perl
+Requires:       mysql perl
 Summary:        MySQL Galera Cluster - Test suite
 Group:          Applications/Databases
 Provides:       mysql-test Percona-Server-test
@@ -326,15 +313,9 @@ Conflicts:	Percona-Server-test-55 Percona-Server-test-51
 AutoReqProv:    no
 
 %description -n mysql-cluster-test%{product_suffix}
-MySQL Galera Cluster is based on the Percona Server database server and
-provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
-
-Percona recommends that all production deployments be protected with a support
-contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
-be eligible for hot fixes, and boost your team's productivity.
 
 This package contains the MySQL Galera Cluster regression test suite.
 
@@ -342,22 +323,18 @@ For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n mysql-cluster-devel%{product_suffix}
+%package -n mysql-devel%{product_suffix}
 Summary:        MySQL Galera Cluster - Development header files and libraries
 Group:          Applications/Databases
 Provides:       mysql-devel Percona-Server-devel
 Conflicts:	Percona-Server-devel-55 Percona-Server-devel-51
 
-%description -n mysql-cluster-devel%{product_suffix}
+%description -n mysql-devel%{product_suffix}
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
-
-Percona recommends that all production deployments be protected with a support
-contract (http://www.percona.com/mysql-support/) to ensure the highest uptime,
-be eligible for hot fixes, and boost your team's productivity.
 
 This package contains the development header files and libraries necessary
 to develop MySQL Galera Cluster client applications.
@@ -366,22 +343,18 @@ For a description of MySQL Galera Cluster see
 http://www.percona.com/software/percona-xtradb-cluster/
 
 # ----------------------------------------------------------------------------
-%package -n mysql-cluster-libs%{product_suffix}
+%package -n mysql-libs%{product_suffix}
 Summary:        MySQL Galera Cluster - Shared libraries
 Group:          Applications/Databases
 Provides:       mysql-shared mysql-libs Percona-Server-shared
 Conflicts:	Percona-Server-shared-55 Percona-Server-shared-51
 
-%description -n mysql-cluster-libs%{product_suffix}
+%description -n mysql-libs%{product_suffix}
 MySQL Galera Cluster is based on the Percona Server database server and
 provides a High Availability solution.
 MySQL Galera Cluster provides synchronous replication, supports
 multi-master replication, parallel applying on slaves, automatic node
 provisioning with primary focus on data consistency.
-
-Percona recommends that all production deployments be protected with a support
-contract (http://www.percona.com/mysql-suppport/) to ensure the highest uptime,
-be eligible for hot fixes, and boost your team's productivity.
 
 This package contains the shared libraries (*.so*) which certain languages
 and applications need to dynamically load and use MySQL Galera Cluster.
@@ -653,7 +626,7 @@ if [ $? -eq 0 -a -n "$installed" ]; then
   myoldvendor='%{mysql_old_vendor}'
   myvendor_2='%{mysql_vendor_2}'
   myvendor='%{mysql_vendor}'
-  perconaservervendor='%{percona_server_vendor}'
+  perconaservervendor='%{mysql_server_vendor}'
   myversion='%{mysql_version}'
 
   old_family=`echo $version \
@@ -1173,7 +1146,7 @@ echo "====="                                     >> $STATUS_HISTORY
 
 
 # ----------------------------------------------------------------------------
-%files -n mysql-cluster-client
+%files -n mysql
 
 %defattr(-, root, root, 0755)
 %attr(755, root, root) %{_bindir}/msql2mysql
@@ -1208,7 +1181,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %attr(644, root, man) %{_mandir}/man1/mysqlslap.1*
 
 # ----------------------------------------------------------------------------
-%files -n mysql-cluster-devel%{product_suffix} -f optional-files-devel
+%files -n mysql-devel%{product_suffix} -f optional-files-devel
 %defattr(-, root, root, 0755)
 %doc %attr(644, root, man) %{_mandir}/man1/comp_err.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysql_config.1*
@@ -1225,7 +1198,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/libhsclient.la
 
 # ----------------------------------------------------------------------------
-%files -n mysql-cluster-libs%{product_suffix}
+%files -n mysql-libs%{product_suffix}
 %defattr(-, root, root, 0755)
 # Shared libraries (omit for architectures that don't support them)
 #%{_libdir}/libmysql*.so*
@@ -1265,10 +1238,10 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_datadir}/mysql/charsets
 
 
-%post -n mysql-cluster-libs%{product_suffix}
+%post -n mysql-libs%{product_suffix}
 /sbin/ldconfig
 
-%postun -n mysql-cluster-libs%{product_suffix}
+%postun -n mysql-libs%{product_suffix}
 /sbin/ldconfig
 
 # ----------------------------------------------------------------------------
