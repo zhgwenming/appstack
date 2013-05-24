@@ -26,7 +26,7 @@
 %define percona_server_vendor	Percona, Inc
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 23.7.2
+%define wsrep_version 901.23.7.2
 %define revision 389
 
 %define mysql_version   5.5.29
@@ -1144,8 +1144,33 @@ echo "====="                                     >> $STATUS_HISTORY
 %config(noreplace) /etc/my.cnf
 %attr(755, root, root) %{_sysconfdir}/init.d/mysqld
 
-%{_datadir}/mysql/
+#%{_datadir}/mysql/
 #%attr(755, root, root) %{_datadir}/mysql/
+%attr(755, root, root) %{_datadir}/mysql/SELinux/RHEL4/mysql.fc
+%attr(755, root, root) %{_datadir}/mysql/SELinux/RHEL4/mysql.te
+%attr(755, root, root) %{_datadir}/mysql/binary-configure
+%attr(755, root, root) %{_datadir}/mysql/config.huge.ini
+%attr(755, root, root) %{_datadir}/mysql/config.medium.ini
+%attr(755, root, root) %{_datadir}/mysql/config.small.ini
+%attr(755, root, root) %{_datadir}/mysql/errmsg-utf8.txt
+%attr(755, root, root) %{_datadir}/mysql/fill_help_tables.sql
+%attr(755, root, root) %{_datadir}/mysql/magic
+%attr(755, root, root) %{_datadir}/mysql/mcluster-bootstrap
+%attr(755, root, root) %{_datadir}/mysql/my-huge.cnf
+%attr(755, root, root) %{_datadir}/mysql/my-innodb-heavy-4G.cnf
+%attr(755, root, root) %{_datadir}/mysql/my-large.cnf
+%attr(755, root, root) %{_datadir}/mysql/my-medium.cnf
+%attr(755, root, root) %{_datadir}/mysql/my-small.cnf
+%attr(755, root, root) %{_datadir}/mysql/mysql-log-rotate
+%attr(755, root, root) %{_datadir}/mysql/mysql.server
+%attr(755, root, root) %{_datadir}/mysql/mysql_system_tables.sql
+%attr(755, root, root) %{_datadir}/mysql/mysql_system_tables_data.sql
+%attr(755, root, root) %{_datadir}/mysql/mysql_test_data_timezone.sql
+%attr(755, root, root) %{_datadir}/mysql/mysqld_multi.server
+%attr(755, root, root) %{_datadir}/mysql/ndb-config-2-node.ini
+%attr(755, root, root) %{_datadir}/mysql/wsrep.cnf
+%attr(755, root, root) %{_datadir}/mysql/wsrep_notify
+
 
 # ----------------------------------------------------------------------------
 %files -n mysql-cluster-client
@@ -1212,6 +1237,33 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/mysql/plugin/libfnv_udf.la
 %{_libdir}/mysql/plugin/libmurmur_udf.a
 %{_libdir}/mysql/plugin/libmurmur_udf.la
+
+%dir %{_datadir}/mysql
+%{_datadir}/mysql/english
+%lang(cs) %{_datadir}/mysql/czech
+%lang(da) %{_datadir}/mysql/danish
+%lang(nl) %{_datadir}/mysql/dutch
+%lang(et) %{_datadir}/mysql/estonian
+%lang(fr) %{_datadir}/mysql/french
+%lang(de) %{_datadir}/mysql/german
+%lang(el) %{_datadir}/mysql/greek
+%lang(hu) %{_datadir}/mysql/hungarian
+%lang(it) %{_datadir}/mysql/italian
+%lang(ja) %{_datadir}/mysql/japanese
+%lang(ko) %{_datadir}/mysql/korean
+%lang(no) %{_datadir}/mysql/norwegian
+%lang(no) %{_datadir}/mysql/norwegian-ny
+%lang(pl) %{_datadir}/mysql/polish
+%lang(pt) %{_datadir}/mysql/portuguese
+%lang(ro) %{_datadir}/mysql/romanian
+%lang(ru) %{_datadir}/mysql/russian
+%lang(sr) %{_datadir}/mysql/serbian
+%lang(sk) %{_datadir}/mysql/slovak
+%lang(es) %{_datadir}/mysql/spanish
+%lang(sv) %{_datadir}/mysql/swedish
+%lang(uk) %{_datadir}/mysql/ukrainian
+%{_datadir}/mysql/charsets
+
 
 %post -n mysql-cluster-libs%{product_suffix}
 /sbin/ldconfig
