@@ -1,0 +1,12 @@
+diff -up ./clients/memslap.c.orig ./clients/memslap.c
+--- ./clients/memslap.c.orig	2013-06-19 13:48:54.233245645 +0800
++++ ./clients/memslap.c	2013-06-19 13:54:32.562358679 +0800
+@@ -790,7 +790,7 @@ static void ms_print_memslap_stats(struc
+                           ms_stats.bytes_written
+                           + ms_stats.bytes_read) / 1024 / 1024
+                  / ((double)time_diff / 1000000));
+-  assert(pos <= buf);
++  assert(pos <= buf + sizeof(buf));
+ 
+   fprintf(stdout, "%s", buf);
+   fflush(stdout);
