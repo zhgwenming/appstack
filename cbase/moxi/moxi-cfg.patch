@@ -33,7 +33,7 @@ diff -uNrp moxi-1.8.0_8_g52a5fa8.orig/scripts/moxi-init.rhat.in moxi-1.8.0_8_g52
          chown $USER /var/run/moxi
 -	daemon /usr/bin/moxi -d -u $USER -c $MAXCONN -z $CPROXY_ARG -P /var/run/moxi/moxi.pid $OPTIONS
 +
-+	STREAM=`eval echo http://${CBASE_HOST}:8091/pools/default/bucketsStreaming/${CBASE_BUCKET:-default} | sed 's/ /,/g'`
++	STREAM=`eval echo http://{$CBASE_HOST,}:8091/pools/default/bucketsStreaming/${CBASE_BUCKET:-default} | sed 's/ /,/g'`
 +
 +	daemon /usr/bin/moxi -d -u $USER -c $MAXCONN -Z $CPROXY_ARG -P /var/run/moxi/moxi.pid 	\
 +		-l "$MOXI_LISTEN" -z $STREAM -O $MOXI_LOG $OPTIONS

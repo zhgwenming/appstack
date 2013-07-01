@@ -1,6 +1,6 @@
 Name:	moxi
 Version: 1.8.0_8_g52a5fa8
-Release:	1%{?dist}
+Release:	2%{?dist}
 Summary:	a memcached proxy with energy and pep
 Group:		System Environment/Daemons
 License:	BSD
@@ -66,8 +66,8 @@ install -D -p -m 0600 %{SOURCE1} %{buildroot}%{_sysconfdir}/%{name}.conf
 mkdir -p %{buildroot}/%{_sysconfdir}/sysconfig
 cat <<EOF >%{buildroot}/%{_sysconfdir}/sysconfig/%{name}
 # Change this with the cbase server info
-# use {host1,host2} form for a multi-server configuration
-CBASE_HOST='{localhost}'
+# use host1,host2 form for a multi-server configuration
+CBASE_HOST='host1,host2'
 CBASE_BUCKET=''
 CBASE_PWD=''
 USER="nobody"
@@ -96,6 +96,8 @@ rm -rf %{buildroot}
 %{_initrddir}/moxi
 
 %changelog
+* Tue Jul 1 2013 Albert Zhang <zhgwenming@gmail.com>
+- new format of sysconfig file
 * Tue Jul 28 2009 Aliaksey Kandratsenka <alk@tut.by>
 - packaged documentation and config-file examples
 * Mon Jul 27 2009 Aliaksey Kandratsenka <alk@tut.by>
