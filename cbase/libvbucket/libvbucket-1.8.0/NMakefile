@@ -1,0 +1,67 @@
+# libsasl
+# Copyright (C) 2011 Couchbase, Inc
+# All rights reserved.
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+TARGETOS=WINNT
+!include <win32.mak>
+
+INSTALL=c:\local
+INSTALLDIRS=$(INSTALL) $(INSTALL)\include $(INSTALL)\include\libvbucket $(INSTALL)\lib $(INSTALL)\bin
+
+LIBVBUCKET_OBJS=src\cJSON.obj \
+     src\vbucket.obj \
+     src\crc32.obj \
+     src\ketama.obj
+
+INCPATH=-Iwin32 -Iinclude
+DLLCOMPILE=$(cc) $(cdebug) $(cflags) $(cvarsdll) $(INCPATH) -D_CRT_SECURE_NO_WARNINGS -DBUILDING_LIBVBUCKET=1
+COMPILE=$(cc) $(cdebug) $(cflags) $(INCPATH) -D_CRT_SECURE_NO_WARNINGS
+
+
+libvbucket.dll: $(LIBVBUCKET_OBJS)
+	$(link) $(dlllflags) -out:libvbucket.dll -version:1.0 $(LIBVBUCKET_OBJS)
+
+src\crc32.obj: src\crc32.c
+	$(DLLCOMPILE) -Fosrc\crc32.obj src\crc32.c
+
+src\cJSON.obj: src\cJSON.c src\cJSON.h
+	$(DLLCOMPILE) -Fosrc\cJSON.obj src\cJSON.c
+
+src\ketama.obj: src\ketama.c
+	$(DLLCOMPILE) -Fosrc\ketama.obj src\ketama.c
+
+src\vbucket.obj: src\vbucket.c src\cJSON.h
+	$(DLLCOMPILE) -Fosrc\vbucket.obj src\vbucket.c
+
+src\vbuckettool.obj: src\vbuckettool.c include\libvbucket\vbucket.h
+	$(COMPILE)  -Fosrc/vbuckettool.obj src/vbuckettool.c
+
+vbuckettool.exe: src\vbuckettool.obj libvbucket.dll
+	$(link) -out:vbuckettool.exe src\vbuckettool.obj  libvbucket.lib
+
+install: $(INSTALLDIRS) libvbucket.dll vbuckettool.exe
+	@copy include\libvbucket\vbucket.h $(INSTALL)\include\libvbucket
+	@copy include\libvbucket\visibility.h $(INSTALL)\include\libvbucket
+	@copy libvbucket.dll $(INSTALL)\lib
+	@copy libvbucket.dll $(INSTALL)\bin
+	@copy libvbucket.exp $(INSTALL)\lib
+	@copy libvbucket.lib $(INSTALL)\lib
+	@copy vbuckettool.exe $(INSTALL)\bin
+
+$(INSTALL) $(INSTALL)\include $(INSTALL)\include\libvbucket $(INSTALL)\lib $(INSTALL)\bin:; -@mkdir $@
+
+clean:
+	-del libvbucket.dll libvbucket.exp libvbucket.lib vc100.pdb $(LIBVBUCKET_OBJS) vbuckettool.exe src\vbuckettool.obj
+
