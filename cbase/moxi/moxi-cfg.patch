@@ -1,0 +1,42 @@
+diff -uNrp moxi-1.8.0_8_g52a5fa8.orig/scripts/moxi-init.rhat.in moxi-1.8.0_8_g52a5fa8/scripts/moxi-init.rhat.in
+--- moxi-1.8.0_8_g52a5fa8.orig/scripts/moxi-init.rhat.in	2012-07-03 12:40:38.708272969 +0800
++++ moxi-1.8.0_8_g52a5fa8/scripts/moxi-init.rhat.in	2012-07-04 11:14:01.477346789 +0800
+@@ -11,12 +11,25 @@
+ USER=nobody
+ MAXCONN=1024
+ CPROXY_ARG=/etc/moxi.conf
++MOXI_LOG=/var/log/moxi.log
+ OPTIONS=""
++MOXI_LISTEN=127.0.0.1
+ 
+ if [ -f /etc/sysconfig/moxi ];then 
+ 	. /etc/sysconfig/moxi
+ fi
+ 
++MOXI_SASL_PLAIN_USR="$CBASE_BUCKET"
++MOXI_SASL_PLAIN_PWD="$CBASE_PWD"
++
++if [ x"MOXI_SASL_PLAIN_USR" != x ]; then
++	export MOXI_SASL_PLAIN_USR
++fi
++
++if [ x"MOXI_SASL_PLAIN_PWD" != x ]; then
++	export MOXI_SASL_PLAIN_PWD
++fi
++
+ # Check that networking is up.
+ if [ "$NETWORKING" = "no" ]
+ then
+@@ -38,7 +51,11 @@ start () {
+ 	echo -n $"Starting $prog: "
+ 	# insure that /var/run/moxi has proper permissions
+         chown $USER /var/run/moxi
+-	daemon /usr/bin/moxi -d -u $USER -c $MAXCONN -z $CPROXY_ARG -P /var/run/moxi/moxi.pid $OPTIONS
++
++	STREAM=`eval echo http://${CBASE_HOST}:8091/pools/default/bucketsStreaming/${CBASE_BUCKET:-default} | sed 's/ /,/g'`
++
++	daemon /usr/bin/moxi -d -u $USER -c $MAXCONN -Z $CPROXY_ARG -P /var/run/moxi/moxi.pid 	\
++		-l "$MOXI_LISTEN" -z $STREAM -O $MOXI_LOG $OPTIONS
+ 	RETVAL=$?
+ 	echo
+ 	[ $RETVAL -eq 0 ] && touch /var/lock/subsys/moxi
