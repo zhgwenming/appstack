@@ -1,0 +1,242 @@
+#!/usr/bin/env python
+#
+# Copyright 2011, Couchbase, Inc.
+# All Rights Reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License")
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import random
+from threading import Thread
+import datetime
+import time
+from couchbase.exception import MemcachedTimeoutException
+from couchbase.couchbaseclient import CouchbaseClient
+from optparse import OptionParser
+from couchbase.util import ProgressBar, StringUtil
+import sys
+import uuid
+import traceback
+import StringIO
+
+class SharedProgressBar(object):
+    def __init__(self, number_of_items):
+        self.bar = ProgressBar(0, number_of_items, 77)
+        self.number_of_items = number_of_items
+        self.counter = 0
+        self.old_bar_string = ""
+
+    def update(self):
+        self.counter += 1
+        if self.old_bar_string != str(self.bar):
+            sys.stdout.write(str(self.bar) + '\r')
+            sys.stdout.flush()
+            self.old_bar_string = str(self.bar)
+        self.bar.updateAmount(self.counter)
+
+    def flush(self):
+        self.bar.updateAmount(self.number_of_items)
+        sys.stdout.write(str(self.bar) + '\r')
+        sys.stdout.flush()
+
+
+class SmartLoader(object):
+    def __init__(self, options, server, sharedProgressBar, thread_id):
+        self._options = options
+        self._server = server
+        self._thread = None
+        self.shut_down = False
+        self._stats = {"total_time": 0, "max": 0, "min": 1 * 1000 * 1000,
+                       "samples": 0, "timeouts": 0}
+        self._bar = sharedProgressBar
+        self._thread_id = thread_id
+
+    def start(self):
+        self._thread = Thread(target=self._run)
+        self._thread.start()
+
+    def _run(self):
+        v = None
+        try:
+            options = self._options
+            number_of_items = int(options.items) / int(options.num_of_threads)
+            setPrc = int(options.ratio)
+            setPrc = min(setPrc, 100)
+            setPrc = max(0, setPrc)
+            set_total = number_of_items * setPrc / 100
+            get_total = number_of_items - set_total
+            v = CouchbaseClient(self._server, options.bucket, options.password,
+                                options.verbose)
+
+            value = StringUtil.create_value("*", int(options.value_size))
+            set_counter = get_counter = 0
+            while (set_counter < set_total or get_counter < get_total):
+                if self.shut_down:
+                    print "shut down"
+                    break
+                key = "%s-%s" % (options.key_prefix, str(uuid.uuid4())[:5])
+                if random.randint(0, 100) < setPrc and set_counter < set_total:
+                    set_counter += 1
+                    if options.load_json:
+                        document = '{"name": "pymc-%s", "age": %s, \
+                                    "index": %s}'
+                        document = document % (key, random.randint(0, 1000), i)
+                        try:
+                            self._profile_before()
+                            v.set(key, 0, 0, document)
+                            self._profile_after()
+                        except MemcachedTimeoutException:
+                            self._stats["timeouts"] += 1
+                        except Exception, e:
+                            print "general exception... ", e
+                    else:
+                        try:
+                            self._profile_before()
+                            v.set(key, 0, 0, value)
+                            self._profile_after()
+                        except MemcachedTimeoutException:
+                            self._stats["timeouts"] += 1
+                        except Exception, e:
+                            print "general exception... ", e
+                else:
+                    try:
+                        get_counter += 1
+                        self._profile_before()
+                        v.get(key)
+                        self._profile_after()
+                    except MemcachedTimeoutException:
+                        self._stats["timeouts"] += 1
+                    except Exception, e:
+                        output = StringIO.StringIO()
+                        print >> output, e
+                        if output.getvalue().find("Not found"):
+                            pass
+                        else:
+                            print "general exception... ", e
+                        output.close()
+                self._bar.update()
+            v.done()
+            v = None
+        except:
+            traceback.print_exc()
+            if v:
+                v.done()
+
+    def print_stats(self):
+        msg = '''Thread %s - average set time : %s seconds , min : %s seconds,
+                 max : %s seconds , operation timeouts %s'''
+        if self._stats["samples"]:
+            print msg % (self._thread_id,
+                         self._stats["total_time"] / self._stats["samples"],
+                         self._stats["min"], self._stats["max"],
+                         self._stats["timeouts"])
+
+    def wait(self, block=False):
+        if block:
+            self._thread.join()
+        else:
+            return not self._thread.isAlive()
+
+    def stop(self):
+        self.shut_down = True
+        if v:
+            v.done()
+
+    def _profile_before(self):
+        self.start = time.time()
+
+    def _profile_after(self):
+        self.end = time.time()
+        diff = self.end - self.start
+        self._stats["samples"] += 1
+        self._stats["total_time"] = self._stats["total_time"] + diff
+        if self._stats["min"] > diff:
+            self._stats["min"] = diff
+        if self._stats["max"] < diff:
+            self._stats["max"] = diff
+
+if __name__ == "__main__":
+    parser = OptionParser()
+    parser.add_option("-n", "--node", dest="node",
+                      help="node's ns_server ip:port",
+                      metavar="127.0.0.1:8091")
+    parser.add_option("-b", "--bucket", dest="bucket",
+                      help="which bucket to insert data",
+                      default="default", metavar="default")
+    parser.add_option("-p", "--password", dest="password",
+                      help="bucket password", metavar="     ")
+    parser.add_option("-j", "--json", dest="load_json",
+                      help="insert json data",
+                      default=False, metavar="True")
+    parser.add_option("-v", "--verbose", dest="verbose",
+                      help="run in verbose mode",
+                      default=False, metavar="False")
+
+    parser.add_option("-i", "--items", dest="items",
+                      help="number of items to be inserted",
+                      default=100, metavar="100")
+
+    parser.add_option("-r", "--ratio", dest="ratio",
+                      help="set get operation ratio",
+                      default=90, metavar="90")
+
+    parser.add_option("--size", dest="value_size",
+                      help="value size,default is 256 byte",
+                      default=512, metavar="100")
+
+    parser.add_option("--prefix", dest="key_prefix",
+                      help="prefix to use for memcached keys and json _ids, \
+                            default is random datetime string",
+                      default=str(datetime.datetime.now().microsecond)[:5],
+                      metavar="pymc")
+
+    options, args = parser.parse_args()
+
+    node = options.node
+
+    if not node:
+        parser.print_help()
+        sys.exit()
+        #if port is not given use :8091
+    if node.find(":") == -1:
+        hostname = node
+        port = 8091
+    else:
+        hostname = node[:node.find(":")]
+        port = node[node.find(":") + 1:]
+    server = "http://%s:%s/pools/default" % (hostname, port)
+    v = None
+    workers = []
+    try:
+        options.num_of_threads = 1
+        number_of_items = int(options.items)
+        sharedProgressBar = SharedProgressBar(number_of_items)
+        for i in range(0, int(options.num_of_threads)):
+            worker = SmartLoader(options, server, sharedProgressBar, i)
+            worker.start()
+            workers.append(worker)
+        while True:
+            all_finished = True
+            for worker in workers:
+                all_finished &= worker.wait()
+            if all_finished:
+                break
+            else:
+                time.sleep(0.5)
+        sharedProgressBar.flush()
+        for worker in workers:
+            worker.print_stats()
+    except Exception, e:
+        print e
+        for worker in workers:
+            worker.stop()

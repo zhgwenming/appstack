@@ -1,0 +1,11 @@
+diff -up ./workload-generator/Makefile.am.orig ./workload-generator/Makefile.am
+--- ./workload-generator/Makefile.am.orig	2012-06-18 17:48:47.202994230 +0800
++++ ./workload-generator/Makefile.am	2012-06-18 17:49:03.367993085 +0800
+@@ -20,6 +20,6 @@ bin_SCRIPTS = ${PYTHON_TOOLS}
+ EXTRA_DIST = $(pythonlib_SCRIPTS)
+ 
+ install-data-hook:
+-	cp -rf $(COUCHBASE_PYTHON_CLIENT) $(pythonlibdir)
++	cp -rf $(COUCHBASE_PYTHON_CLIENT) $(DESTDIR)/$(pythonlibdir)
+ 
+ 

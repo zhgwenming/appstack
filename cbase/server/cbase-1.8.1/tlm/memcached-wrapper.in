@@ -1,0 +1,5 @@
+#!/bin/bash
+
+PREFIX="@PREFIX@"
+
+exec "$PREFIX/bin/memcached" -u `whoami` "$@"

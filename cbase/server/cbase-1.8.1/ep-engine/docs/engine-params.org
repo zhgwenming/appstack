@@ -1,0 +1,122 @@
+#+TITLE:     EP Parameters
+#+AUTHOR:    Dustin Sallings
+#+EMAIL:     dustin@spy.net
+#+DATE:      2010-05-05 Wed
+#+DESCRIPTION:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:nil skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+
+* Configuring the Engine
+
+Engine parameters may be specified using the =-e= option to
+memcached.  These parameters control various aspects of the behavior
+of the engine.
+
+For example, if you would like to store your database in =/data/base=
+and prevent it from having objects larger than 1MB, you would run
+memcached like this:
+
+: memcached -E ep.so -e 'dbfile=/data/base;max_item_size=1048576'
+
+* Parameters for the EP Engine
+
+| key                    | type   | descr                                      |
+|------------------------+--------+--------------------------------------------|
+| config_file            | string | Path to additional parameters.             |
+| dbname                 | string | Path to on-disk storage.                   |
+| shardpattern           | string | File pattern for shards (see below)        |
+| ht_locks               | int    | Number of locks per hash table.            |
+| ht_size                | int    | Number of buckets per hash table.          |
+| initfile               | string | Optional SQL script to run after           |
+|                        |        | opening DB                                 |
+| postInitfile           | string | Optional SQL script to run after           |
+|                        |        | all DB shards and statements have          |
+|                        |        | been initialized                           |
+| max_item_size          | int    | Maximum number of bytes allowed for        |
+|                        |        | an item.                                   |
+| max_size               | int    | Max cumulative item size in bytes.         |
+| max_txn_size           | int    | Max number of disk mutations per           |
+|                        |        | transaction.                               |
+| mem_high_wat           | int    | Automatically evict when exceeding         |
+|                        |        | this size.                                 |
+| mem_low_wat            | int    | Low water mark to aim for when evicting.   |
+| min_data_age           | int    | Minimum data stability time before         |
+|                        |        | persist.                                   |
+| queue_age_cap          | int    | Maximum queue time before forcing persist. |
+| tap_backlog_limit      | int    | Max number of items allowed in a           |
+|                        |        | tap backfill                               |
+| tap_noop_interval      | int    | Number of seconds between a noop is sent   |
+|                        |        | on an idle connection                      |
+| tap_keepalive          | int    | Seconds to hold open named tap connections |
+| tap_bg_max_pending     | int    | Maximum number of pending bg fetch         |
+|                        |        | operations                                 |
+|                        |        | a tap queue may issue (before it must wait |
+|                        |        | for responses to appear.                   |
+| tap_backoff_period     | float  | Number of seconds the tap connection       |
+|                        |        | should back off after receiving ETMPFAIL   |
+| vb0                    | bool   | If true, start with an active vbucket 0    |
+| waitforwarmup          | bool   | Whether to block server start during       |
+|                        |        | warmup.                                    |
+| warmup                 | bool   | Whether to load existing data at startup.  |
+| expiry_window          | int    | expiry window to not persist an object     |
+|                        |        | that is expired (or will be soon)          |
+| exp_pager_stime        | int    | Sleep time for the pager that purges       |
+|                        |        | expired objects from memory and disk       |
+| failpartialwarmup      | bool   | If false, continue running after failing   |
+|                        |        | to load some records.                      |
+| max_vbuckets           | int    | Maximum number of vbuckets expected (1024) |
+| db_shards              | int    | Number of shards for db store              |
+| db_strategy            | string | DB store strategy ("multiDB", "singleDB"   |
+|                        |        | or "singleMTDB")                           |
+| vb_del_chunk_size      | int    | Chunk size of vbucket deletion             |
+| vb_chunk_del_time      | int    | vb chunk deletion threshold time (ms) used |
+|                        |        | for adjusting the chunk size dynamically   |
+| concurrentDB           | bool   | True (default) if concurrent DB reads are  |
+|                        |        | permitted where possible.                  |
+| chk_remover_stime      | int    | Interval for the checkpoint remover that   |
+|                        |        | purges closed unreferenced checkpoints.    |
+| chk_max_items          | int    | Number of max items allowed in a           |
+|                        |        | checkpoint                                 |
+| chk_period             | int    | Time bound (in sec.) on a checkpoint       |
+| max_checkpoints        | int    | Number of max checkpoints allowed per      |
+|                        |        | vbucket                                    |
+| inconsistent_slave_chk | bool   | True if we allow a "downstream" master to  |
+|                        |        | receive checkpoint begin/end messages      |
+|                        |        | along with normal get/set operations.      |
+| keep_closed_chks       | bool   | True if we want to keep closed checkpoints |
+|                        |        | in memory if the current memory usage is   |
+|                        |        | below high water mark                      |
+| bf_resident_threshold  | float  | Resident item threshold for only memory    |
+|                        |        | backfill to be kicked off                  |
+| getl_default_timeout   | int    | The default timeout for a getl lock in (s) |
+| getl_max_timeout       | int    | The maximum timeout for a getl lock in (s) |
+| sync_cmd_timeout       | int    | The timeout for SYNC requests in (ms)      |
+| mutation_mem_threshold | float  | Memory threshold on the current bucket     |
+|                        |        | quota for accepting a new mutation         |
+| tap_throttle_queue_cap | int    | The maximum size of the disk write queue   |
+|                        |        | to throttle down tap-based replication. -1 |
+|                        |        | means don't throttle.                      |
+| tap_throttle_threshold | float  | Percentage of memory in use before we      |
+|                        |        | throttle tap streams                       |
+| flushall_enabled       | bool   | True if we enable flush_all command; The   |
+|                        |        | default value is False.                    |
+
+
+** Shard Patterns
+
+When using a multi-sharded database, =shardpattern= specifies how
+shards are named relative to the main database.
+
+=shardpattern= uses a printf-style string to expand the path with the
+given variables:
+
+- =%d= : The directory name containing the main database
+  (This will be =.= for relative paths).
+- =%b= : The base name of the main database.
+- =%i= : The shard number.
+
+The default value of =shardpattern= is =%d/%b-%i.sqlite=

@@ -1,0 +1,242 @@
+
+                                moxi
+           a memcached/membase proxy with energy and pep
+
+What is it?
+-----------
+
+moxi is a proxy capable of handling many connections for client
+applications, providing those clients simplified management and
+increased performance.  It can be used with memcached servers or
+a Membase Cluster hosting both membase and memcached type buckets.
+
+For more information see http://membase.org
+
+Running
+-------
+
+To have moxi load a "vBucket" json configuration from a REST/HTTP
+server, try...
+
+  moxi http://host:port/url/of/vBucketServerMapJSON
+
+Against a NorthScale server, for example, this would look like...
+
+  moxi http://host:8091/pools/default/bucketsStreamingConfig/default
+
+The above, also, is just shorthand (assuming you have no other flags
+specified), for the following explicit command-line...
+
+  moxi -z url=http://host:8091/url/of/vBucketServerMap.json
+
+To provide reliability when running with multiple servers, moxi will 
+accept multiple URLs.  For example...
+
+  moxi \ 
+  http://host:8091/pools/default/bucketsStreamingConfig/default,http://host2:8091/pools/default/bucketsStreamingConfig/default
+
+When used with particular buckets, authentication may be required.
+This can be done with the additional arguments to the -z flag...
+
+  moxi -z auth=USER%PASSWD,url=http://host:8091...
+
+To get more command line usage info:
+
+  moxi -h
+
+  Keeping moxi Running
+  --------------------
+
+On UNIX and UNIX-like systems, moxi may be started with an external
+service management system.  This will vary from system to system
+but many have BSD or SysV style init systems.  Other, more advanced
+service systems may be used too. 
+
+  File-based configuration:
+  -------------------------
+
+You may also provide a configuration file to moxi that holds a static
+vBucket server map.  This is most often used during development and
+testing.  The file (such as vbucket1.cfg) would look like...
+
+  11211 = {
+    "hashAlgorithm": "CRC",
+    "numReplicas": 0,
+    "serverList": ["memcached_svr1:11311"],
+    "vBucketMap":
+      [
+        [0],
+        [0]
+      ]
+  }
+
+The above configuration would tell moxi to listen on port 11211, and
+proxy to memcached_svr1:11311.  To use a static configuration file,
+you would start moxi like...
+
+  moxi -z ./vbucket1.cfg
+
+The "./" path prefix is required so that moxi knows you're passing in
+a config file.
+
+Developing
+----------
+
+Dependencies:
+
+   -- libevent, http://www.monkey.org/~provos/libevent/ (libevent-dev)
+
+   -- libconflate, http://github.com/northscale/libconflate
+
+   -- libvbucket, http://github.com/northscale/libvbucket
+
+As a backwards-compatible (ketama/consistent-hashing) alternative to
+libvbucket, you may instead use libmemcached instead of libvbucket...
+
+   -- libmemcached, http://tangent.org/552/libmemcached.html
+
+To use moxi against membase, however, you'll want libvbucket.
+
+                     -   -   -
+
+To compile moxi (assuming you want libvbucket), after you got the
+dependencies built and installed:
+
+  ./config/autorun.sh
+  ./configure
+  make
+
+For example, if libevent is installed in /opt/local, you'd do...
+
+  ./config/autorun.sh
+  ./configure --with-libevent=/opt/local
+  make
+
+  Testing:
+  --------
+
+  # To test that moxi still behaves like memcached
+  # and passes all the tests that memcached passes...
+  #
+  make test
+
+  # To test moxi in a simple proxy topology of...
+  #  client <-> moxi <-> memcached
+  #
+  ./t/moxi.pl
+
+  # To test moxi in a chained proxy topology of...
+  #   client <-> moxi <-> moxi <-> moxi <-> memcached
+  #
+  ./t/moxi.pl chain
+
+  # To test moxi in a fanout topology of...
+  #   client <---> moxi <---> memcached
+  #                       |-> memcached
+  #                       |-> memcached
+  #                       |-> memcached
+  #
+  ./t/moxi.pl fanout
+
+  # To test moxi in a fanout and back in again topology of...
+  #   client <---> moxi <---> moxi <-> memcached
+  #            |-> moxi <-|
+  #            |-> moxi <-|
+  #            |-> moxi <-|
+  #
+  ./t/moxi.pl fanoutin
+
+  # To test moxi proxy cases...
+  #
+  ./moxi -z 11333=localhost:11311 -t 1
+  python t/moxi_mock.py
+
+                     -   -   -
+
+For vbucket development, start the following...
+
+  ruby ./t/rest_mock.rb
+
+Then start a "pretend" memcached server...
+
+  ./moxi -vvv -p 11311
+
+Then...
+
+  ./moxi -vvv -z url=http://localhost:4567/pools/default/bucketsStreaming/default -Z port_listen=11211
+
+Then...
+
+  telnet localhost 11211
+
+                     -   -   -
+More notes:
+
+If using Linux, you need a kernel with epoll (it's better than select()).
+
+epoll isn't in Linux 2.4 yet, but there's a backport at:
+
+    http://www.xmailserver.org/linux-patches/nio-improve.html
+
+You want the epoll-lt patch (level-triggered).
+
+If you're using MacOS, you'll want libevent 1.1 or higher to deal with
+a kqueue bug.
+
+Also, be warned that the -k (mlockall) option to memcached might be
+dangerous when using a large cache.  Just make sure the memcached machines
+don't swap.  memcached does non-blocking network I/O, but not disk.  (it
+should never go to disk, or you've lost the whole point of it)
+
+The memcached website is at:
+
+    http://memcached.org
+
+                     -   -   -
+
+Building moxi for use with libmemcached
+---------------------------------------
+
+If you want to use moxi explicitly using ketama / consistent-hashing,
+instead of libvbucket with membase, you'll need to compile moxi with
+libmemcached.
+
+First, you would configure moxi differently at build-time...
+
+  ./configure --enable-moxi-vbucket=no \
+     CFLAGS=<libmemcached/include> \
+     LDFLAGS=<libmemcahed/lib>
+
+After building, moxi understands the following kind of command-line...
+
+  moxi -z <port=<more-config>>
+
+  moxi -z <port=<memcached_host:memcached_port(,*)>>
+
+moxi will listen on the given port and accept connections from
+upstream memcached clients.  It will forward requests to downstream
+memcached servers running on memcached_host:memcached_port.  For
+example...
+
+  moxi -z 11211=my_memcached_server:11222
+
+Above, moxi will listen on port 11211 and forward requests
+to the memcached running on my_memcached_server that's listening
+on port 11222.
+
+You can list more than one memcached_host:memcached_port,
+separated by commas.  For example...
+
+  moxi -z 11211=memcached_1:11211,memcached_2:11211
+
+The default downstream port is 11211, so you can also
+just use...
+
+  moxi -z 11211=memcached_1,memcached_2
+
+If you have some memcached servers running on the same server,
+but on different ports, you can put moxi in front of them
+with something like...
+
+  moxi -z 11211=server:11222,server:11233
+

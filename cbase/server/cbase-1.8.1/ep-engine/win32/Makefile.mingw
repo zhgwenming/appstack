@@ -1,0 +1,144 @@
+# Hard coded Makefile for windows
+
+CC = gcc
+
+LOCAL=/usr/local
+LOCALLIB=-L${LOCAL}/lib
+LOCALINC=-I${LOCAL}/include
+
+MARCH=-march=i686
+TMP_DIR=./tmp
+INSTALLDIRS=$(LOCAL)/bin $(LOCAL)/lib $(LOCAL)/lib/memcached
+
+TCMALLOC_FLAGS = -Wwrite-strings \
+                    -Wno-sign-compare -DNO_FRAME_POINTER \
+                    -DHAVE_LIBTCMALLOC_MINIMAL \
+                    -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
+                    -fno-builtin-calloc -fno-builtin-cfree \
+                    -fno-builtin-memalign -fno-builtin-posix_memalign \
+                    -fno-builtin-valloc -fno-builtin-pvalloc
+
+MEMCACHED=../memcached
+
+OBJDIR = .libs .libs/embedded .libs/poll .libs/management
+BINARIES= .libs/ep.so management/sqlite3.exe management/cbdbconvert.exe
+LIB=$(LOCALLIB) -L${MEMCACHED}/lib
+INCLUDE= -Iwin32 -I.libs -Iembedded -I${MEMCACHED}/include -I. $(LOCALINC)
+GENFILES=.libs/config_version.h
+CPPFLAGS= $(MARCH) -O2 -DHAVE_CONFIG_H ${INCLUDE} -Wall -DSQLITE_THREADSAFE=2
+
+all: ${BINARIES}
+
+install: ${BINARIES} $(INSTALLDIRS)
+	cp management/sqlite3.exe management/cbdbconvert.exe $(LOCAL)/bin 
+	cp .libs/ep.so $(LOCAL)/lib/memcached
+	rm -rf $(TMP_DIR) && mkdir -p $(TMP_DIR)
+	cp ./management/* $(TMP_DIR)
+	rm -f $(TMP_DIR)/*.pyc && rm -f $(TMP_DIR)/*.cc && rm -f $(TMP_DIR)/*.o
+	cp $(TMP_DIR)/* $(LOCAL)/bin
+
+
+CFLAGS = -std=gnu99 -DNDEBUG -g \
+           -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes \
+           -Wmissing-declarations -Wredundant-decls \
+           $(TCMALLOC_FLAGS) \
+           -DGLIBCXX_FORCE_NEW
+
+CXXFLAGS = -std=gnu++0x -g \
+           -pedantic -Wshadow -fdiagnostics-show-option \
+           -Wformat=2 -Wconversion -Wstrict-aliasing -Wextra \
+           -Woverloaded-virtual -Wnon-virtual-dtor -Wctor-dtor-privacy \
+           -Wno-long-long  -Wmissing-declarations -Wno-redundant-decls \
+           $(TCMALLOC_FLAGS) \
+           -DGLIBCXX_FORCE_NEW
+
+EP_ENGINE_CC_SRC = \
+                 backfill.cc \
+                 checkpoint.cc \
+                 checkpoint_remover.cc \
+                 dispatcher.cc \
+                 ep.cc \
+                 ep_engine.cc \
+                 ep_extension.cc \
+                 flusher.cc \
+                 htresizer.cc \
+                 invalid_vbtable_remover.cc \
+                 item.cc \
+                 item_pager.cc \
+                 kvstore.cc \
+                 memory_tracker.cc \
+                 objectregistry.cc \
+                 pathexpand.cc \
+                 priority.cc \
+                 queueditem.cc \
+                 restore_impl.cc \
+                 sizes.cc \
+                 sqlite-eval.cc \
+                 sqlite-kvstore.cc \
+                 sqlite-pst.cc \
+                 sqlite-strategies.cc \
+                 statsnap.cc \
+                 stored-value.cc \
+                 sync_registry.cc \
+                 tapconnmap.cc \
+                 tapconnection.cc \
+                 tapthrottle.cc \
+                 vbucket.cc
+
+EP_ENGINE_C_SRC = \
+                 byteorder.c \
+                 embedded/sqlite3.c \
+                 gethrtime.c \
+                 sqlite-vfs.c
+
+EP_ENGINE_OBJS = ${EP_ENGINE_C_SRC:%.c=.libs/%.o} ${EP_ENGINE_CC_SRC:%.cc=.libs/%.o}
+
+SQLITE3_SRC = embedded/sqlite3.c embedded/sqlite3-shell.c
+SQLITE3_OBJS = ${SQLITE3_SRC:%.c=.libs/%.o}
+
+management/sqlite3.exe: ${OBJDIR} ${GENFILES} ${SQLITE3_OBJS}
+	${LINK.cc} -o $@ ${SQLITE3_OBJS}
+
+.libs/ep.so: ${OBJDIR} ${GENFILES} $(EP_ENGINE_OBJS)
+	${LINK.cc} -o $@ -shared ${EP_ENGINE_OBJS} \
+                  ${LIB} -lpthread \
+                  -lws2_32
+
+LIBKVSTORE_CC_SRC = \
+         kvstore.cc \
+         pathexpand.cc \
+         sqlite-eval.cc \
+         sqlite-kvstore.cc \
+         sqlite-pst.cc \
+         sqlite-strategies.cc
+
+LIBKVSTORE_C_SRC = \
+         embedded/sqlite3.c \
+         sqlite-vfs.c
+
+LIBKVSTORE_OBJS = ${LIBKVSTORE_CC_SRC:%.cc=.libs/%.o} ${LIBKVSTORE_C_SRC:%.c=.libs/%.o}
+
+MBDBCONVERT_SRC = management/dbconvert.cc testlogger.cc objectregistry.cc
+
+MBDBCONVERT_OBJS = ${MBDBCONVERT_SRC:%.cc=.libs/%.o}
+
+management/cbdbconvert.exe: ${OBJDIR} ${GENFILES} ${MBDBCONVERT_OBJS} ${LIBKVSTORE_OBJS}
+	${LINK.cc} -o $@ ${MBDBCONVERT_OBJS} .libs/gethrtime.o ${LIBKVSTORE_OBJS} ${LIB} -lpthread
+
+.libs/config_version.h:
+	./win32/config.sh
+
+${OBJDIR} ${INSTALLDIRS}:; -@mkdir $@
+
+.libs/%.o: %.cc
+	${COMPILE.cc} -MMD $< -o $@
+
+.libs/%.o: %.c
+	${COMPILE.c} -MMD $< -o $@
+
+clean:
+	$(RM) ${EP_ENGINE_OBJS} ${BINARIES} ${EP_ENGINE_OBJS:.o=.d} \
+              ${GENFILES} ${SQLITE3_OBJS} ${SQLITE3_OBJS:.o=.d}
+
+-include ${EP_ENGINE_OBJS:.o=.d}
+-include ${SQLITE3_OBJS:.o=.d}
