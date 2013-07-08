@@ -1,6 +1,6 @@
 Name:	moxi
 Version: 1.8.0_8_g52a5fa8
-Release:	2%{?dist}
+Release:	901.2%{?dist}
 Summary:	a memcached proxy with energy and pep
 Group:		System Environment/Daemons
 License:	BSD
@@ -22,7 +22,7 @@ BuildRequires:  libvbucket-devel
 BuildRequires:  libconflate-devel
 Requires:       openssl
 Requires:	libevent
-Requires:	libvbucket
+Requires:	libvbucket >= 1.8.0-901.1
 Requires:	libmemcached
 Requires:	libconflate
 Requires:       sqlite
@@ -96,6 +96,8 @@ rm -rf %{buildroot}
 %{_initrddir}/moxi
 
 %changelog
+* Mon Jul 8 2013 Albert Zhang <zhgwenming@gmail.com>
+- fix mem leak issue
 * Tue Jul 1 2013 Albert Zhang <zhgwenming@gmail.com>
 - new format of sysconfig file
 * Tue Jul 28 2009 Aliaksey Kandratsenka <alk@tut.by>

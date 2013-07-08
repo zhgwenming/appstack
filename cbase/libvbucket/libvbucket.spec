@@ -1,7 +1,7 @@
 Summary: vbucket library for Couchbase
 Name: libvbucket
 Version: 1.8.0
-Release: 1
+Release: 901.1
 Vendor: Couchbase, Inc.
 Packager: Couchbase SDK Team <support@couchbase.com>
 License: Apache-2
