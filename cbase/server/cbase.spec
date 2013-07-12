@@ -1,6 +1,6 @@
 Name:	cbase
 Version: 1.8.1
-Release:	1%{?dist}
+Release:	901.1%{?dist}
 Summary:	A memcached cache cluster
 Group:		System Environment/Daemons
 License:	BSD
