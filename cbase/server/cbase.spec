@@ -32,7 +32,7 @@ Patch0:  workload-generator-destdir.patch
 
 %define pkgroot	/opt/letv
 %define prefix	%{pkgroot}/%{name}
-%define cbuser	couchbase
+%define cbuser	cbase
 
 %description
 cbase is a memcached cluster with several optimizations to bring efficiency to
@@ -730,7 +730,7 @@ rm -rf %{buildroot}
 
 %pre
 
-CBUSER=couchbase
+CBUSER=%{cbuser}
 
 getent group %{cbuser} >/dev/null || \
    groupadd -r %{cbuser} || exit 1
