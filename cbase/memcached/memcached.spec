@@ -1,6 +1,6 @@
 Name:           memcached
 Version:        1.4.4
-Release:        1%{?dist}
+Release:        902.1%{?dist}
 Summary:        High Performance, Distributed Memory Object Cache
 
 Group:          System Environment/Daemons
@@ -22,18 +22,28 @@ memcached is a high-performance, distributed memory object caching
 system, generic in nature, but intended for use in speeding up dynamic
 web applications by alleviating database load.
 
+%package devel
+Summary:        Files needed for development using memcached protocol
+Group:          Development/Libraries
+Requires:       %{name} = %{epoch}:%{version}-%{release}
+
+%description devel
+Install memcached-devel if you are developing C/C++ applications that require access to the
+memcached binary include files.
+
 %prep
 %setup -q -n %{name}-1.4.4
 
 
 %build
 config/autorun.sh
-%configure
+%configure --enable-isasl
 
 make %{?_smp_mflags}
 
-%check
-make test
+# to be added later
+#%check
+#make test
 
 %install
 rm -rf %{buildroot}
@@ -93,9 +103,10 @@ exit 0
 %{_bindir}/engine_testapp
 %{_bindir}/mcbasher
 %{_bindir}/mcstat
+# for --with-isasl
+%{_bindir}/isasladm
 %{_mandir}/man1/memcached.1*
 %{_initrddir}/memcached
-%{_includedir}/memcached
 %dir %attr (0755, root, bin) %{_libdir}
 %attr (-, root, bin) %{_libdir}/memcached/default_engine.so*
 %attr (-, root, bin) %{_libdir}/memcached/ascii_scrub.so
@@ -108,6 +119,10 @@ exit 0
 %attr (-, root, bin) %{_libdir}/memcached/stdin_term_handler.so
 %attr (-, root, bin) %{_libdir}/memcached/syslog_logger.so
 %attr (-, root, bin) %{_libdir}/memcached/tap_mock_engine.so
+
+%files devel
+%defattr(-,root,root,0755)
+%{_includedir}/memcached/*
 
 
 %changelog
