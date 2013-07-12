@@ -1,6 +1,0 @@
-/* Localized versions of Info.plist keys */
-
-NSHumanReadableCopyright = "© 2012 Couchbase, Inc.";
-
-CFBundleName = "Couchbase Server";
-CFBundleVersion = "1.8.1";

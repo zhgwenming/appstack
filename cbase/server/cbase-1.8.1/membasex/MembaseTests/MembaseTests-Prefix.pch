@@ -1,7 +1,0 @@
-//
-// Prefix header for all source files of the 'MembaseTests' target in the 'MembaseTests' project
-//
-
-#ifdef __OBJC__
-    #import <Cocoa/Cocoa.h>
-#endif
