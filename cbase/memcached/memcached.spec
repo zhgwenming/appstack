@@ -90,13 +90,30 @@ exit 0
 %dir %attr(750,nobody,nobody) %{_localstatedir}/run/memcached
 %{_bindir}/memcached-tool
 %{_bindir}/memcached
+%{_bindir}/engine_testapp
+%{_bindir}/mcbasher
+%{_bindir}/mcstat
 %{_mandir}/man1/memcached.1*
 %{_initrddir}/memcached
 %{_includedir}/memcached
 %dir %attr (0755, root, bin) %{_libdir}
-%attr (-, root, bin) %{_libdir}/default_engine.so*
+%attr (-, root, bin) %{_libdir}/memcached/default_engine.so*
+%attr (-, root, bin) %{_libdir}/memcached/ascii_scrub.so
+%attr (-, root, bin) %{_libdir}/memcached/basic_engine_testsuite.so
+%attr (-, root, bin) %{_libdir}/memcached/blackhole_logger.so
+%attr (-, root, bin) %{_libdir}/memcached/example_protocol.so
+%attr (-, root, bin) %{_libdir}/memcached/libmemcached_utilities.so
+%attr (-, root, bin) %{_libdir}/memcached/libmemcached_utilities.so.0
+%attr (-, root, bin) %{_libdir}/memcached/libmemcached_utilities.so.0.0.0
+%attr (-, root, bin) %{_libdir}/memcached/stdin_term_handler.so
+%attr (-, root, bin) %{_libdir}/memcached/syslog_logger.so
+%attr (-, root, bin) %{_libdir}/memcached/tap_mock_engine.so
+
 
 %changelog
+* Fri Jul  12 2013 Albert Zhang <zhgwenming@gmail.com> - 1.4.4-1
+- add full file list to spec
+
 * Mon Feb  8 2010 Trond Norbye <trond.norbye@gmail.com> - 1.4.4-1
 - Added the default engine to the package.
 
