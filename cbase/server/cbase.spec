@@ -71,6 +71,7 @@ sed 's/@@PRODUCT@@/couchbase-server/; s/@@PRODUCT_BASE@@/couchbase/;
 
 chmod +x %{buildroot}%{_initrddir}/%{name}
 
+ln -s /usr/bin/moxi %{buildroot}%{prefix}/bin/moxi
 %clean
 rm -rf %{buildroot}
 
@@ -137,7 +138,6 @@ rm -rf %{buildroot}
 %config(noreplace) %{prefix}/etc/couchbase/config
 %doc %{prefix}/share/man/man1/cbadm-online-update.1m
 %doc %{prefix}/share/man/man1/vbucketmigrator.1m
-%doc %{prefix}/share/man/man1/moxi.1
 %doc %{prefix}/share/man/man1/cbbackup-incremental.1m
 %doc %{prefix}/share/man/man1/memcached.1
 %attr(-,root,root) %{prefix}/lib/libconflate.so.0

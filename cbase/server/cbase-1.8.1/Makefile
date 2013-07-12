@@ -10,7 +10,6 @@ COMPONENTS := bucket_engine \
 	membase-cli \
 	memcached \
 	memcachetest \
-	moxi \
 	ns_server \
 	vbucketmigrator \
 	workload-generator

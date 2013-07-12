@@ -1,3 +1,0 @@
-[submodule "libconflate"]
-	path = libconflate
-	url = git://github.com/northscale/libconflate.git
