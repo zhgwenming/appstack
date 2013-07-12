@@ -31,7 +31,8 @@ endif
 endif
 
 ifneq "$(realpath portsigar/configure.ac)" ""
-COMPONENTS += sigar portsigar
+#COMPONENTS += sigar portsigar
+COMPONENTS += portsigar
 BUILD_SIGAR := 1
 endif
 
@@ -93,12 +94,10 @@ dist:
 test: $(MAKE_TEST_TARGETS) $(MAKE_TEST_TARGETS_EX)
 
 ifdef BUILD_SIGAR
-deps-for-portsigar: make-install-sigar
+#deps-for-portsigar: make-install-sigar
 portsigar/Makefile: AUTOGEN := ./bootstrap
 portsigar/Makefile: CONFIGURE_PREFIX := LDFLAGS="-L$(PREFIX)/lib $(LDFLAGS)"
-sigar/Makefile: AUTOGEN := ./autogen.sh
-portsigar_EXTRA_MAKE_OPTIONS := 'CPPFLAGS=-I$(TOPDIR)/sigar/include $(CPPFLAGS)'
-sigar_OPTIONS := $(LIBRARY_OPTIONS) $(sigar_OPTIONS)
+portsigar_EXTRA_MAKE_OPTIONS := 'CPPFLAGS=-I/usr/include $(CPPFLAGS)'
 endif
 
 do-install-all: $(MAKE_INSTALL_TARGETS) make-install-ns_server $(MAKE_INSTALL_TARGETS_EX)

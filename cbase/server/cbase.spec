@@ -1,6 +1,6 @@
 Name:	cbase
 Version: 1.8.1
-Release:	901.1%{?dist}
+Release:	902.1%{?dist}
 Summary:	A memcached cache cluster
 Group:		System Environment/Daemons
 License:	BSD
@@ -18,6 +18,7 @@ BuildRequires:  pkgconfig
 BuildRequires:  sqlite-devel
 BuildRequires:  check-devel
 BuildRequires:  erlang
+BuildRequires:  sigar-devel
 #BuildRequires:  libmemcached-devel
 #BuildRequires:  libvbucket-devel
 #BuildRequires:  libconflate-devel
@@ -26,6 +27,7 @@ Requires:	libevent
 Requires:	moxi
 Requires:       sqlite
 Requires:       erlang
+Requires:       sigar
 
 
 Patch0:  workload-generator-destdir.patch
@@ -130,8 +132,6 @@ rm -rf %{buildroot}
 %doc %{prefix}/share/man/man1/vbucketmigrator.1m
 %doc %{prefix}/share/man/man1/cbbackup-incremental.1m
 %doc %{prefix}/share/man/man1/memcached.1
-%attr(-,root,root) %{prefix}/lib/libsigar.so
-%attr(-,root,root) %{prefix}/lib/libsigar.so.0
 %attr(-,root,root) %{prefix}/lib/memcached/libmemcached_utilities.la
 %attr(-,root,root) %{prefix}/lib/memcached/syslog_logger.la
 %attr(-,root,root) %{prefix}/lib/memcached/example_protocol.la
@@ -169,7 +169,6 @@ rm -rf %{buildroot}
 %attr(-,root,root) %{prefix}/lib/memcached/example_protocol.so
 %attr(-,root,root) %{prefix}/lib/memcached/libmemcached_utilities.so
 %attr(-,root,root) %{prefix}/lib/memcached/tap_mock_engine.so
-%attr(-,root,root) %{prefix}/lib/libsigar.so.0.0.0
 %attr(-,root,root) %{prefix}/lib/python/processor.py
 %attr(-,root,root) %{prefix}/lib/python/cbworkloadgen
 %attr(-,root,root) %{prefix}/lib/python/collectd_memcached_buckets.py
@@ -241,7 +240,6 @@ rm -rf %{buildroot}
 %attr(-,root,root) %{prefix}/lib/python/info.py
 %attr(-,root,root) %{prefix}/lib/python/node_stats.py
 %attr(-,root,root) %{prefix}/lib/python/cbbackup
-%attr(-,root,root) %{prefix}/lib/libsigar.la
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/erlwsh/priv/www/index.html
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/erlwsh/priv/www/prototype.js
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/erlwsh/ebin/erlwsh.app
@@ -530,10 +528,6 @@ rm -rf %{buildroot}
 %attr(-,root,root) %{prefix}/share/bucket_engine/memcacheConstants.py
 %attr(-,root,root) %{prefix}/share/bucket_engine/mc_bin_client.py
 %attr(-,root,root) %{prefix}/share/bucket_engine/types.db
-%attr(-,root,root) %{prefix}/include/sigar_util.h
-%attr(-,root,root) %{prefix}/include/sigar.h
-%attr(-,root,root) %{prefix}/include/sigar_ptql.h
-%attr(-,root,root) %{prefix}/include/sigar_getline.h
 %attr(-,root,root) %{prefix}/include/memcached/genhash.h
 %attr(-,root,root) %{prefix}/include/memcached/protocol_plugin.h
 %attr(-,root,root) %{prefix}/include/memcached/callback.h
@@ -550,10 +544,6 @@ rm -rf %{buildroot}
 %attr(-,root,root) %{prefix}/include/memcached/extension_loggers.h
 %attr(-,root,root) %{prefix}/include/memcached/visibility.h
 %attr(-,root,root) %{prefix}/include/memcached/allocator_hooks.h
-%attr(-,root,root) %{prefix}/include/sigar_log.h
-%attr(-,root,root) %{prefix}/include/sigar_fileinfo.h
-%attr(-,root,root) %{prefix}/include/sigar_format.h
-%attr(-,root,root) %{prefix}/include/sigar_private.h
 %attr(-,root,root) %{prefix}/bin/cbworkloadgen
 %attr(-,root,root) %{prefix}/bin/couchbase-server
 %attr(-,root,root) %{prefix}/bin/sigar_port
