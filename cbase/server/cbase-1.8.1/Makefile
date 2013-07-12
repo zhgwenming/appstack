@@ -4,15 +4,12 @@ PREFIX := $(TOPDIR)/install
 
 COMPONENTS := bucket_engine \
 	ep-engine \
-	libconflate \
-        libmemcached \
-	libvbucket \
 	membase-cli \
 	memcached \
-	memcachetest \
 	ns_server \
 	vbucketmigrator \
 	workload-generator
+	#memcachetest \
 
 ifneq "$(DESTDIR)" ""
 LDFLAGS := -L$(DESTDIR)$(PREFIX)/lib $(LDFLAGS)
