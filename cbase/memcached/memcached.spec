@@ -1,6 +1,7 @@
 Name:           memcached
 Version:        1.4.4
 Release:        902.1%{?dist}
+Epoch:          0
 Summary:        High Performance, Distributed Memory Object Cache
 
 Group:          System Environment/Daemons
