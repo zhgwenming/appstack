@@ -58,8 +58,21 @@ rm -rf %{buildroot}
 %{_bindir}/analyze_core
 %{_bindir}/cbbackup
 
+%{_libdir}/memcached/ep.la
+%{_libdir}/memcached/ep_testsuite.la
+%{_libdir}/memcached/ep_testsuite.so
+%{_libdir}/memcached/ep_testsuite.so.0
+%{_libdir}/memcached/ep_testsuite.so.0.0.0
+%{_libdir}/memcached/timing_tests.la
+%{_libdir}/memcached/timing_tests.so
+%{_libdir}/memcached/timing_tests.so.0
+%{_libdir}/memcached/timing_tests.so.0.0.0
 
-%{_libdir}/memcached/bucket_engine.a
+%{_mandir}/man1/cbadm-online-update.1m.gz
+%{_mandir}/man1/cbbackup-incremental.1m.gz
+
+
+#%{_libdir}/memcached/bucket_engine.a
 
 %{_libdir}/python/*
 
