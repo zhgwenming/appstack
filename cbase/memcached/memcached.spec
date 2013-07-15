@@ -42,8 +42,8 @@ config/autorun.sh
 make %{?_smp_mflags}
 
 # to be added later
-#%check
-#make test
+%check
+make test
 
 %install
 rm -rf %{buildroot}

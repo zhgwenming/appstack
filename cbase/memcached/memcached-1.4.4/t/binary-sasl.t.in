@@ -106,6 +106,19 @@ use constant RES_MAGIC        => 0x81;
 my $pwd=getcwd;
 $ENV{'SASL_CONF_PATH'} = "$pwd/t/sasl";
 
+# setup the pwd file first, otherwise memcached will fail to start
+unlink $sasldb;
+my ($testuser, $testpass) = ('testuser', 'testpass');
+unless ($saslpasswd2 eq "isasl") {
+    system("echo $testpass | $saslpasswd2 -a memcached -f $sasldb -c -p $testuser");
+}
+else {
+    my $isasl_fh;
+    open($isasl_fh, ">$sasldb") or die "unable to open $sasldb\n";
+    print $isasl_fh "$testuser $testpass";
+    close($isasl_fh);
+}
+
 my $server = new_memcached('-B binary -S ');
 
 my $mc = MC::Client->new;
@@ -187,18 +200,6 @@ $empty->('x');
     cmp_ok($status,'==',ERR_AUTH_ERROR, "error code matches");
 }
 $empty->('x');
-
-unlink $sasldb;
-my ($testuser, $testpass) = ('testuser', 'testpass');
-unless ($saslpasswd2 eq "isasl") {
-    system("echo $testpass | $saslpasswd2 -a memcached -f $sasldb -c -p $testuser");
-}
-else {
-    my $isasl_fh;
-    open($isasl_fh, ">$sasldb") or die "unable to open $sasldb\n";
-    print $isasl_fh "$testuser $testpass";
-    close($isasl_fh);
-}
 
 $mc = MC::Client->new;
 
