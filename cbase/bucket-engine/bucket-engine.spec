@@ -1,4 +1,4 @@
-Name:           bucket_engine
+Name:           bucket-engine
 Version:        1.8.0
 Release:        1
 Epoch:          0

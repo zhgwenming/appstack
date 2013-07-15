@@ -1,4 +1,4 @@
-NAME ?= bucket_engine
+NAME ?= bucket-engine
 VERSION ?= 1.8.0
 NV = $(NAME)-$(VERSION)
 SPEC_FILE := $(NAME).spec
