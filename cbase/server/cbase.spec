@@ -34,7 +34,7 @@ Patch0:  workload-generator-destdir.patch
 
 %define pkgroot	/opt/letv
 %define prefix	%{pkgroot}/%{name}
-%define cbuser	cbase
+%define cbuser	couchbase
 
 %description
 cbase is a memcached cluster with several optimizations to bring efficiency to
