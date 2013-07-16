@@ -19,6 +19,7 @@ BuildRequires:  sqlite-devel
 BuildRequires:  check-devel
 BuildRequires:  erlang
 BuildRequires:  sigar-devel
+BuildRequires:  memcached-devel >= 1.4.4-902
 #BuildRequires:  libmemcached-devel
 #BuildRequires:  libvbucket-devel
 #BuildRequires:  libconflate-devel
