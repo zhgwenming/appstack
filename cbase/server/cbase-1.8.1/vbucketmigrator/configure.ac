@@ -80,26 +80,14 @@ AC_SEARCH_LIBS(getaddrinfo, nsl socket)
 AC_SEARCH_LIBS(socket, nsl socket)
 
 AC_ARG_WITH([memcached],
-    [AS_HELP_STRING([--with-memcached=PATH],
-       [Specify path to memcached source tree @<:@default=../memcached@:>@])],
-    [ac_with_memcached="$withval"],
-    [ac_with_memcached="../memcached"])
+    [AS_HELP_STRING([--with-memcached],
+      [Memcached source location])],
+    [ac_cv_with_memcached="$withval"],
+    [ac_cv_with_memcached=""])
 
-AC_MSG_CHECKING([for memcached location])
-AS_IF([ test -z "$ac_with_memcached" ],
-      [ AC_MSG_ERROR([You can't specify an empty location])],
-      [ AS_IF([ test -d $ac_with_memcached ],
-              [ MEMCACHED_DIR=$ac_with_memcached ],
-              [ AC_MSG_ERROR([
-"$ac_with_memcached" is not a directory.
-Specify its path using --with-memcached. ex: --with-memcached=../memcached
-])
-              ])
-      ])
-AC_MSG_RESULT([$ac_with_memcached])
-MEMCACHED_DIR=$ac_with_memcached
-AC_SUBST(MEMCACHED_DIR)
-AM_CPPFLAGS="$AM_CPPFLAGS -I$MEMCACHED_DIR/include -I\${top_srcdir}/src"
+AS_IF(test "x${ac_cv_with_memcached}" != "x",
+      [AM_CPPFLAGS="$AM_CPPFLAGS -I${ac_cv_with_memcached}/include"
+       PATH="${ac_cv_with_memcached}:$PATH"])
 
 AS_IF([test "x$SUNCC" = "xyes"],
       [
