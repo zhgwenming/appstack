@@ -2,13 +2,13 @@
 TOPDIR := $(shell pwd)
 PREFIX := $(TOPDIR)/install
 
-COMPONENTS := bucket_engine \
-	ep-engine \
-	membase-cli \
-	memcached \
+COMPONENTS := membase-cli \
 	ns_server \
 	vbucketmigrator \
 	workload-generator
+	#memcached \
+	#ep-engine \
+	#bucket_engine \
 	#memcachetest \
 
 ifneq "$(DESTDIR)" ""
@@ -178,12 +178,12 @@ libvbucket_OPTIONS :=  $(LIBRARY_OPTIONS) --without-docs $(WITH_DEBUG_FLAG)
 memcachetest_EXTRA_MAKE_OPTIONS := 'CPPFLAGS=-I$(TOPDIR)/memcached/include -I$(TOPDIR)/libmemcached -I$(TOPDIR)/libvbucket/include -I$(PREFIX)/include $(CPPFLAGS)'
 deps-for-memcachetest: make-install-memcached make-install-libmemcached make-install-libvbucket
 
-ep-engine_OPTIONS := --with-memcached=../memcached $(WITH_DEBUG_FLAG)
-deps-for-ep-engine: make-install-memcached
+ep-engine_OPTIONS := $(WITH_DEBUG_FLAG) --includedir=/usr/include
+#deps-for-ep-engine: make-install-memcached
 
-bucket_engine_OPTIONS := --with-memcached=../memcached $(WITH_DEBUG_FLAG)
-bucket-engine_EXTRA_MAKE_OPTIONS := 'CPPFLAGS=-I$(TOPDIR)/memcached/include $(CPPFLAGS)'
-deps-for-bucket_engine: make-install-memcached
+bucket_engine_OPTIONS := $(WITH_DEBUG_FLAG) --includedir=/usr/include
+#bucket-engine_EXTRA_MAKE_OPTIONS := 'CPPFLAGS=-I/usr/include/memcached $(CPPFLAGS)'
+#deps-for-bucket_engine: make-install-memcached
 
 moxi_OPTIONS := --enable-moxi-libvbucket \
 	--enable-moxi-libmemcached \

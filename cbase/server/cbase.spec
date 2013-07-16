@@ -24,6 +24,9 @@ BuildRequires:  sigar-devel
 #BuildRequires:  libconflate-devel
 Requires:       openssl
 Requires:	libevent
+Requires:	memcached
+Requires:	bucket-engine
+Requires:	ep-engine
 Requires:	moxi
 Requires:       sqlite
 Requires:       erlang
@@ -72,6 +75,9 @@ sed 's/@@PRODUCT@@/couchbase-server/; s/@@PRODUCT_BASE@@/couchbase/;
 chmod +x %{buildroot}%{_initrddir}/%{name}
 
 ln -s /usr/bin/moxi %{buildroot}%{prefix}/bin/moxi
+ln -s /usr/bin/memcached %{buildroot}%{prefix}/bin/memcached
+ln -s %{_libdir}/memcached %{buildroot}%{prefix}/lib/memcached
+
 %clean
 rm -rf %{buildroot}
 
@@ -115,82 +121,33 @@ rm -rf %{buildroot}
 %dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/ebin
 %dir %{prefix}/lib/ns_server/erlang/lib/ale
 %dir %{prefix}/lib/ns_server/erlang/lib/ale/ebin
-%dir %{prefix}/share
-%dir %{prefix}/share/bucket_engine
+#%dir %{prefix}/share
+#%dir %{prefix}/share/bucket_engine
 %dir %{prefix}/share/man
 %dir %{prefix}/share/man/man1
 %dir %{prefix}/var
 %dir %{prefix}/var/lib
 %dir %{prefix}/var/lib/couchbase
 %dir %{prefix}/var/lib/couchbase/mnesia
-%dir %{prefix}/include
-%dir %{prefix}/include/memcached
+#%dir %{prefix}/include
 %config(noreplace) %{prefix}/etc/couchbase/init.sql
 %config(noreplace) %{prefix}/etc/couchbase/static_config
 %config(noreplace) %{prefix}/etc/couchbase/config
-%doc %{prefix}/share/man/man1/cbadm-online-update.1m
+#%doc %{prefix}/share/man/man1/cbadm-online-update.1m
 %doc %{prefix}/share/man/man1/vbucketmigrator.1m
-%doc %{prefix}/share/man/man1/cbbackup-incremental.1m
-%doc %{prefix}/share/man/man1/memcached.1
-%attr(-,root,root) %{prefix}/lib/memcached/libmemcached_utilities.la
-%attr(-,root,root) %{prefix}/lib/memcached/syslog_logger.la
-%attr(-,root,root) %{prefix}/lib/memcached/example_protocol.la
-%attr(-,root,root) %{prefix}/lib/memcached/timing_tests.so.0
-%attr(-,root,root) %{prefix}/lib/memcached/basic_engine_testsuite.la
-%attr(-,root,root) %{prefix}/lib/memcached/ep_testsuite.so.0
-%attr(-,root,root) %{prefix}/lib/memcached/ep.so.0.0.0
-%attr(-,root,root) %{prefix}/lib/memcached/ep.so
-%attr(-,root,root) %{prefix}/lib/memcached/stdin_term_handler.la
-%attr(-,root,root) %{prefix}/lib/memcached/ep_testsuite.la
-%attr(-,root,root) %{prefix}/lib/memcached/bucket_engine.so.0
-%attr(-,root,root) %{prefix}/lib/memcached/default_engine.la
-%attr(-,root,root) %{prefix}/lib/memcached/ep_testsuite.so
-%attr(-,root,root) %{prefix}/lib/memcached/stdin_term_handler.so
-%attr(-,root,root) %{prefix}/lib/memcached/basic_engine_testsuite.so
-%attr(-,root,root) %{prefix}/lib/memcached/bucket_engine.so.0.0.0
-%attr(-,root,root) %{prefix}/lib/memcached/ep_testsuite.so.0.0.0
-%attr(-,root,root) %{prefix}/lib/memcached/syslog_logger.so
-%attr(-,root,root) %{prefix}/lib/memcached/libmemcached_utilities.so.0
-%attr(-,root,root) %{prefix}/lib/memcached/bucket_engine.a
-%attr(-,root,root) %{prefix}/lib/memcached/ep.so.0
-%attr(-,root,root) %{prefix}/lib/memcached/bucket_engine.la
-%attr(-,root,root) %{prefix}/lib/memcached/tap_mock_engine.la
-%attr(-,root,root) %{prefix}/lib/memcached/libmemcached_utilities.so.0.0.0
-%attr(-,root,root) %{prefix}/lib/memcached/ep.la
-%attr(-,root,root) %{prefix}/lib/memcached/timing_tests.la
-%attr(-,root,root) %{prefix}/lib/memcached/timing_tests.so
-%attr(-,root,root) %{prefix}/lib/memcached/default_engine.so
-%attr(-,root,root) %{prefix}/lib/memcached/blackhole_logger.la
-%attr(-,root,root) %{prefix}/lib/memcached/bucket_engine.so
-%attr(-,root,root) %{prefix}/lib/memcached/blackhole_logger.so
-%attr(-,root,root) %{prefix}/lib/memcached/ascii_scrub.so
-%attr(-,root,root) %{prefix}/lib/memcached/ascii_scrub.la
-%attr(-,root,root) %{prefix}/lib/memcached/timing_tests.so.0.0.0
-%attr(-,root,root) %{prefix}/lib/memcached/example_protocol.so
-%attr(-,root,root) %{prefix}/lib/memcached/libmemcached_utilities.so
-%attr(-,root,root) %{prefix}/lib/memcached/tap_mock_engine.so
-%attr(-,root,root) %{prefix}/lib/python/processor.py
+#%doc %{prefix}/share/man/man1/cbbackup-incremental.1m
 %attr(-,root,root) %{prefix}/lib/python/cbworkloadgen
-%attr(-,root,root) %{prefix}/lib/python/collectd_memcached_buckets.py
-%attr(-,root,root) %{prefix}/lib/python/stats_buffer.py
-%attr(-,root,root) %{prefix}/lib/python/uuid.py
+#%attr(-,root,root) %{prefix}/lib/python/collectd_memcached_buckets.py
 %attr(-,root,root) %{prefix}/lib/python/cbclusterstats
-%attr(-,root,root) %{prefix}/lib/python/collectd.py
-%attr(-,root,root) %{prefix}/lib/python/cbbackup-merge-incremental
-%attr(-,root,root) %{prefix}/lib/python/listservers.py
-%attr(-,root,root) %{prefix}/lib/python/cbvbucketctl
-%attr(-,root,root) %{prefix}/lib/python/diskqueue_stats.py
-%attr(-,root,root) %{prefix}/lib/python/cbbackup-incremental
-%attr(-,root,root) %{prefix}/lib/python/cbdbmaint
-%attr(-,root,root) %{prefix}/lib/python/cbadm-online-update
+#%attr(-,root,root) %{prefix}/lib/python/collectd.py
+#%attr(-,root,root) %{prefix}/lib/python/cbbackup-merge-incremental
+#%attr(-,root,root) %{prefix}/lib/python/cbvbucketctl
+#%attr(-,root,root) %{prefix}/lib/python/cbbackup-incremental
+#%attr(-,root,root) %{prefix}/lib/python/cbdbmaint
+#%attr(-,root,root) %{prefix}/lib/python/cbadm-online-update
 %attr(-,root,root) %{prefix}/lib/python/couchbase-cli
-%attr(-,root,root) %{prefix}/lib/python/clitool.py
-%attr(-,root,root) %{prefix}/lib/python/simplejson/encoder.py
-%attr(-,root,root) %{prefix}/lib/python/simplejson/LICENSE.txt
-%attr(-,root,root) %{prefix}/lib/python/simplejson/decoder.py
-%attr(-,root,root) %{prefix}/lib/python/simplejson/__init__.py
-%attr(-,root,root) %{prefix}/lib/python/simplejson/scanner.py
-%attr(-,root,root) %{prefix}/lib/python/cbadm-tap-registration
+#%attr(-,root,root) %{prefix}/lib/python/clitool.py
+#%attr(-,root,root) %{prefix}/lib/python/cbadm-tap-registration
 %attr(-,root,root) %{prefix}/lib/python/couchbase/migrator/migrator_dir.py
 %attr(-,root,root) %{prefix}/lib/python/couchbase/migrator/migrator_couchbase.py
 %attr(-,root,root) %{prefix}/lib/python/couchbase/migrator/migrator_csv.py
@@ -213,33 +170,23 @@ rm -rf %{buildroot}
 %attr(-,root,root) %{prefix}/lib/python/couchbase/utils/__init__.py
 %attr(-,root,root) %{prefix}/lib/python/couchbase/client.py
 %attr(-,root,root) %{prefix}/lib/python/couchbase/logger.py
-%attr(-,root,root) %{prefix}/lib/python/collector.py
-%attr(-,root,root) %{prefix}/lib/python/cbstats
-%attr(-,root,root) %{prefix}/lib/python/capture.py
-%attr(-,root,root) %{prefix}/lib/python/util.py
-%attr(-,root,root) %{prefix}/lib/python/tap_example.py
-%attr(-,root,root) %{prefix}/lib/python/cbadm-online-restore
-%attr(-,root,root) %{prefix}/lib/python/util_cli.py
-%attr(-,root,root) %{prefix}/lib/python/cbflushctl
-%attr(-,root,root) %{prefix}/lib/python/restclient.py
-%attr(-,root,root) %{prefix}/lib/python/backup_util.py
-%attr(-,root,root) %{prefix}/lib/python/memcacheConstants.py
-%attr(-,root,root) %{prefix}/lib/python/httplib2/iri2uri.py
-%attr(-,root,root) %{prefix}/lib/python/httplib2/__init__.py
-%attr(-,root,root) %{prefix}/lib/python/mc_bin_server.py
-%attr(-,root,root) %{prefix}/lib/python/mc_bin_client.py
-%attr(-,root,root) %{prefix}/lib/python/cbdbconvert
-%attr(-,root,root) %{prefix}/lib/python/usage.py
+#%attr(-,root,root) %{prefix}/lib/python/cbstats
+#%attr(-,root,root) %{prefix}/lib/python/capture.py
+#%attr(-,root,root) %{prefix}/lib/python/util.py
+#%attr(-,root,root) %{prefix}/lib/python/tap_example.py
+#%attr(-,root,root) %{prefix}/lib/python/cbadm-online-restore
+#%attr(-,root,root) %{prefix}/lib/python/cbflushctl
+#%attr(-,root,root) %{prefix}/lib/python/backup_util.py
+#%attr(-,root,root) %{prefix}/lib/python/memcacheConstants.py
+#%attr(-,root,root) %{prefix}/lib/python/mc_bin_server.py
+#%attr(-,root,root) %{prefix}/lib/python/mc_bin_client.py
+#%attr(-,root,root) %{prefix}/lib/python/cbdbconvert
 %attr(-,root,root) %{prefix}/lib/python/cluster_stats.py
-%attr(-,root,root) %{prefix}/lib/python/cbdbupgrade
-%attr(-,root,root) %{prefix}/lib/python/node.py
-%attr(-,root,root) %{prefix}/lib/python/cbrestore
-%attr(-,root,root) %{prefix}/lib/python/buckets.py
-%attr(-,root,root) %{prefix}/lib/python/types.db
-%attr(-,root,root) %{prefix}/lib/python/tap.py
-%attr(-,root,root) %{prefix}/lib/python/info.py
-%attr(-,root,root) %{prefix}/lib/python/node_stats.py
-%attr(-,root,root) %{prefix}/lib/python/cbbackup
+#%attr(-,root,root) %{prefix}/lib/python/cbdbupgrade
+#%attr(-,root,root) %{prefix}/lib/python/cbrestore
+#%attr(-,root,root) %{prefix}/lib/python/types.db
+#%attr(-,root,root) %{prefix}/lib/python/tap.py
+#%attr(-,root,root) %{prefix}/lib/python/cbbackup
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/erlwsh/priv/www/index.html
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/erlwsh/priv/www/prototype.js
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/erlwsh/ebin/erlwsh.app
@@ -523,79 +470,81 @@ rm -rf %{buildroot}
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/ale/ebin/dynamic_compile.beam
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/ale/ebin/ale_disk_sink.beam
 %attr(-,root,root) %{prefix}/lib/ns_server/erlang/lib/ale/ebin/ale_default_formatter.beam
-%attr(-,root,root) %{prefix}/share/bucket_engine/collectd_memcached_buckets.py
-%attr(-,root,root) %{prefix}/share/bucket_engine/collectd.py
-%attr(-,root,root) %{prefix}/share/bucket_engine/memcacheConstants.py
-%attr(-,root,root) %{prefix}/share/bucket_engine/mc_bin_client.py
-%attr(-,root,root) %{prefix}/share/bucket_engine/types.db
-%attr(-,root,root) %{prefix}/include/memcached/genhash.h
-%attr(-,root,root) %{prefix}/include/memcached/protocol_plugin.h
-%attr(-,root,root) %{prefix}/include/memcached/callback.h
-%attr(-,root,root) %{prefix}/include/memcached/config_parser.h
-%attr(-,root,root) %{prefix}/include/memcached/extension.h
-%attr(-,root,root) %{prefix}/include/memcached/engine.h
-%attr(-,root,root) %{prefix}/include/memcached/engine_common.h
-%attr(-,root,root) %{prefix}/include/memcached/vbucket.h
-%attr(-,root,root) %{prefix}/include/memcached/util.h
-%attr(-,root,root) %{prefix}/include/memcached/protocol_binary.h
-%attr(-,root,root) %{prefix}/include/memcached/engine_testapp.h
-%attr(-,root,root) %{prefix}/include/memcached/server_api.h
-%attr(-,root,root) %{prefix}/include/memcached/types.h
-%attr(-,root,root) %{prefix}/include/memcached/extension_loggers.h
-%attr(-,root,root) %{prefix}/include/memcached/visibility.h
-%attr(-,root,root) %{prefix}/include/memcached/allocator_hooks.h
+#%attr(-,root,root) %{prefix}/share/bucket_engine/collectd_memcached_buckets.py
+#%attr(-,root,root) %{prefix}/share/bucket_engine/collectd.py
+#%attr(-,root,root) %{prefix}/share/bucket_engine/memcacheConstants.py
+#%attr(-,root,root) %{prefix}/share/bucket_engine/mc_bin_client.py
+#%attr(-,root,root) %{prefix}/share/bucket_engine/types.db
+#%attr(-,root,root) %{prefix}/include/memcached/genhash.h
+#%attr(-,root,root) %{prefix}/include/memcached/protocol_plugin.h
+#%attr(-,root,root) %{prefix}/include/memcached/callback.h
+#%attr(-,root,root) %{prefix}/include/memcached/config_parser.h
+#%attr(-,root,root) %{prefix}/include/memcached/extension.h
+#%attr(-,root,root) %{prefix}/include/memcached/engine.h
+#%attr(-,root,root) %{prefix}/include/memcached/engine_common.h
+#%attr(-,root,root) %{prefix}/include/memcached/vbucket.h
+#%attr(-,root,root) %{prefix}/include/memcached/util.h
+#%attr(-,root,root) %{prefix}/include/memcached/protocol_binary.h
+#%attr(-,root,root) %{prefix}/include/memcached/engine_testapp.h
+#%attr(-,root,root) %{prefix}/include/memcached/server_api.h
+#%attr(-,root,root) %{prefix}/include/memcached/types.h
+#%attr(-,root,root) %{prefix}/include/memcached/extension_loggers.h
+#%attr(-,root,root) %{prefix}/include/memcached/visibility.h
+#%attr(-,root,root) %{prefix}/include/memcached/allocator_hooks.h
 %attr(-,root,root) %{prefix}/bin/cbworkloadgen
 %attr(-,root,root) %{prefix}/bin/couchbase-server
 %attr(-,root,root) %{prefix}/bin/sigar_port
 %attr(-,root,root) %{prefix}/bin/cbcollect_info
 %attr(-,root,root) %{prefix}/bin/cbdumpconfig.escript
 %attr(-,root,root) %{prefix}/bin/cbbrowse_logs
-%attr(-,root,root) %{prefix}/bin/cbbackup-merge-incremental
-%attr(-,root,root) %{prefix}/bin/cbvbucketctl
+#%attr(-,root,root) %{prefix}/bin/cbbackup-merge-incremental
+#%attr(-,root,root) %{prefix}/bin/cbvbucketctl
 %attr(-,root,root) %{prefix}/bin/moxi
-%attr(-,root,root) %{prefix}/bin/cbbackup-incremental
-%attr(-,root,root) %{prefix}/bin/cbdbmaint
-%attr(-,root,root) %{prefix}/bin/cbadm-online-update
+#%attr(-,root,root) %{prefix}/bin/cbbackup-incremental
+#%attr(-,root,root) %{prefix}/bin/cbdbmaint
+#%attr(-,root,root) %{prefix}/bin/cbadm-online-update
 %attr(-,root,root) %{prefix}/bin/couchbase-cli
-%attr(-,root,root) %{prefix}/bin/cbadm-tap-registration
+#%attr(-,root,root) %{prefix}/bin/cbadm-tap-registration
 %attr(-,root,root) %{prefix}/bin/memcached
 #%attr(-,root,root) %{prefix}/bin/vbucketkeygen
-%attr(-,root,root) %{prefix}/bin/cbstats
+#%attr(-,root,root) %{prefix}/bin/cbstats
 %attr(-,root,root) %{prefix}/bin/ebucketmigrator
-%attr(-,root,root) %{prefix}/bin/cbadm-online-restore
+#%attr(-,root,root) %{prefix}/bin/cbadm-online-restore
 #%attr(-,root,root) %{prefix}/bin/vbuckettool
-%attr(-,root,root) %{prefix}/bin/mcstat
-%attr(-,root,root) %{prefix}/bin/cbflushctl
-%attr(-,root,root) %{prefix}/bin/squasher.sql
+#%attr(-,root,root) %{prefix}/bin/mcstat
+#%attr(-,root,root) %{prefix}/bin/cbflushctl
+#%attr(-,root,root) %{prefix}/bin/squasher.sql
 %attr(-,root,root) %{prefix}/bin/vbucketmigrator
-%attr(-,root,root) %{prefix}/bin/mcbasher
-%attr(-,root,root) %{prefix}/bin/sqlite3
-%attr(-,root,root) %{prefix}/bin/cbdbconvert
-%attr(-,root,root) %{prefix}/bin/collectd
-%attr(-,root,root) %{prefix}/bin/engine_testapp
-%attr(-,root,root) %{prefix}/bin/cbdbupgrade
-%attr(-,root,root) %{prefix}/bin/isasladm
-%attr(-,root,root) %{prefix}/bin/cbrestore
-%attr(-,root,root) %{prefix}/bin/collectd_memcached_buckets
-%attr(-,root,root) %{prefix}/bin/analyze_core
+#%attr(-,root,root) %{prefix}/bin/mcbasher
+#%attr(-,root,root) %{prefix}/bin/sqlite3
+#%attr(-,root,root) %{prefix}/bin/cbdbconvert
+#%attr(-,root,root) %{prefix}/bin/collectd
+#%attr(-,root,root) %{prefix}/bin/engine_testapp
+#%attr(-,root,root) %{prefix}/bin/cbdbupgrade
+#%attr(-,root,root) %{prefix}/bin/isasladm
+#%attr(-,root,root) %{prefix}/bin/cbrestore
+#%attr(-,root,root) %{prefix}/bin/collectd_memcached_buckets
+#%attr(-,root,root) %{prefix}/bin/analyze_core
 #%attr(-,root,root) %{prefix}/bin/memcachetest
-%attr(-,root,root) %{prefix}/bin/cbbackup
-%{prefix}/lib/python/backup_util.pyc
-%{prefix}/lib/python/backup_util.pyo
-%{prefix}/lib/python/buckets.pyc
-%{prefix}/lib/python/buckets.pyo
-%{prefix}/lib/python/capture.pyc
-%{prefix}/lib/python/capture.pyo
-%{prefix}/lib/python/clitool.pyc
-%{prefix}/lib/python/clitool.pyo
+#%attr(-,root,root) %{prefix}/bin/cbbackup
+#%{prefix}/lib/python/backup_util.pyc
+#%{prefix}/lib/python/backup_util.pyo
+%attr(-,root,root) %{prefix}/lib/python/buckets.py
+%attr(-,root,root) %{prefix}/lib/python/buckets.pyc
+%attr(-,root,root) %{prefix}/lib/python/buckets.pyo
+#%{prefix}/lib/python/capture.pyc
+#%{prefix}/lib/python/capture.pyo
+#%{prefix}/lib/python/clitool.pyc
+#%{prefix}/lib/python/clitool.pyo
 %{prefix}/lib/python/cluster_stats.pyc
 %{prefix}/lib/python/cluster_stats.pyo
-%{prefix}/lib/python/collectd.pyc
-%{prefix}/lib/python/collectd.pyo
-%{prefix}/lib/python/collectd_memcached_buckets.pyc
-%{prefix}/lib/python/collectd_memcached_buckets.pyo
-%{prefix}/lib/python/collector.pyc
-%{prefix}/lib/python/collector.pyo
+#%{prefix}/lib/python/collectd.pyc
+#%{prefix}/lib/python/collectd.pyo
+#%{prefix}/lib/python/collectd_memcached_buckets.pyc
+#%{prefix}/lib/python/collectd_memcached_buckets.pyo
+%attr(-,root,root) %{prefix}/lib/python/collector.py
+%attr(-,root,root) %{prefix}/lib/python/collector.pyc
+%attr(-,root,root) %{prefix}/lib/python/collector.pyo
 %{prefix}/lib/python/couchbase/__init__.pyc
 %{prefix}/lib/python/couchbase/__init__.pyo
 %{prefix}/lib/python/couchbase/client.pyc
@@ -640,60 +589,78 @@ rm -rf %{buildroot}
 %{prefix}/lib/python/couchbase/utils/__init__.pyo
 %{prefix}/lib/python/couchbase/utils/couchbase-migrator.pyc
 %{prefix}/lib/python/couchbase/utils/couchbase-migrator.pyo
-%{prefix}/lib/python/diskqueue_stats.pyc
-%{prefix}/lib/python/diskqueue_stats.pyo
-%{prefix}/lib/python/httplib2/__init__.pyc
-%{prefix}/lib/python/httplib2/__init__.pyo
-%{prefix}/lib/python/httplib2/iri2uri.pyc
-%{prefix}/lib/python/httplib2/iri2uri.pyo
-%{prefix}/lib/python/info.pyc
-%{prefix}/lib/python/info.pyo
-%{prefix}/lib/python/listservers.pyc
-%{prefix}/lib/python/listservers.pyo
-%{prefix}/lib/python/mc_bin_client.pyc
-%{prefix}/lib/python/mc_bin_client.pyo
-%{prefix}/lib/python/mc_bin_server.pyc
-%{prefix}/lib/python/mc_bin_server.pyo
-%{prefix}/lib/python/memcacheConstants.pyc
-%{prefix}/lib/python/memcacheConstants.pyo
-%{prefix}/lib/python/node.pyc
-%{prefix}/lib/python/node.pyo
-%{prefix}/lib/python/node_stats.pyc
-%{prefix}/lib/python/node_stats.pyo
-%{prefix}/lib/python/processor.pyc
-%{prefix}/lib/python/processor.pyo
-%{prefix}/lib/python/restclient.pyc
-%{prefix}/lib/python/restclient.pyo
-%{prefix}/lib/python/simplejson/__init__.pyc
-%{prefix}/lib/python/simplejson/__init__.pyo
-%{prefix}/lib/python/simplejson/decoder.pyc
-%{prefix}/lib/python/simplejson/decoder.pyo
-%{prefix}/lib/python/simplejson/encoder.pyc
-%{prefix}/lib/python/simplejson/encoder.pyo
-%{prefix}/lib/python/simplejson/scanner.pyc
-%{prefix}/lib/python/simplejson/scanner.pyo
-%{prefix}/lib/python/stats_buffer.pyc
-%{prefix}/lib/python/stats_buffer.pyo
-%{prefix}/lib/python/tap.pyc
-%{prefix}/lib/python/tap.pyo
-%{prefix}/lib/python/tap_example.pyc
-%{prefix}/lib/python/tap_example.pyo
-%{prefix}/lib/python/usage.pyc
-%{prefix}/lib/python/usage.pyo
-%{prefix}/lib/python/util.pyc
-%{prefix}/lib/python/util.pyo
-%{prefix}/lib/python/util_cli.pyc
-%{prefix}/lib/python/util_cli.pyo
-%{prefix}/lib/python/uuid.pyc
-%{prefix}/lib/python/uuid.pyo
-%{prefix}/share/bucket_engine/collectd.pyc
-%{prefix}/share/bucket_engine/collectd.pyo
-%{prefix}/share/bucket_engine/collectd_memcached_buckets.pyc
-%{prefix}/share/bucket_engine/collectd_memcached_buckets.pyo
-%{prefix}/share/bucket_engine/mc_bin_client.pyc
-%{prefix}/share/bucket_engine/mc_bin_client.pyo
-%{prefix}/share/bucket_engine/memcacheConstants.pyc
-%{prefix}/share/bucket_engine/memcacheConstants.pyo
+%attr(-,root,root) %{prefix}/lib/python/diskqueue_stats.py
+%attr(-,root,root) %{prefix}/lib/python/diskqueue_stats.pyc
+%attr(-,root,root) %{prefix}/lib/python/diskqueue_stats.pyo
+%attr(-,root,root) %{prefix}/lib/python/httplib2/__init__.py
+%attr(-,root,root) %{prefix}/lib/python/httplib2/__init__.pyc
+%attr(-,root,root) %{prefix}/lib/python/httplib2/__init__.pyo
+%attr(-,root,root) %{prefix}/lib/python/httplib2/iri2uri.py
+%attr(-,root,root) %{prefix}/lib/python/httplib2/iri2uri.pyc
+%attr(-,root,root) %{prefix}/lib/python/httplib2/iri2uri.pyo
+%attr(-,root,root) %{prefix}/lib/python/info.py
+%attr(-,root,root) %{prefix}/lib/python/info.pyc
+%attr(-,root,root) %{prefix}/lib/python/info.pyo
+%attr(-,root,root) %{prefix}/lib/python/listservers.py
+%attr(-,root,root) %{prefix}/lib/python/listservers.pyc
+%attr(-,root,root) %{prefix}/lib/python/listservers.pyo
+#%{prefix}/lib/python/mc_bin_client.pyc
+#%{prefix}/lib/python/mc_bin_client.pyo
+#%{prefix}/lib/python/mc_bin_server.pyc
+#%{prefix}/lib/python/mc_bin_server.pyo
+#%{prefix}/lib/python/memcacheConstants.pyc
+#%{prefix}/lib/python/memcacheConstants.pyo
+%attr(-,root,root) %{prefix}/lib/python/node.py
+%attr(-,root,root) %{prefix}/lib/python/node.pyc
+%attr(-,root,root) %{prefix}/lib/python/node.pyo
+%attr(-,root,root) %{prefix}/lib/python/node_stats.py
+%attr(-,root,root) %{prefix}/lib/python/node_stats.pyc
+%attr(-,root,root) %{prefix}/lib/python/node_stats.pyo
+%attr(-,root,root) %{prefix}/lib/python/processor.py
+%attr(-,root,root) %{prefix}/lib/python/processor.pyc
+%attr(-,root,root) %{prefix}/lib/python/processor.pyo
+%attr(-,root,root) %{prefix}/lib/python/restclient.py
+%attr(-,root,root) %{prefix}/lib/python/restclient.pyc
+%attr(-,root,root) %{prefix}/lib/python/restclient.pyo
+%attr(-,root,root) %{prefix}/lib/python/simplejson/LICENSE.txt
+%attr(-,root,root) %{prefix}/lib/python/simplejson/__init__.py
+%attr(-,root,root) %{prefix}/lib/python/simplejson/__init__.pyc
+%attr(-,root,root) %{prefix}/lib/python/simplejson/__init__.pyo
+%attr(-,root,root) %{prefix}/lib/python/simplejson/decoder.py
+%attr(-,root,root) %{prefix}/lib/python/simplejson/decoder.pyc
+%attr(-,root,root) %{prefix}/lib/python/simplejson/decoder.pyo
+%attr(-,root,root) %{prefix}/lib/python/simplejson/encoder.py
+%attr(-,root,root) %{prefix}/lib/python/simplejson/encoder.pyc
+%attr(-,root,root) %{prefix}/lib/python/simplejson/encoder.pyo
+%attr(-,root,root) %{prefix}/lib/python/simplejson/scanner.py
+%attr(-,root,root) %{prefix}/lib/python/simplejson/scanner.pyc
+%attr(-,root,root) %{prefix}/lib/python/simplejson/scanner.pyo
+%attr(-,root,root) %{prefix}/lib/python/stats_buffer.py
+%attr(-,root,root) %{prefix}/lib/python/stats_buffer.pyc
+%attr(-,root,root) %{prefix}/lib/python/stats_buffer.pyo
+#%{prefix}/lib/python/tap.pyc
+#%{prefix}/lib/python/tap.pyo
+#%{prefix}/lib/python/tap_example.pyc
+#%{prefix}/lib/python/tap_example.pyo
+%attr(-,root,root) %{prefix}/lib/python/usage.py
+%attr(-,root,root) %{prefix}/lib/python/usage.pyc
+%attr(-,root,root) %{prefix}/lib/python/usage.pyo
+#%{prefix}/lib/python/util.pyc
+#%{prefix}/lib/python/util.pyo
+%attr(-,root,root) %{prefix}/lib/python/util_cli.py
+%attr(-,root,root) %{prefix}/lib/python/util_cli.pyc
+%attr(-,root,root) %{prefix}/lib/python/util_cli.pyo
+%attr(-,root,root) %{prefix}/lib/python/uuid.py
+%attr(-,root,root) %{prefix}/lib/python/uuid.pyc
+%attr(-,root,root) %{prefix}/lib/python/uuid.pyo
+#%{prefix}/share/bucket_engine/collectd.pyc
+#%{prefix}/share/bucket_engine/collectd.pyo
+#%{prefix}/share/bucket_engine/collectd_memcached_buckets.pyc
+#%{prefix}/share/bucket_engine/collectd_memcached_buckets.pyo
+#%{prefix}/share/bucket_engine/mc_bin_client.pyc
+#%{prefix}/share/bucket_engine/mc_bin_client.pyo
+#%{prefix}/share/bucket_engine/memcacheConstants.pyc
+#%{prefix}/share/bucket_engine/memcacheConstants.pyo
 %{prefix}/var/lib/couchbase/logs
 #%{prefix}/var/lib/couchbase/config/config.dat
 #%{prefix}/var/lib/couchbase/couchbase-server.cookie
