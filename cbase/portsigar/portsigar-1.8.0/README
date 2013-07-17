@@ -1,0 +1,3 @@
+This is small program that serves some sigar
+(http://sigar.hyperic.com/) stats to standard output. It's suitable to
+be run as erlang port.
