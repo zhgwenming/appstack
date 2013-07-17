@@ -1,6 +1,6 @@
 Name:           ep-engine
 Version:        1.8.0
-Release:        1
+Release:        901.1%{dist}
 Epoch:          0
 Summary:        EP engine for memcached
 Group:          System Environment/Libraries
@@ -30,6 +30,9 @@ make %{?_smp_mflags}
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
 #find $RPM_BUILD_ROOT -type f -name '*.la' -exec rm -f {} ';'
+find %{buildroot} -type f -name 'memcacheConstants.py*' -exec rm -f {} ';'
+find %{buildroot} -type f -name 'mc_bin_client.py*' -exec rm -f {} ';'
+find %{buildroot} -type f -name 'sqlite3' -exec rm -f {} ';'
 
 %clean
 rm -rf %{buildroot}
@@ -51,7 +54,7 @@ rm -rf %{buildroot}
 %{_bindir}/cbadm-online-restore
 %{_bindir}/cbflushctl
 %{_bindir}/squasher.sql
-%{_bindir}/sqlite3
+#%{_bindir}/sqlite3
 %{_bindir}/cbdbconvert
 %{_bindir}/cbdbupgrade
 %{_bindir}/cbrestore
