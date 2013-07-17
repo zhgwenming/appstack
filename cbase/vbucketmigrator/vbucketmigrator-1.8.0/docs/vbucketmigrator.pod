@@ -1,0 +1,86 @@
+=head1 NAME
+
+vbucketmigrator - migrate virtual buckets
+
+=head1 SYNOPSIS
+
+  vbucketmigrator [options]
+
+=head1 DESCRIPTION
+
+vbucketmigrator lets you move/copy the content of one vbucket from one
+memcached server to another.
+
+=head1 OPTIONS
+
+The following options is supported:
+
+=over 4
+
+=item -h hostname:port
+
+Connect to the given host:port combination.
+
+=item -b bucket id
+
+Operate on the specified bucket id. You may specify a list of buckets
+by using , or ; as the separator character, or a range of buckets by
+specifying them as [start,stop].
+
+To add bucket 1, 2, 3 and 4 you may use one of the following:
+
+-b 1 -b 2 -b 3 -b 4
+-b 1,2,3,4
+-b [1,4]
+
+=item -e
+
+Run as an Erlang port (terminate if stdin is closed)
+
+=item -t
+
+Move the responsibility for the buckets to the other servers
+
+=item -T n
+
+Terminate if no progress happens for n seconds.
+
+=item -d host:port
+
+Send all vbuckets to this server.
+
+=item -v
+
+Increase the verbosity output
+
+=item -a auth
+
+Use SASL authentication to authenticate user "auth" to the memcached
+server. There is no option to provide the password (that would make it
+visible for other users by running ps(1). Instead vbucketmigrator will
+read the password from standard input. If you don't want to type it in
+yourself, you can always fall back to:
+
+
+echo "mypassword" | vbucketmigrator -a myuser [options]
+
+=item -A
+
+Try to use the tap ack protocol
+
+=item -N name
+
+Use a named tap stream
+
+=item -V
+
+Validate the bucket states in the downstream servers after a
+successful transfer of the messages. Please note that this
+use a method specific to ep-engine and may not work as
+intended on other memcached engines.
+
+=item -F
+
+Flush all the data from the receiving side before sending new data.
+
+=cut
