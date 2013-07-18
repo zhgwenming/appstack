@@ -3,7 +3,7 @@
 <!--[if IE 8 ]>    <html class="ie8" lang="en"> <![endif]-->
 <!--[if (gte IE 9)|!(IE)]><!--><html lang="en"><!--<![endif]-->
 <head>
-<title>Couchbase Console</title>
+<title>Cbase Console</title>
 <link rel="stylesheet" type="text/css" href="/css/screen.css">
 <link rel="stylesheet" type="text/css" href="/css/print.css">
 <link rel="stylesheet" type="text/css" href="/css/jquery-ui.couchbase.css">
@@ -56,8 +56,8 @@
 
             <h1>SUPPORT</h1>
             <ul>
-              <li class="line"><a id="switch_support_docs" href="http://docs.couchbase.org/couchbase-manual-1.8/couchbase-getting-started.html" target="MCWebHelp">Documentation</a></li>
-              <li class="line"><a id="switch_support_forums" href="http://www.couchbase.org/forums/couchbase/couchbase-server-18x" target="nsforums">Support Forums</a></li>
+              <li class="line"><a id="switch_support_docs" href="http://" target="MCWebHelp">Documentation</a></li>
+              <li class="line"><a id="switch_support_forums" href="http://" target="nsforums">Support Forums</a></li>
             </ul>
           </td>
           <td id="mainPanel">
@@ -481,7 +481,7 @@
               <div class="staleness-notice">Difficulties communicating with the cluster; displaying cached information!</div>
               No buckets currently defined! Go to <a href="#sec=buckets">Manage Buckets</a> to create some.
             </div>
-            <div class="membase-buckets-subsection"><h1>Couchbase Buckets<span class="staleness-notice">Difficulties communicating with the cluster; displaying cached information!</span></h1>
+            <div class="membase-buckets-subsection"><h1>cbase Buckets<span class="staleness-notice">Difficulties communicating with the cluster; displaying cached information!</span></h1>
               <div class="shadow_box">
                     <div class="content">
                       <div id="monitor_persistent_buckets_list_container"></div>
@@ -783,7 +783,7 @@
             </label>
             <p class="more_info">
               Enabling software update notifications allows notification in
-              the Couchbase web console when a new version of Couchbase Server
+              the Cbase web console when a new version of Cbase Server
               is available. Configuration information transferred in the
               update check is anonymous and does not include any stored
               key-value data.
@@ -912,7 +912,6 @@
 
     <div class="page-footer">
       <div class="main_holder">
-      <h1>Copyright &copy; 2012 <a href="http://couchbase.com" target="_blank">Couchbase, Inc.</a> All rights reserved.</h1>
       </div>
     </div>
     </div>
@@ -926,8 +925,8 @@
     <div class="bucket-icon"></div>
     <label class="for-name"><span>Bucket Name:</span><input disabled name="name" value="Bucket Name"><span class="error-container err-name"></span></label>
     <div class="for-bucket-type"><span>Bucket Type:</span>
-     <label><input type="radio" name="bucketType" value="memcached"> Memcached</label>
-     <label><input type="radio" name="bucketType" value="membase"> Couchbase</label>
+     <label><input type="radio" name="bucketType" value="memcached"> Cache</label>
+     <label><input type="radio" name="bucketType" value="membase"> Persistent</label>
     </div>
     <h2>Access Control</h2>
     <label class="for-sasl-password"><input id="bucket_details_sasl_selected" type="radio" name="authType" value="sasl" checked>
@@ -1179,15 +1178,14 @@
 <div class="dialog" id="about_server_dialog">
   <div class="lbox">
     <div class="config-top">
-      <img src="images/couchbase_logo.png" alt="Couchbase Logo" />
-      <h1>About Couchbase Server</h1>
+      <h1>About Cbase Server</h1>
     </div>
     <div class="center">
       <p class="dialog-text" id="about_versions"></p>
       <p class="dialog-text">Cluster State ID: <span id="cluster_state_id"></span></p>
       <ul>
-        <li><a target="_blank" href="http://www.couchbase.com/">Get Support</a></li>
-        <li><a target="MCWebHelp" href="http://docs.couchbase.org/couchbase-manual-1.8/couchbase-getting-started.html">Documentation</a></li>
+        <li><a target="_blank" href="http://">Get Support</a></li>
+        <li><a target="MCWebHelp" href="http://">Documentation</a></li>
       </ul>
     </div>
     <div class="config-bottom">
@@ -1255,7 +1253,6 @@
   </div>
   <div class="page-footer">
     <div class="main_holder">
-      <h1>Copyright &copy; 2012 <a href="http://couchbase.com">Couchbase, Inc.</a> All rights reserved.</h1>
     </div>
   </div>
 </div>
@@ -1266,7 +1263,7 @@
       <div class="topper_nav">
         <a href="javascript:showAbout();">About</a>
         <b>&bull;</b>
-        <a target="MCWebHelp" href="http://docs.couchbase.org/couchbase-manual-1.8/couchbase-getting-started.html">Help</a>
+        <a target="MCWebHelp" href="">Help</a>
         <a style="display: none;" class="sign-out-link" href="javascript:ThePage.signOut();">Sign Out</a>
       </div>
     </div>
@@ -1274,7 +1271,7 @@
 
   <div class="pad" id="init_welcome_dialog">
     <div class="pad-header">
-      <div class="version" style="display:none;">Couchbase Server <span class="couchbase-version"></span></div>
+      <div class="version" style="display:none;">Cbase Server <span class="couchbase-version"></span></div>
       <div class="tagline">
         Simple. Fast. Elastic.
       </div>
@@ -1283,15 +1280,13 @@
     <h1>Congratulations</h1>
     <form id="init_welcome_form">
       <p>
-        You have successfully installed the Couchbase Server.<br>This wizard will help you configure your cluster.
+        You have successfully installed the Cbase Server.<br>This wizard will help you configure your cluster.
       </p>
       <div class="pat_10">
         <input type="image" name="setup" value="Setup" class="submit next focusme" src="../images/welcome-setup-button.png" />
       </div>
     </form>
     <div class="welcome-footer">
-      Copyright &copy; 2012 Couchbase, Inc. All Rights Reserved
-      <a href="http://www.couchbase.com/company/contact" id="welcome-footer-contact" target="_blank">Contact</a> <a href="javascript:showAbout();">About</a>
     </div>
   </div>
   <!-- END welcome_block -->
@@ -1316,13 +1311,13 @@
     </div>
     <h2 class="question">Join Cluster / Start new Cluster</h2>
     <p class="pad_10">
-    If you want to add this server to an existing Couchbase Cluster, select "Join a
+    If you want to add this server to an existing Cbase Cluster, select "Join a
     cluster now".
-    Alternatively, you may create a new Couchbase Cluster by selecting "Start a new
+    Alternatively, you may create a new Cbase Cluster by selecting "Start a new
     cluster".
     </p><p class="pad_10" style="padding-top: 5px;">
     If you start a new cluster the "Per Server RAM Quota" you set below will define
-    the amount of RAM each server provides to the Couchbase Cluster. This value will
+    the amount of RAM each server provides to the Cbase Cluster. This value will
     be inherited by all servers subsequently joining the cluster and it cannot be
     modified in an existing cluster, so please set appropriately.
     </p>
@@ -1390,7 +1385,7 @@
       <a href="#" class="more_info">What's this?</a>
     </p>
     <p class="more_info pad_10">
-      Enabling software update notifications allows notification in the Couchbase web console when a new version of Couchbase Server is available. Configuration information transferred in the update check is anonymous and does not include any stored key-value data.
+      Enabling software update notifications allows notification in the Cbase web console when a new version of Cbase Server is available. Configuration information transferred in the update check is anonymous and does not include any stored key-value data.
     </p>
     <div class="when-community">
       <h2 class="question">Community Updates</h2>
@@ -1398,7 +1393,7 @@
     </div>
     <div class="when-enterprise">
       <h2 class="question">Product Registration</h2>
-      <p class="pad_10 clearfix">Register your Enterprise Edition of Couchbase Server below.</p>
+      <p class="pad_10 clearfix">Register your Enterprise Edition of Cbase Server below.</p>
     </div>
     <div class="pad_10 warn" style="color:#EC5223;font-family:Verdana, Helvetica, Sans-Serif; font-size:10pt; font-weight:lighter; line-height:20px; margin-left:75px; width:500px;" id="update_notifications_errors_container"></div>
     <div class="template" id="update_notifications_errors_template">
@@ -1439,7 +1434,7 @@
     </p>
     <p class="when-enterprise pad_10">
       <label for="init-join-terms"><input type="checkbox" id="init-join-terms">
-        <span>I agree to the <a href="http://www.couchbase.com/agreement/free-license" target="_blank">terms and conditions</a> associated with this product. <span style="color:red">*</span></span>
+        <span>I agree to the <a href="" target="_blank">terms and conditions</a> associated with this product. <span style="color:red">*</span></span>
       </label>
     </p>
     <div class="config-bottom">
@@ -1501,8 +1496,8 @@
       <div class="bucket-icon"></div>
       <label class="for-name"><span>Bucket Name:</span> default</label>
       <div class="for-bucket-type"><span>Bucket Type:</span>
-       <label><input type="radio" name="bucketType" value="memcached"> Memcached</label>
-       <label><input type="radio" name="bucketType" value="membase"> Couchbase</label>
+       <label><input type="radio" name="bucketType" value="memcached"> Cache</label>
+       <label><input type="radio" name="bucketType" value="membase"> Cbase</label>
       </div>
       <h2>Memory Size</h2>
       <div class="size-gauge for-ram">
@@ -1541,7 +1536,6 @@
 
   <div class="page-footer">
     <div class="main_holder">
-      <h1>Copyright &copy; 2012 <a href="http://couchbase.com">Couchbase, Inc.</a> All rights reserved.</h1>
     </div>
   </div>
 </div>
@@ -1549,7 +1543,7 @@
 <script id="notice_template" type="text/html">
 <div class="shadow_box notice">
   <div class="content">
-    <h2 class="header_2">Couchbase Server Message<span style="float: right; color: black; font-size: 13px;">click to dismiss</span></h2>
+    <h2 class="header_2">Cbase Server Message<span style="float: right; color: black; font-size: 13px;">click to dismiss</span></h2>
     <div class="pad_10 success_msg">
       <p class="info_text">{%= h(text) %}</p>
     </div>
@@ -1559,7 +1553,7 @@
 <script id="noticeErr_template" type="text/html">
 <div class="shadow_box notice">
   <div class="content">
-    <h2 class="header_2">Couchbase Server Alert<span style="float: right; color: black; font-size: 13px;">click to dismiss</span></h2>
+    <h2 class="header_2">Cbase Server Alert<span style="float: right; color: black; font-size: 13px;">click to dismiss</span></h2>
     <div class="pad_10 error_msg">
       <p class="info_text">{%= h(text) %}</p>
     </div>
