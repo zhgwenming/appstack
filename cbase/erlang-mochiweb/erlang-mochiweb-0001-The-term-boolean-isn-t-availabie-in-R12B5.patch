@@ -1,0 +1,26 @@
+From 49637b9e2469cde2e8c62491b1045f3968ff5bf8 Mon Sep 17 00:00:00 2001
+From: Peter Lemenkov <lemenkov@gmail.com>
+Date: Tue, 13 Jul 2010 15:09:50 +0400
+Subject: [PATCH 1/5] The term boolean isn't availabie in R12B5
+
+Signed-off-by: Peter Lemenkov <lemenkov@gmail.com>
+---
+ src/mochiglobal.erl |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/mochiglobal.erl b/src/mochiglobal.erl
+index c740b87..ec4668e 100644
+--- a/src/mochiglobal.erl
++++ b/src/mochiglobal.erl
+@@ -33,7 +33,7 @@ put(_K, V, Mod) ->
+     code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin),
+     ok.
+ 
+--spec delete(atom()) -> boolean().
++-spec delete(atom()) -> bool().
+ %% @doc Delete term stored at K, no-op if non-existent.
+ delete(K) ->
+     delete(K, key_to_module(K)).
+-- 
+1.7.3.2
+

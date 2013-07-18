@@ -1,0 +1,98 @@
+From 1b1dcd06c1ac93ef53120114e90d1df036698724 Mon Sep 17 00:00:00 2001
+From: Peter Lemenkov <lemenkov@gmail.com>
+Date: Tue, 10 Aug 2010 16:10:45 +0400
+Subject: [PATCH 5/5] Fixed ssl-related tests on R12B (requires ssl/examples from Erlang/OTP)
+
+Signed-off-by: Peter Lemenkov <lemenkov@gmail.com>
+---
+ src/mochiweb.erl           |   17 +++++++++--------
+ src/mochiweb_multipart.erl |   16 ++++++++--------
+ 2 files changed, 17 insertions(+), 16 deletions(-)
+
+diff --git a/src/mochiweb.erl b/src/mochiweb.erl
+index 0e8fedb..38707c0 100644
+--- a/src/mochiweb.erl
++++ b/src/mochiweb.erl
+@@ -97,12 +97,12 @@ ensure_started(App) ->
+ 
+ -record(treq, {path, body= <<>>, xreply= <<>>}).
+ 
+-ssl_cert_opts() ->
+-    EbinDir = filename:dirname(code:which(?MODULE)),
+-    CertDir = filename:join([EbinDir, "..", "support", "test-materials"]),
+-    CertFile = filename:join(CertDir, "test_ssl_cert.pem"),
+-    KeyFile = filename:join(CertDir, "test_ssl_key.pem"),
+-    [{certfile, CertFile}, {keyfile, KeyFile}].
++ssl_cert_opts(Role) ->
++    CertDir = filename:join([code:lib_dir(ssl), "examples", "certs", "etc", Role]),
++    CaCertFile = filename:join([CertDir, "cacerts.pem"]),
++    CertFile = filename:join(CertDir, "cert.pem"),
++    KeyFile = filename:join(CertDir, "key.pem"),
++    [{cacertfile, CaCertFile}, {certfile, CertFile}, {keyfile, KeyFile}].
+ 
+ with_server(Transport, ServerFun, ClientFun) ->
+     ServerOpts0 = [{ip, "127.0.0.1"}, {port, 0}, {loop, ServerFun}],
+@@ -110,8 +110,9 @@ with_server(Transport, ServerFun, ClientFun) ->
+         plain ->
+             ServerOpts0;
+         ssl ->
+-            ServerOpts0 ++ [{ssl, true}, {ssl_opts, ssl_cert_opts()}]
++            ServerOpts0 ++ [{ssl, true}, {ssl_opts, ssl_cert_opts("server")}]
+     end,
++	io:format("SO: ~p~n",[ServerOpts]),
+     {ok, Server} = mochiweb_http:start(ServerOpts),
+     Port = mochiweb_socket_server:get(Server, port),
+     Res = (catch ClientFun(Transport, Port)),
+@@ -222,7 +223,7 @@ client_request(Transport, Port, Method, TestReqs) ->
+                     inet:setopts(Socket, L)
+             end;
+         ssl ->
+-            {ok, Socket} = ssl:connect("127.0.0.1", Port, [{ssl_imp, new} | Opts]),
++            {ok, Socket} = ssl:connect("127.0.0.1", Port, [{ssl_imp, new} | ssl_cert_opts("client") ++ Opts]),
+             fun (recv) ->
+                     ssl:recv(Socket, 0);
+                 ({recv, Length}) ->
+diff --git a/src/mochiweb_multipart.erl b/src/mochiweb_multipart.erl
+index 3069cf4..8f37196 100644
+--- a/src/mochiweb_multipart.erl
++++ b/src/mochiweb_multipart.erl
+@@ -298,12 +298,12 @@ find_boundary(Prefix, Data) ->
+ -include_lib("eunit/include/eunit.hrl").
+ -ifdef(TEST).
+ 
+-ssl_cert_opts() ->
+-    EbinDir = filename:dirname(code:which(?MODULE)),
+-    CertDir = filename:join([EbinDir, "..", "support", "test-materials"]),
+-    CertFile = filename:join(CertDir, "test_ssl_cert.pem"),
+-    KeyFile = filename:join(CertDir, "test_ssl_key.pem"),
+-    [{certfile, CertFile}, {keyfile, KeyFile}].
++ssl_cert_opts(Role) ->
++    CertDir = filename:join([code:lib_dir(ssl), "examples", "certs", "etc", Role]),
++    CaCertFile = filename:join([CertDir, "cacerts.pem"]),
++    CertFile = filename:join(CertDir, "cert.pem"),
++    KeyFile = filename:join(CertDir, "key.pem"),
++    [{cacertfile, CaCertFile}, {certfile, CertFile}, {keyfile, KeyFile}].
+ 
+ with_socket_server(Transport, ServerFun, ClientFun) ->
+     ServerOpts0 = [{ip, "127.0.0.1"}, {port, 0}, {loop, ServerFun}],
+@@ -311,7 +311,7 @@ with_socket_server(Transport, ServerFun, ClientFun) ->
+         plain ->
+             ServerOpts0;
+         ssl ->
+-            ServerOpts0 ++ [{ssl, true}, {ssl_opts, ssl_cert_opts()}]
++            ServerOpts0 ++ [{ssl, true}, {ssl_opts, ssl_cert_opts("server")}]
+     end,
+     {ok, Server} = mochiweb_socket_server:start(ServerOpts),
+     Port = mochiweb_socket_server:get(Server, port),
+@@ -320,7 +320,7 @@ with_socket_server(Transport, ServerFun, ClientFun) ->
+         plain ->
+             gen_tcp:connect("127.0.0.1", Port, ClientOpts);
+         ssl ->
+-            ClientOpts1 = [{ssl_imp, new} | ClientOpts],
++            ClientOpts1 = [{ssl_imp, new} | ssl_cert_opts("client") ++ ClientOpts],
+             {ok, SslSocket} = ssl:connect("127.0.0.1", Port, ClientOpts1),
+             {ok, {ssl, SslSocket}}
+     end,
+-- 
+1.7.3.2
+

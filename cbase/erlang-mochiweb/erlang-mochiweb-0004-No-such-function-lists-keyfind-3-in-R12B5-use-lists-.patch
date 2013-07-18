@@ -1,0 +1,85 @@
+From 127bccbf6411feb9ad2d938c3559975b09dad7b1 Mon Sep 17 00:00:00 2001
+From: Peter Lemenkov <lemenkov@gmail.com>
+Date: Tue, 13 Jul 2010 15:16:13 +0400
+Subject: [PATCH 4/5] No such function lists:keyfind/3 in R12B5 - use lists:keysearch/3 instead
+
+Signed-off-by: Peter Lemenkov <lemenkov@gmail.com>
+---
+ src/mochilists.erl       |    6 +++---
+ src/reloader.erl         |    4 ++--
+ support/make_app.escript |    8 ++++----
+ 3 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/mochilists.erl b/src/mochilists.erl
+index 8981e7b..6138acf 100644
+--- a/src/mochilists.erl
++++ b/src/mochilists.erl
+@@ -30,7 +30,7 @@ set_defaults(DefaultProps, Proplist) ->
+ %% @doc Returns true if Propist contains at least one entry associated
+ %%      with Key, otherwise false is returned.
+ is_defined(Key, Proplist) ->
+-    lists:keyfind(Key, 1, Proplist) =/= false.
++    lists:keysearch(Key, 1, Proplist) =/= false.
+ 
+ 
+ %% @spec get_value(Key::term(), Proplist::list()) -> term() | undefined
+@@ -45,10 +45,10 @@ get_value(Key, Proplist) ->
+ get_value(_Key, [], Default) ->
+     Default;
+ get_value(Key, Proplist, Default) ->
+-    case lists:keyfind(Key, 1, Proplist) of
++    case lists:keysearch(Key, 1, Proplist) of
+         false ->
+             Default;
+-        {Key, Value} ->
++        {value, {Key, Value}} ->
+             Value
+     end.
+ 
+diff --git a/src/reloader.erl b/src/reloader.erl
+index c0f5de8..4d5c0b3 100644
+--- a/src/reloader.erl
++++ b/src/reloader.erl
+@@ -103,8 +103,8 @@ module_vsn({M, Beam, _Fn}) ->
+     {ok, {M, Vsn}} = beam_lib:version(Beam),
+     Vsn;
+ module_vsn(L) when is_list(L) ->
+-    {_, Attrs} = lists:keyfind(attributes, 1, L),
+-    {_, Vsn} = lists:keyfind(vsn, 1, Attrs),
++    {value, {_, Attrs}} = lists:keysearch(attributes, 1, L),
++    {value, {_, Vsn}} = lists:keysearch(vsn, 1, Attrs),
+     Vsn.
+ 
+ doit(From, To) ->
+diff --git a/support/make_app.escript b/support/make_app.escript
+index dab193a..8a17778 100755
+--- a/support/make_app.escript
++++ b/support/make_app.escript
+@@ -64,20 +64,20 @@ write_term(T, L0, TermL, Fd) ->
+     io:fwrite(Fd, "~p.~n", [T]).
+ 
+ vsn(Vsn, Attrs) when Vsn =:= '' orelse Vsn =:= "" orelse Vsn =:= "_" ->
+-    case lists:keyfind(vsn, 1, Attrs) of
++    case lists:keysearch(vsn, 1, Attrs) of
+         false ->
+             {vsn, "0.00"};
+-        V ->
++        {value, V} ->
+             V
+     end;
+ vsn(Vsn, _Attrs) ->
+     {vsn, Vsn}.
+ 
+ descr(Attrs) ->
+-    case lists:keyfind(description, 1, Attrs) of
++    case lists:keysearch(description, 1, Attrs) of
+         false ->
+             {description, "auto_generated .app file"};
+-        D ->
++        {value, D} ->
+             D
+     end.
+ 
+-- 
+1.7.3.2
+
