@@ -34,7 +34,7 @@ Requires:	ep-engine
 Requires:	vbucketmigrator
 Requires:       sqlite
 Requires:       erlang
-Requires:       sigar
+Requires:       portsigar
 
 %define pkgroot	/opt/%{pkgvendor}
 %define prefix	%{pkgroot}/%{name}
@@ -75,6 +75,7 @@ chmod +x %{buildroot}%{_initrddir}/%{name}
 
 ln -s /usr/bin/moxi %{buildroot}%{prefix}/bin/moxi
 ln -s /usr/bin/memcached %{buildroot}%{prefix}/bin/memcached
+ln -s /usr/bin/sigar_port %{buildroot}%{prefix}/bin/sigar_port
 ln -s %{_libdir}/memcached %{buildroot}%{prefix}/lib/memcached
 
 
@@ -192,6 +193,8 @@ exit 0
 %{prefix}/bin/cbdumpconfig.escript
 %{prefix}/bin/couchbase-server
 %{prefix}/bin/ebucketmigrator
+%{prefix}/bin/sigar_port
+
 %config(noreplace) %{prefix}/etc/couchbase/config
 %config(noreplace) %{prefix}/etc/couchbase/init.sql
 %config(noreplace) %{prefix}/etc/couchbase/static_config
