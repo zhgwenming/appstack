@@ -502,9 +502,9 @@ var DAL = {
 
     _.each(values, function (bucket) {
       if (bucket.bucketType == 'memcached') {
-        bucket.bucketTypeName = 'Memcached';
+        bucket.bucketTypeName = 'cache';
       } else if (bucket.bucketType == 'membase') {
-        bucket.bucketTypeName = 'Couchbase';
+        bucket.bucketTypeName = 'persistent';
       } else {
         bucket.bucketTypeName = bucket.bucketType;
       }
