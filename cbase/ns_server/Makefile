@@ -1,4 +1,4 @@
-NAME ?= ns_server
+NAME ?= cbase
 VERSION ?= 1.8.0
 NV = $(NAME)-$(VERSION)
 SPEC_FILE := $(NAME).spec

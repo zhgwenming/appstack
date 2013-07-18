@@ -1,48 +1,192 @@
-Name:           ns_server
+Name:           cbase
 Version:        1.8.0
-Release:        901.1%{dist}
+Release:        904.1%{dist}
 Epoch:          0
-Summary:        vbucketmigrator for memcached
-Group:          System Environment/Libraries
-License:        DSAL
-URL:            http://github.com/northscale/bucket_engine
-Source0:        http://github.com/northscale/bucket_engine/downloads/%{name}-%{version}.tar.gz
+Summary:	A memcached cache cluster
+Group:		System Environment/Daemons
+License:	BSD
+URL:            http://github.com/northscale
+Source0:	http://northscale.com/cbase/dist/%{name}-%{version}.tar.gz
+Source1:	cbase_init.d.tmpl
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
-BuildRequires:	memcached-devel >= 1.4.4-902
+
+BuildRequires:	automake
+BuildRequires:	autoconf
+BuildRequires:	libtool
+BuildRequires:	openssl-devel
+BuildRequires:  libevent-devel
+BuildRequires:  pkgconfig
+BuildRequires:  sqlite-devel
+BuildRequires:  check-devel
+BuildRequires:  erlang
+BuildRequires:  sigar-devel
+BuildRequires:  memcached-devel >= 1.4.4-902
+#BuildRequires:  libmemcached-devel
+#BuildRequires:  libvbucket-devel
+#BuildRequires:  libconflate-devel
+
+Requires:       openssl
+Requires:	libevent
+Requires:	moxi
+Requires:	memcached
+Requires:	bucket-engine
+Requires:	ep-engine
+Requires:	vbucketmigrator
+Requires:       sqlite
+Requires:       erlang
+Requires:       sigar
 
 %define pkgroot	/opt/%{pkgvendor}
 %define prefix	%{pkgroot}/%{name}
-%define cbuser	cbase
+%define cbuser	couchbase
 
 %description
-This provides erlang cluster management in cluster
+cbase is a memcached cluster with several optimizations to bring efficiency to
+many memcached deployments, especially those with heavy workloads or
+complex network topologies.  Optimizations include handling timeouts for
+the client, deduplication of requests, a 'front' cache and protocol
+(ascii to binary) conversion.  These optimizations keep the 'contract'
+of the memcached protocol whole for clients.
 
 %prep
 %setup -q -n %{name}-%{version}
 
 %build
 ./configure --prefix=%{prefix}
-#$(MAKE) -C ns_server install "PREFIX=$(PREFIX)"
-
-#make %{?_smp_mflags} install PREFIX=
-#make %{?_smp_mflags} 
-#make
 
 #%check
 #make test
 
 %install
-make install DESTDIR=%{buildroot}
+make %{?_smp_mflags} install DESTDIR=%{buildroot}
 #make install "PREFIX=%{buildroot}/%{prefix}"
 #rm -rf %{buildroot}
 #make install PREFIX=%{buildroot}
 #find $RPM_BUILD_ROOT -type f -name '*.la' -exec rm -f {} ';'
 
+mkdir -p %{buildroot}%{_initrddir}
+mkdir -p %{buildroot}%{prefix}/var/lib/couchbase/logs
+
+sed 's/@@PRODUCT@@/couchbase-server/; s/@@PRODUCT_BASE@@/couchbase/;
+	s,@@PREFIX@@,%{prefix},'	\
+	%{SOURCE1} > %{buildroot}%{_initrddir}/%{name}
+
+chmod +x %{buildroot}%{_initrddir}/%{name}
+
+ln -s /usr/bin/moxi %{buildroot}%{prefix}/bin/moxi
+ln -s /usr/bin/memcached %{buildroot}%{prefix}/bin/memcached
+ln -s %{_libdir}/memcached %{buildroot}%{prefix}/lib/memcached
+
+
 %clean
 #rm -rf %{buildroot}
 
+%pre
+
+CBUSER=%{cbuser}
+
+getent group %{cbuser} >/dev/null || \
+   groupadd -r %{cbuser} || exit 1
+getent passwd %{cbuser} >/dev/null || \
+   useradd -r -g %{cbuser} -d %{prefix} -s /bin/sh \
+           -c "cbase system user" %{cbuser} || exit 1
+
+if [ -x %{prefix}/%{name} ]
+then
+  echo "Stopping cbase-server ..."
+  service %{name} stop || true
+fi
+
+if [ -d %{prefix} ]
+then
+  find %{prefix} -maxdepth 1 -type l | xargs rm -f || true
+fi
+exit 0
+
+
+%post
+
+if test X"$RPM_INSTALL_PREFIX0" = X"" ; then
+  RPM_INSTALL_PREFIX0=%{prefix}
+fi
+
+if test X"$RPM_INSTALL_PREFIX1" = X"" ; then
+  RPM_INSTALL_PREFIX1=/etc/init.d
+fi
+
+/sbin/chkconfig --add %{name}
+
+# From http://www.rpm.org/max-rpm-snapshot/s1-rpm-inside-scripts.html
+# The argument to the %post script is 2 on an upgrade.
+if [ -n "$INSTALL_UPGRADE_CONFIG_DIR" -o "$1" == "2" ]
+then
+  if [ -z "$INSTALL_UPGRADE_CONFIG_DIR" ]
+  then
+    INSTALL_UPGRADE_CONFIG_DIR=$RPM_INSTALL_PREFIX0/var/lib/couchbase/config
+  fi
+  echo Upgrading cbase-server ...
+  echo "  $RPM_INSTALL_PREFIX0/bin/cbupgrade -c $INSTALL_UPGRADE_CONFIG_DIR -a yes $INSTALL_UPGRADE_EXTRA"
+  if [ "$INSTALL_DONT_AUTO_UPGRADE" != "1" ]
+  then
+    $RPM_INSTALL_PREFIX0/bin/cbupgrade -c $INSTALL_UPGRADE_CONFIG_DIR -a yes $INSTALL_UPGRADE_EXTRA
+  else
+    echo Skipping cbupgrade due to INSTALL_DONT_AUTO_UPGRADE ...
+  fi
+fi
+
+chown  -R %{cbuser}: %{prefix}/var
+service cbase start
+exit 0
+
+
+%preun
+
+service cbase stop || true
+
+#find $RPM_INSTALL_PREFIX0 -name '*.pyc' | xargs rm -f || true
+#rm -f $RPM_INSTALL_PREFIX0/bin/*.bin
+
+/sbin/chkconfig --del %{name}
+
+exit 0
+
 %files
 %defattr(-,root,root,-)
+%dir %{prefix}/bin
+%dir %{prefix}/etc
+%dir %{prefix}/etc/couchbase
+%dir %{prefix}/lib
+%dir %{prefix}/lib/memcached
+%dir %{prefix}/lib/ns_server
+%dir %{prefix}/lib/ns_server/erlang
+%dir %{prefix}/lib/ns_server/erlang/lib
+%dir %{prefix}/lib/ns_server/erlang/lib/erlwsh
+%dir %{prefix}/lib/ns_server/erlang/lib/erlwsh/priv
+%dir %{prefix}/lib/ns_server/erlang/lib/erlwsh/priv/www
+%dir %{prefix}/lib/ns_server/erlang/lib/erlwsh/ebin
+%dir %{prefix}/lib/ns_server/erlang/lib/gen_smtp
+%dir %{prefix}/lib/ns_server/erlang/lib/gen_smtp/ebin
+%dir %{prefix}/lib/ns_server/erlang/lib/mochiweb
+%dir %{prefix}/lib/ns_server/erlang/lib/mochiweb/ebin
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public/css
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public/js
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public/images
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public/images/no-preload
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public/images/spinner
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/priv/public/images/ui-theme
+%dir %{prefix}/lib/ns_server/erlang/lib/ns_server-1.8.0_362_gf2930c1/ebin
+%dir %{prefix}/lib/ns_server/erlang/lib/ale
+%dir %{prefix}/lib/ns_server/erlang/lib/ale/ebin
+%dir %{prefix}/var
+%dir %{prefix}/var/lib
+%dir %{prefix}/var/lib/couchbase
+%dir %{prefix}/var/lib/couchbase/mnesia
+%{_initrddir}/%{name}
+%{prefix}/bin/moxi
+%{prefix}/bin/memcached
 %{prefix}/bin/cbbrowse_logs
 %{prefix}/bin/cbcollect_info
 %{prefix}/bin/cbdumpconfig.escript
@@ -51,6 +195,9 @@ make install DESTDIR=%{buildroot}
 %config(noreplace) %{prefix}/etc/couchbase/config
 %config(noreplace) %{prefix}/etc/couchbase/init.sql
 %config(noreplace) %{prefix}/etc/couchbase/static_config
+%{prefix}/var/lib/couchbase/logs
+
+%{prefix}/lib/memcached
 %{prefix}/lib/ns_server/erlang/lib/ale/ebin/ale.app
 %{prefix}/lib/ns_server/erlang/lib/ale/ebin/ale.beam
 %{prefix}/lib/ns_server/erlang/lib/ale/ebin/ale_app.beam
