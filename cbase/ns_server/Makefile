@@ -1,5 +1,5 @@
 NAME ?= cbase
-VERSION ?= 1.8.0
+VERSION ?= 1.8.1
 NV = $(NAME)-$(VERSION)
 SPEC_FILE := $(NAME).spec
 TARBALL := $(NV).tar.gz
