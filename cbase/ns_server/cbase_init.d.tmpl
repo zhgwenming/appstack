@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# Startup / shutdown script for the @@PRODUCT_BASE@@ server
+#
+# Copyright (c) 2011, Couchbase, Inc.
+# All rights reserved
+#
+#
+### BEGIN INIT INFO
+# Provides:          @@PRODUCT@@
+# Required-Start:    $network $local_fs
+# Required-Stop:
+# Should-Start:      $named
+# Should-Stop:
+# Default-Start:        2 3 4 5
+# Default-Stop:         0 1 6
+# Short-Description:    @@PRODUCT_BASE@@ server
+# Description:          @@PRODUCT_BASE@@ server
+
+### END INIT INFO
+
+. /etc/init.d/functions
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+DAEMON=@@PREFIX@@/bin/@@PRODUCT@@
+PIDFILE=@@PREFIX@@/var/lib/@@PRODUCT_BASE@@/@@PRODUCT@@.pid
+NODEFILE=@@PREFIX@@/var/lib/@@PRODUCT_BASE@@/@@PRODUCT@@.node
+COOKIEFILE=@@PREFIX@@/var/lib/@@PRODUCT_BASE@@/@@PRODUCT@@.cookie
+
+test -f $DAEMON || exit 0
+
+start() {
+    touch $PIDFILE $NODEFILE $COOKIEFILE
+    chown @@PRODUCT_BASE@@ $PIDFILE $NODEFILE $COOKIEFILE
+    cd @@PREFIX@@/var/lib/@@PRODUCT_BASE@@
+    ulimit -n 10240
+    ulimit -c unlimited
+    daemon "/bin/su -s /bin/sh -c \"$DAEMON -- -noinput -detached\" @@PRODUCT_BASE@@"
+    errcode=$?
+    return $errcode
+}
+
+stop() {
+    /bin/su -s /bin/sh -c "$DAEMON -k" couchbase
+    errcode=$?
+    return $errcode
+}
+
+running() {
+    pidofproc -p $PIDFILE $DAEMON >/dev/null
+    errcode=$?
+    return $errcode
+}
+
+case $1 in
+    start)
+        if running ; then
+            warning && echo "@@PRODUCT@@ is already started"
+            exit 0
+        fi
+        echo -n $"Starting @@PRODUCT@@"
+        start
+        echo
+        ;;
+    stop)
+        echo -n $"Stopping @@PRODUCT@@"
+        stop
+        echo
+        ;;
+    restart)
+        echo -n $"Stopping @@PRODUCT@@"
+        stop
+        echo
+        echo -n $"Starting @@PRODUCT@@"
+        start
+        echo
+        ;;
+    status)
+        if running ; then
+            echo "@@PRODUCT@@ is running"
+            exit 0
+        else
+            echo "@@PRODUCT@@ is not running"
+            exit 3
+        fi
+        ;;
+    *)
+        echo "Usage: /etc/init.d/@@PRODUCT@@ {start|stop|restart|status}" >&2
+        exit 3
+esac
