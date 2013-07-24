@@ -1,6 +1,6 @@
 Name:           cbase
 Version:        1.8.1
-Release:        905.1%{dist}
+Release:        906.1%{dist}
 Epoch:          0
 Summary:	A memcached cache cluster
 Group:		System Environment/Daemons
