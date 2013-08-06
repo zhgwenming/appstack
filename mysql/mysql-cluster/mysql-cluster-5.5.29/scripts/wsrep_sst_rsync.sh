@@ -145,7 +145,7 @@ then
     RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
     if [ -z "$RSYNC_PORT" ]
     then
-        RSYNC_PORT=4444
+        RSYNC_PORT=${SST_PORT}
         ADDR="$(echo $ADDR | awk -F ':' '{ print $1 }'):$RSYNC_PORT"
     fi
 

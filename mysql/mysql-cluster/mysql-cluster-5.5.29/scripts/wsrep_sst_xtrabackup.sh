@@ -170,7 +170,7 @@ then
     NC_PORT=$(echo ${ADDR} | awk -F ':' '{ print $2 }')
     if [ -z "${NC_PORT}" ]
     then
-        NC_PORT=4444
+        NC_PORT=${SST_PORT}
         ADDR="$(echo ${ADDR} | awk -F ':' '{ print $1 }'):${NC_PORT}"
     fi
 

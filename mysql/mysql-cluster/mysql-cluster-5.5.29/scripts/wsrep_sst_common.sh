@@ -19,6 +19,7 @@
 set -u
 
 WSREP_SST_OPT_BYPASS=0
+SST_PORT=4569
 
 while [ $# -gt 0 ]; do
 case "$1" in

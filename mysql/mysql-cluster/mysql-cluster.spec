@@ -26,7 +26,7 @@
 %define mysql_server_vendor	Percona, Inc
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 902.23.7.2
+%define wsrep_version 903.23.7.2
 %define revision 389
 
 %define mysql_version   5.5.29
@@ -606,6 +606,10 @@ install -m 644 "%{malloc_lib_source}" \
 # Remove man pages we explicitly do not want to package, avoids 'unpackaged
 # files' warning.
 rm -f $RBR%{_mandir}/man1/make_win_bin_dist.1*
+
+# ldconfig for mysql libs
+mkdir -p %{buildroot}/etc/ld.so.conf.d
+echo "%{_libdir}/mysql" > $RPM_BUILD_ROOT/etc/ld.so.conf.d/%{name}-%{_arch}.conf
 
 ##############################################################################
 #  Post processing actions, i.e. when installed
@@ -1211,6 +1215,8 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_libdir}/mysql/plugin/libmurmur_udf.a
 %{_libdir}/mysql/plugin/libmurmur_udf.la
 
+/etc/ld.so.conf.d/*
+
 %dir %{_datadir}/mysql
 %{_datadir}/mysql/english
 %lang(cs) %{_datadir}/mysql/czech
@@ -1263,6 +1269,10 @@ echo "====="                                     >> $STATUS_HISTORY
 # merging BK trees)
 ##############################################################################
 %changelog
+* Tue Aug 6 2013 Albert Zhang <zhgwenming@gamil.com>
+- Change the default SST port to 4569
+- ldconfig config file for mysql
+
 * Thu Feb 10 2011 Ignacio Nin <ignacio.nin@percona.com>
 
 - Removed lines which prevented -debuginfo packages from being built.
