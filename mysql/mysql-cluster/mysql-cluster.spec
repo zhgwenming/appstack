@@ -20,13 +20,15 @@
 
 # NOTE: "vendor" is used in upgrade/downgrade check, so you can't
 # change these, has to be exactly as is.
+%{?scl:%scl_package mysql-cluster}
+
 %define mysql_old_vendor        MySQL AB
 %define mysql_vendor_2          Sun Microsystems, Inc.
 %define mysql_vendor            Oracle and/or its affiliates
 %define mysql_server_vendor	Percona, Inc
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 903.23.7.2
+%define wsrep_version 904.23.7.2
 %define revision 389
 
 %define mysql_version   5.5.29
@@ -38,7 +40,7 @@
 
 %define mysqld_user     mysql
 %define mysqld_group    mysql
-%define mysqldatadir    /var/lib/mysql
+%define mysqldatadir    %{_localstatedir}/lib/mysql
 
 %if %{undefined revision}
 %define revision	1
@@ -229,7 +231,7 @@
 # Main spec file section
 ##############################################################################
 
-Name:           mysql-cluster
+Name:           %{?scl_prefix}mysql-cluster
 Summary:        A High Availability solution based on galera
 Group:          Applications/Databases
 Version:        %{mysql_version}
@@ -269,6 +271,7 @@ provisioning with primary focus on data consistency.
 Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
 Requires:       %{distro_requires} mysql-libs mysql-cluster-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
+%{?scl:Requires:%scl_runtime}
 Provides:       mcluster mysql-server MySQL-server 
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
@@ -361,7 +364,7 @@ and applications need to dynamically load and use MySQL Galera Cluster.
 
 ##############################################################################
 %prep
-%setup -T -a 0 -c -n %{src_dir}
+%setup -T -a 0 -c %{?scl:-n %{pkg_name}-%{version}}
 
 ##############################################################################
 %build
@@ -374,9 +377,9 @@ BuildHandlerSocket() {
     bash -x ./autogen.sh
     echo "Configuring HandlerSocket"
     CXX="${HS_CXX:-g++}" \
-        MYSQL_CFLAGS="-I $RPM_BUILD_DIR/%{src_dir}/release/include" \
-        ./configure --with-mysql-source=$RPM_BUILD_DIR/%{src_dir}/%{src_dir} \
-        --with-mysql-bindir=$RPM_BUILD_DIR/%{src_dir}/release/scripts \
+        MYSQL_CFLAGS="-I %{_builddir}/%{src_dir}/release/include" \
+        ./configure --with-mysql-source=%{_builddir}/%{src_dir}/%{src_dir} \
+        --with-mysql-bindir=%{_builddir}/%{src_dir}/release/scripts \
         --with-mysql-plugindir=%{_libdir}/mysql/plugin \
         --libdir=%{_libdir} \
         --prefix=%{_prefix}
@@ -387,8 +390,8 @@ BuildHandlerSocket() {
 BuildUDF() {
     cd UDF
     CXX="${UDF_CXX:-g++}"\
-        CXXFLAGS="$CXXFLAGS -I$RPM_BUILD_DIR/%{src_dir}/release/include" \
-        ./configure --includedir=$RPM_BUILD_DIR/%{src_dir}/%{src_dir}/include \
+        CXXFLAGS="$CXXFLAGS -I%{_builddir}/%{src_dir}/release/include" \
+        ./configure --includedir=%{_builddir}/%{src_dir}/%{src_dir}/include \
         --libdir=%{_libdir}/mysql/plugin
     make %{?_smp_mflags} all
     cd -
@@ -398,8 +401,8 @@ build_pam() {
     cd plugin/percona-pam-for-mysql
     bash -x ./autogen.sh
     CXX="${UDF_CXX:-g++}"\
-        CXXFLAGS="$CXXFLAGS -I$RPM_BUILD_DIR/%{src_dir}/release/include" \
-        ./configure --includedir=$RPM_BUILD_DIR/%{src_dir}/%{src_dir}/include \
+        CXXFLAGS="$CXXFLAGS -I%{_builddir}/%{src_dir}/release/include" \
+        ./configure --includedir=%{_builddir}/%{src_dir}/%{src_dir}/include \
         --libdir=%{_libdir}/mysql/plugin
     make %{?_smp_mflags} all
     cd -
@@ -454,7 +457,7 @@ mkdir debug
                   -e 's/ $//'`
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
-  ${CMAKE} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
+  %{cmake} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
            -DCMAKE_BUILD_TYPE=Debug \
            -DWITH_EMBEDDED_SERVER=OFF \
            -DENABLE_DTRACE=OFF \
@@ -476,7 +479,7 @@ mkdir release
   #build_pam
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
-  ${CMAKE} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
+  %{cmake} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
            -DWITH_EMBEDDED_SERVER=OFF \
            -DENABLE_DTRACE=OFF \
@@ -509,10 +512,10 @@ do
 done
 
 # Use the build root for temporary storage of the shared libraries.
-RBR=$RPM_BUILD_ROOT
+RBR=%{buildroot}
 
 # Clean up the BuildRoot first
-[ "$RBR" != "/" ] && [ -d "$RBR" ] && rm -rf "$RBR";
+[ "%{buildroot}" != "/" ] && [ -d "%{buildroot}" ] && rm -rf "%{buildroot}";
 
 # For gcc builds, include libgcc.a in the devel subpackage (BUG 4921).  This
 # needs to be during build phase as $CC is not set during install.
@@ -521,95 +524,96 @@ then
   libgcc=`$CC $CFLAGS --print-libgcc-file`
   if [ -f $libgcc ]
   then
-    mkdir -p $RBR%{_libdir}/mysql
-    install -m 644 $libgcc $RBR%{_libdir}/mysql/libmygcc.a
+    mkdir -p %{buildroot}%{_libdir}/mysql
+    install -m 644 $libgcc %{buildroot}%{_libdir}/mysql/libmygcc.a
     echo "%{_libdir}/mysql/libmygcc.a" >>optional-files-devel
   fi
 fi
 
 # Move temporarily the saved files to the BUILD directory since the BUILDROOT
 # dir will be cleaned at the start of the install phase
-mkdir -p "$(dirname $RPM_BUILD_DIR/%{_libdir})"
-mv $RBR%{_libdir} $RPM_BUILD_DIR/%{_libdir}
+mkdir -p "$(dirname %{_builddir}/%{_libdir})"
+mv %{buildroot}%{_libdir} %{_builddir}/%{_libdir}
 
 ##############################################################################
 %install
 
-RBR=$RPM_BUILD_ROOT
-MBD=$RPM_BUILD_DIR/%{src_dir}
+RBR=%{buildroot}
+MBD=%{_builddir}/%{src_dir}
 
 # Move back the libdir from BUILD dir to BUILDROOT
-mkdir -p "$(dirname $RBR%{_libdir})"
-mv $RPM_BUILD_DIR/%{_libdir} $RBR%{_libdir}
+mkdir -p "$(dirname %{buildroot}%{_libdir})"
+mv %{_builddir}/%{_libdir} %{buildroot}%{_libdir}
 
 # Ensure that needed directories exists
-install -d $RBR%{_sysconfdir}/{logrotate.d,init.d}
-install -d $RBR%{mysqldatadir}/mysql
-install -d $RBR%{_datadir}/mysql-test
-install -d $RBR%{_datadir}/mysql/SELinux/RHEL4
-install -d $RBR%{_includedir}
-install -d $RBR%{_libdir}
-install -d $RBR%{_mandir}
-install -d $RBR%{_sbindir}
-install -d $RBR%{_libdir}/mysql/plugin
+install -d %{buildroot}%{_sysconfdir}/{logrotate.d,init.d,xinetd.d}
+#install -d %{buildroot}%{mysqldatadir}/mysql
+install -d %{buildroot}%{_datadir}/mysql-test
+install -d %{buildroot}%{_datadir}/mysql/SELinux/RHEL4
+install -d %{buildroot}%{_includedir}
+install -d %{buildroot}%{_libdir}
+install -d %{buildroot}%{_mandir}
+install -d %{buildroot}%{_sbindir}
+install -d %{buildroot}%{_libdir}/mysql/plugin
 
 (
   cd $MBD/release
-  make %{?_smp_mflags} DESTDIR=$RBR benchdir_root=%{_datadir} install
+  make %{?_smp_mflags} DESTDIR=%{buildroot} benchdir_root=%{_datadir} install
   d="`pwd`"
   cd $MBD/%{src_dir}/storage/HandlerSocket-Plugin-for-MySQL
-  make %{?_smp_mflags} DESTDIR=$RBR benchdir_root=%{_datadir} install
+  make %{?_smp_mflags} DESTDIR=%{buildroot} benchdir_root=%{_datadir} install
   cd "$d"
   cd $MBD/%{src_dir}/UDF
-  make %{?_smp_mflags} DESTDIR=$RBR benchdir_root=%{_datadir} install
+  make %{?_smp_mflags} DESTDIR=%{buildroot} benchdir_root=%{_datadir} install
   cd "$d"
 )
 
 # Install all binaries
 (
   cd $MBD/release
-  make %{?_smp_mflags} DESTDIR=$RBR install
+  make %{?_smp_mflags} DESTDIR=%{buildroot} install
 )
 
 # FIXME: at some point we should stop doing this and just install everything
 # FIXME: directly into %{_libdir}/mysql - perhaps at the same time as renaming
 # FIXME: the shared libraries to use libmysql*-$major.$minor.so syntax
-mv -v $RBR/%{_libdir}/*.a $RBR/%{_libdir}/mysql/
+mv -v %{buildroot}/%{_libdir}/*.a %{buildroot}/%{_libdir}/mysql/
 
 # Install logrotate and autostart
-install -m 644 $MBD/release/support-files/mysql-log-rotate $RBR%{_sysconfdir}/logrotate.d/mysqld
-install -m 755 $MBD/release/support-files/mysql.server $RBR%{_sysconfdir}/init.d/mysqld
+install -m 644 $MBD/release/support-files/mysql-log-rotate %{buildroot}%{_sysconfdir}/logrotate.d/mysqld
+install -m 644 $MBD/release/support-files/mysqlchk %{buildroot}%{_sysconfdir}/xinetd.d/mysqlchk
+install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{_sysconfdir}/init.d/mysqld
 
-install -m 0644 %{SOURCE3} $RPM_BUILD_ROOT/etc/my.cnf
-install -m 0755 %{SOURCE4} $RPM_BUILD_ROOT/%{_datadir}/mysql/mcluster-bootstrap
+install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
+install -m 0755 %{SOURCE4} %{buildroot}%{_datadir}/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
-ln -s %{_sysconfdir}/init.d/mysql $RBR%{_sbindir}/rcmysql
+ln -s %{_sysconfdir}/init.d/mysql %{buildroot}%{_sbindir}/rcmysql
 
 # Create a wsrep_sst_rsync_wan symlink.
-install -d $RBR%{_bindir}
-ln -s wsrep_sst_rsync $RBR%{_bindir}/wsrep_sst_rsync_wan
+install -d %{buildroot}%{_bindir}
+ln -s wsrep_sst_rsync %{buildroot}%{_bindir}/wsrep_sst_rsync_wan
 
 # Install SELinux files in datadir
 install -m 600 $MBD/%{src_dir}/support-files/RHEL4-SElinux/mysql.{fc,te} \
-  $RBR%{_datadir}/mysql/SELinux/RHEL4
+  %{buildroot}%{_datadir}/mysql/SELinux/RHEL4
 
 %if %{WITH_TCMALLOC}
 # Even though this is a shared library, put it under /usr/lib*/mysql, so it
 # doesn't conflict with possible shared lib by the same name in /usr/lib*.  See
 # `mysql_config --variable=pkglibdir` and mysqld_safe for how this is used.
 install -m 644 "%{malloc_lib_source}" \
-  "$RBR%{_libdir}/mysql/%{malloc_lib_target}"
+  "%{buildroot}%{_libdir}/mysql/%{malloc_lib_target}"
 %endif
 
 # Remove man pages we explicitly do not want to package, avoids 'unpackaged
 # files' warning.
-rm -f $RBR%{_mandir}/man1/make_win_bin_dist.1*
+rm -f %{buildroot}%{_mandir}/man1/make_win_bin_dist.1*
 
 # ldconfig for mysql libs
 mkdir -p %{buildroot}/etc/ld.so.conf.d
-echo "%{_libdir}/mysql" > $RPM_BUILD_ROOT/etc/ld.so.conf.d/%{name}-%{_arch}.conf
+echo "%{_libdir}/mysql" > %{buildroot}/etc/ld.so.conf.d/%{name}-%{_arch}.conf
 
 ##############################################################################
 #  Post processing actions, i.e. when installed
@@ -979,8 +983,8 @@ echo "====="                                     >> $STATUS_HISTORY
 # Clean up the BuildRoot after build is done
 # ----------------------------------------------------------------------
 %clean
-[ "$RPM_BUILD_ROOT" != "/" ] && [ -d $RPM_BUILD_ROOT ] \
-  && rm -rf $RPM_BUILD_ROOT;
+[ "%{buildroot}" != "/" ] && [ -d %{buildroot} ] \
+  && rm -rf %{buildroot};
 
 ##############################################################################
 #  Files section
@@ -1118,7 +1122,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/logrotate.d/mysqld
 %attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/xinetd.d/mysqlchk
 
-%config(noreplace) /etc/my.cnf
+%config(noreplace) %{_sysconfdir}/my.cnf
 %attr(755, root, root) %{_sysconfdir}/init.d/mysqld
 
 #%{_datadir}/mysql/
@@ -1140,6 +1144,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_datadir}/mysql/my-small.cnf
 %attr(755, root, root) %{_datadir}/mysql/mysql-log-rotate
 %attr(755, root, root) %{_datadir}/mysql/mysql.server
+%attr(755, root, root) %{_datadir}/mysql/mysqlchk
 %attr(755, root, root) %{_datadir}/mysql/mysql_system_tables.sql
 %attr(755, root, root) %{_datadir}/mysql/mysql_system_tables_data.sql
 %attr(755, root, root) %{_datadir}/mysql/mysql_test_data_timezone.sql
@@ -1197,7 +1202,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_datadir}/aclocal/mysql.m4
 %{_libdir}/mysql/libmysqlclient.a
 %{_libdir}/mysql/libmysqlclient_r.a
-%{_libdir}/mysql/libmysqlservices.a
+#%{_libdir}/mysql/libmysqlservices.a
 %{_libdir}/mysql/libhsclient.a
 %{_libdir}/libhsclient.la
 
@@ -1680,7 +1685,7 @@ echo "====="                                     >> $STATUS_HISTORY
 * Thu Sep 29 2005 Lenz Grimmer <lenz@mysql.com>
 
 - fixed the removing of the RPM_BUILD_ROOT in the %clean section (the
-  $RBR variable did not get expanded, thus leaving old build roots behind)
+  %{buildroot} variable did not get expanded, thus leaving old build roots behind)
 
 * Thu Aug 04 2005 Lenz Grimmer <lenz@mysql.com>
 

@@ -15,4 +15,7 @@ clean:
 	rm -fv *gz *rpm
 
 build: srpm
-	rpmbuild --rebuild mysql-cluster-*.src.rpm
+	rpmbuild						\
+		--define 'scl mysql55'				\
+		--define '_scl_prefix /opt/%{pkgvendor}'	\
+		--rebuild *.src.rpm 

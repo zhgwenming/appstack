@@ -357,12 +357,6 @@ wsrep_sst_xtrabackup clustercheck)
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
-  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysqlchk.sh
-    ${CMAKE_CURRENT_BINARY_DIR}/mysqlchk ESCAPE_QUOTES @ONLY)
-  INSTALL(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/mysqlchk
-    DESTINATION ${INSTALL_XINETDDIR}
-    COMPONENT Server)
 ENDIF()
 
 # Install libgcc as  mylibgcc.a
