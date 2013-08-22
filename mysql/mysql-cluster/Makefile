@@ -1,21 +1,26 @@
-SPEC_FILE := mysql-cluster.spec
-TARBALL := mysql-cluster-5.5.29.tar.gz
+SPEC_FILE := mysql.spec
+TARBALL := mysql-5.5.29.tar.gz
 SRCDIR ?= ./
 DESTDIR ?= ./
 
 .PHONY: srpm
 
-srpm: $(TARBALL) $(SPEC_FILE)
-	rpmbuild --define '_sourcedir $(SRCDIR)' --define '_srcrpmdir $(DESTDIR)' -bs $(SPEC_FILE)
+SCL_DEF =	\
+	--define 'scl mcluster'				\
+	--define '_scl_prefix /opt/%{pkgvendor}'
 
-$(TARBALL): mysql-cluster-5.5.29
+srpm: $(TARBALL) $(SPEC_FILE)
+	rpmbuild --define '_sourcedir $(SRCDIR)'	\
+	--define '_srcrpmdir $(DESTDIR)'		\
+	$(SCL_DEF)					\
+	-bs $(SPEC_FILE)
+
+$(TARBALL): mysql-5.5.29
 	tar zcf $@ $^
 
 clean:
 	rm -fv *gz *rpm
 
 build: srpm
-	rpmbuild						\
-		--define 'scl mysql55'				\
-		--define '_scl_prefix /opt/%{pkgvendor}'	\
+	rpmbuild	$(SCL_DEF)			\
 		--rebuild *.src.rpm 
