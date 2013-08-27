@@ -436,6 +436,7 @@ mkdir debug
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
   %{cmake} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
+           -DBUILD_SHARED_LIBS:BOOL=OFF	\
            -DCMAKE_BUILD_TYPE=Debug \
            -DWITH_EMBEDDED_SERVER=OFF \
            -DENABLE_DTRACE=OFF \
@@ -446,6 +447,8 @@ mkdir debug
            -DWITH_INNODB_DISALLOW_WRITES=ON \
            -DINSTALL_LIBDIR=%{_libdir}/mysql \
            -DINSTALL_PLUGINDIR=%{_libdir}/mysql/plugin \
+           -DMYSQL_DATADIR="%{?_scl_root}/var/lib/mysql" \
+           -DWITH_READLINE=ON	\
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
   echo BEGIN_DEBUG_CONFIG ; egrep '^#define' include/config.h ; echo END_DEBUG_CONFIG
   make %{?_smp_mflags} ${MAKE_JFLAG}
@@ -458,6 +461,7 @@ mkdir release
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
   %{cmake} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
+           -DBUILD_SHARED_LIBS:BOOL=OFF	\
            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
            -DWITH_EMBEDDED_SERVER=OFF \
            -DENABLE_DTRACE=OFF \
@@ -468,6 +472,8 @@ mkdir release
            -DWITH_INNODB_DISALLOW_WRITES=ON \
            -DINSTALL_LIBDIR=%{_libdir}/mysql \
            -DINSTALL_PLUGINDIR=%{_libdir}/mysql/plugin \
+           -DMYSQL_DATADIR="%{?_scl_root}/var/lib/mysql" \
+           -DWITH_READLINE=ON	\
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
   echo BEGIN_NORMAL_CONFIG ; egrep '^#define' include/config.h ; echo END_NORMAL_CONFIG
   make %{?_smp_mflags} ${MAKE_JFLAG}
@@ -1180,7 +1186,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %{_datadir}/aclocal/mysql.m4
 %{_libdir}/mysql/libmysqlclient.a
 %{_libdir}/mysql/libmysqlclient_r.a
-#%{_libdir}/mysql/libmysqlservices.a
+%{_libdir}/mysql/libmysqlservices.a
 %{_libdir}/mysql/libhsclient.a
 %{_libdir}/libhsclient.la
 
