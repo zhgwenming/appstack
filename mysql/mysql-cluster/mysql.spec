@@ -243,7 +243,7 @@ Source:         mysql-%{mysql_version}.tar.gz
 URL:            http://www.percona.com/
 Packager:       MySQL Development Team
 Vendor:         %{mysql_server_vendor}
-Provides:       mysql-server mcluster
+Provides:       %{?scl_prefix}mysql
 BuildRequires:  %{distro_buildreq}
 BuildRequires:  pam-devel
 
@@ -270,9 +270,9 @@ provisioning with primary focus on data consistency.
 %package server
 Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
-Requires:       %{distro_requires} mysql-libs mysql-cluster-galera%{product_suffix} xtrabackup >= 1.9.0 tar nc rsync
+Requires:       %{distro_requires} mysql-libs mysql-cluster-galera xtrabackup >= 1.9.0 tar nc rsync
 %{?scl:Requires:%scl_runtime}
-Provides:       mcluster mysql-server MySQL-server 
+Provides:       %{scl_prefix}mysql-server MySQL-server 
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
 %description server
@@ -293,7 +293,7 @@ package "mysql" as well!
 Requires:       mysql perl
 Summary:        MySQL Galera Cluster - Test suite
 Group:          Applications/Databases
-Provides:       mysql-test Percona-Server-test
+Provides:       %{?scl_prefix}mysql-test
 Conflicts:	Percona-Server-test-55 Percona-Server-test-51
 AutoReqProv:    no
 
@@ -310,7 +310,7 @@ For a description of MySQL Galera Cluster see
 %package devel
 Summary:        MySQL Galera Cluster - Development header files and libraries
 Group:          Applications/Databases
-Provides:       mysql-devel Percona-Server-devel
+Provides:       %{?scl_prefix}mysql-devel
 Conflicts:	Percona-Server-devel-55 Percona-Server-devel-51
 
 %description devel
@@ -327,7 +327,7 @@ to develop MySQL Galera Cluster client applications.
 %package libs
 Summary:        MySQL Galera Cluster - Shared libraries
 Group:          Applications/Databases
-Provides:       mysql-shared mysql-libs Percona-Server-shared
+Provides:       %{?scl_prefix}mysql-libs
 Conflicts:	Percona-Server-shared-55 Percona-Server-shared-51
 
 %description libs
