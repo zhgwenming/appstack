@@ -524,7 +524,7 @@ mkdir -p "$(dirname %{buildroot}%{_libdir})"
 mv %{_builddir}/%{_libdir} %{buildroot}%{_libdir}
 
 # Ensure that needed directories exists
-install -d %{buildroot}%{_sysconfdir}/{logrotate.d,init.d,xinetd.d}
+install -d %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/{logrotate.d,xinetd.d,rc.d/init.d}
 #install -d %{buildroot}%{mysqldatadir}/mysql
 install -d %{buildroot}%{_datadir}/mysql-test
 install -d %{buildroot}%{_datadir}/mysql/SELinux/RHEL4
@@ -558,10 +558,11 @@ install -d %{buildroot}%{_libdir}/mysql/plugin
 mv -v %{buildroot}/%{_libdir}/*.a %{buildroot}/%{_libdir}/mysql/
 
 # Install logrotate and autostart
-install -m 644 $MBD/release/support-files/mysql-log-rotate %{buildroot}%{_sysconfdir}/logrotate.d/mysqld
-install -m 644 $MBD/release/support-files/mysqlchk %{buildroot}%{_sysconfdir}/xinetd.d/mysqlchk
-install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{_sysconfdir}/init.d/mysqld
+install -m 644 $MBD/release/support-files/mysql-log-rotate %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/logrotate.d/%{?scl_prefix}mysqld
+install -m 644 $MBD/release/support-files/mysqlchk %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/xinetd.d/%{?scl_prefix}mysqlchk
+install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
 
+install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
 install -m 0755 %{SOURCE4} %{buildroot}%{_datadir}/mysql/mcluster-bootstrap
 
@@ -1097,11 +1098,10 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_libdir}/mysql/%{malloc_lib_target}
 %endif
 
-%attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/logrotate.d/mysqld
-%attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/xinetd.d/mysqlchk
-
-%config(noreplace) %{_sysconfdir}/my.cnf
-%attr(755, root, root) %{_sysconfdir}/init.d/mysqld
+#%attr(644, root, root) %config(noreplace,missingok) %{_sysconfdir}/logrotate.d/mysqld
+%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
+%config(noreplace) %{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/logrotate.d/%{?scl_prefix}mysqld
+%config(noreplace) %{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/xinetd.d/%{?scl_prefix}mysqlchk
 
 #%{_datadir}/mysql/
 #%attr(755, root, root) %{_datadir}/mysql/
@@ -1200,6 +1200,8 @@ echo "====="                                     >> $STATUS_HISTORY
 
 /etc/ld.so.conf.d/*
 
+%config(noreplace) %{_sysconfdir}/my.cnf
+
 %dir %{_datadir}/mysql
 %{_datadir}/mysql/english
 %lang(cs) %{_datadir}/mysql/czech
@@ -1252,6 +1254,9 @@ echo "====="                                     >> $STATUS_HISTORY
 # merging BK trees)
 ##############################################################################
 %changelog
+* Tue Aug 27 2013 Albert Zhang <zhgwenming@gmail.com>
+- SCL support
+
 * Tue Aug 6 2013 Albert Zhang <zhgwenming@gamil.com>
 - Change the default SST port to 4569
 - ldconfig config file for mysql
