@@ -1,6 +1,8 @@
 #!/bin/bash
 #
 
+NAME=mcluster-mysqld
+
 function rand_pass()
 {
 	head -c6 /dev/urandom | base64
@@ -30,7 +32,7 @@ EOF
 
 SSTPASS="`rand_pass`"
 
-if ! service mysqld status >/dev/null; then
+if ! service $NAME status >/dev/null; then
         echo 
         echo "Danger!! This will setup a new cluster."
         echo "Press Ctrl-C to cancel"
@@ -55,12 +57,12 @@ if ! service mysqld status >/dev/null; then
 	sed -i "s/^wsrep_sst_auth=.*$/wsrep_sst_auth='sstuser:$SSTPASS'/" /etc/my.cnf
 
 	echo "Starting new mysql cluster"
-	/etc/init.d/mysqld start --wsrep-cluster-address="gcomm://"
+	service $NAME start --wsrep-cluster-address="gcomm://"
 
 	echo -n "Waiting the new mcluster to be ready.."
 	while :; do
 		sleep 1
-		if service mysqld status >/dev/null 2>&1; then
+		if service $NAME status >/dev/null 2>&1; then
 			mysqladmin -uroot password 'Mcluster' >/dev/null 2>&1 && break 
 		fi
 		echo -n .

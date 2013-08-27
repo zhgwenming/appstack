@@ -270,9 +270,9 @@ provisioning with primary focus on data consistency.
 %package server
 Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
-Requires:       %{distro_requires} mysql-libs mysql-cluster-galera xtrabackup >= 1.9.0 tar nc rsync
+Requires:       %{distro_requires} %{?scl_prefix}mysql-libs mysql-cluster-galera xtrabackup >= 1.9.0 tar nc rsync
 %{?scl:Requires:%scl_runtime}
-Provides:       %{scl_prefix}mysql-server MySQL-server 
+Provides:       %{?scl_prefix}mysql-server MySQL-server 
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
 
 %description server
@@ -289,6 +289,18 @@ If you want to access and work with the database, you have to install
 package "mysql" as well!
 
 # ----------------------------------------------------------------------------
+%package bench
+
+Summary: MySQL benchmark scripts and data
+Group: Applications/Databases
+Requires: %{name}% = %{version}-%{release}
+Conflicts: MySQL-bench
+
+%description bench
+MySQL is a multi-user, multi-threaded SQL database server. This
+package contains benchmark scripts and data for use when benchmarking
+MySQL.
+
 %package test
 Requires:       mysql perl
 Summary:        MySQL Galera Cluster - Test suite
@@ -435,24 +447,40 @@ mkdir debug
                   -e 's/ $//'`
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
+           #-DFEATURE_SET="%{feature_set}" \
   %{cmake} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
-           -DBUILD_SHARED_LIBS:BOOL=OFF	\
            -DCMAKE_BUILD_TYPE=Debug \
-           -DWITH_EMBEDDED_SERVER=OFF \
+        -DCMAKE_INSTALL_PREFIX="%{_prefix}" \
+        -DINSTALL_INCLUDEDIR=include/mysql \
+        -DINSTALL_INFODIR=share/info \
+        -DINSTALL_LIBDIR="%{_lib}/mysql" \
+        -DINSTALL_MANDIR=share/man \
+        -DINSTALL_MYSQLSHAREDIR=share/mysql \
+        -DINSTALL_MYSQLTESTDIR=share/mysql-test \
+        -DINSTALL_PLUGINDIR="%{_lib}/mysql/plugin" \
+        -DINSTALL_SBINDIR=libexec \
+        -DINSTALL_SCRIPTDIR=bin \
+        -DINSTALL_SQLBENCHDIR=share \
+        -DINSTALL_SUPPORTFILESDIR=share/mysql \
+        -DMYSQL_DATADIR="%{?_scl_root}/var/lib/mysql" \
+        -DMYSQL_UNIX_ADDR="/var/lib/mysql/mysql.sock" \
+        -DENABLED_LOCAL_INFILE=ON \
            -DENABLE_DTRACE=OFF \
-           -DMYSQL_UNIX_ADDR="/var/lib/mysql/mysql.sock" \
+           -DWITH_EMBEDDED_SERVER=OFF \
            -DFEATURE_SET="%{feature_set}" \
            -DCOMPILATION_COMMENT="%{compilation_comment_debug}" \
            -DWITH_WSREP=1 \
            -DWITH_INNODB_DISALLOW_WRITES=ON \
-           -DINSTALL_LIBDIR=%{_libdir}/mysql \
-           -DINSTALL_PLUGINDIR=%{_libdir}/mysql/plugin \
-           -DMYSQL_DATADIR="%{?_scl_root}/var/lib/mysql" \
-           -DWITH_READLINE=ON	\
-           -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
+        -DWITH_READLINE=ON \
+        -DWITH_SSL=system \
+        -DWITH_ZLIB=system \
+           -DMYSQL_SERVER_SUFFIX="%{server_suffix}" \
+        -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now"
+
   echo BEGIN_DEBUG_CONFIG ; egrep '^#define' include/config.h ; echo END_DEBUG_CONFIG
   make %{?_smp_mflags} ${MAKE_JFLAG}
 )
+
 # Build full release
 mkdir release
 (
@@ -460,21 +488,35 @@ mkdir release
   #build_pam
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
-  %{cmake} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
-           -DBUILD_SHARED_LIBS:BOOL=OFF	\
+  ${CMAKE} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-           -DWITH_EMBEDDED_SERVER=OFF \
+        -DCMAKE_INSTALL_PREFIX="%{_prefix}" \
+        -DINSTALL_INCLUDEDIR=include/mysql \
+        -DINSTALL_INFODIR=share/info \
+        -DINSTALL_LIBDIR="%{_lib}/mysql" \
+        -DINSTALL_MANDIR=share/man \
+        -DINSTALL_MYSQLSHAREDIR=share/mysql \
+        -DINSTALL_MYSQLTESTDIR=share/mysql-test \
+        -DINSTALL_PLUGINDIR="%{_lib}/mysql/plugin" \
+        -DINSTALL_SBINDIR=libexec \
+        -DINSTALL_SCRIPTDIR=bin \
+        -DINSTALL_SQLBENCHDIR=share \
+        -DINSTALL_SUPPORTFILESDIR=share/mysql \
+        -DMYSQL_DATADIR="%{?_scl_root}/var/lib/mysql" \
+        -DMYSQL_UNIX_ADDR="/var/lib/mysql/mysql.sock" \
+        -DENABLED_LOCAL_INFILE=ON \
            -DENABLE_DTRACE=OFF \
-           -DMYSQL_UNIX_ADDR="/var/lib/mysql/mysql.sock" \
+           -DWITH_EMBEDDED_SERVER=OFF \
            -DFEATURE_SET="%{feature_set}" \
            -DCOMPILATION_COMMENT="%{compilation_comment_release}" \
            -DWITH_WSREP=1 \
            -DWITH_INNODB_DISALLOW_WRITES=ON \
-           -DINSTALL_LIBDIR=%{_libdir}/mysql \
-           -DINSTALL_PLUGINDIR=%{_libdir}/mysql/plugin \
-           -DMYSQL_DATADIR="%{?_scl_root}/var/lib/mysql" \
-           -DWITH_READLINE=ON	\
-           -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
+        -DWITH_READLINE=ON \
+        -DWITH_SSL=system \
+        -DWITH_ZLIB=system \
+           -DMYSQL_SERVER_SUFFIX="%{server_suffix}" \
+        -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now"
+
   echo BEGIN_NORMAL_CONFIG ; egrep '^#define' include/config.h ; echo END_NORMAL_CONFIG
   make %{?_smp_mflags} ${MAKE_JFLAG}
   cd ../%{src_dir}
@@ -570,7 +612,10 @@ install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{?scl:%_root
 
 install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
-install -m 0755 %{SOURCE4} %{buildroot}%{_datadir}/mysql/mcluster-bootstrap
+
+# always install it to the base system, like other scripts
+install -d  %{buildroot}/usr/share/mysql
+install -m 0755 %{SOURCE4} %{buildroot}/usr/share/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
@@ -599,6 +644,14 @@ rm -f %{buildroot}%{_mandir}/man1/make_win_bin_dist.1*
 # ldconfig for mysql libs
 mkdir -p %{buildroot}/etc/ld.so.conf.d
 echo "%{_libdir}/mysql" > %{buildroot}/etc/ld.so.conf.d/%{name}-%{_arch}.conf
+
+
+# ----------------------------------------------------------------------
+# Clean up the BuildRoot after build is done
+# ----------------------------------------------------------------------
+%clean
+[ "%{buildroot}" != "/" ] && [ -d %{buildroot} ] \
+  && rm -rf %{buildroot};
 
 ##############################################################################
 #  Post processing actions, i.e. when installed
@@ -963,13 +1016,12 @@ echo "Trigger 'postun --community' finished at `date`"        >> $STATUS_HISTORY
 echo                                             >> $STATUS_HISTORY
 echo "====="                                     >> $STATUS_HISTORY
 
+%post libs
+/sbin/ldconfig
 
-# ----------------------------------------------------------------------
-# Clean up the BuildRoot after build is done
-# ----------------------------------------------------------------------
-%clean
-[ "%{buildroot}" != "/" ] && [ -d %{buildroot} ] \
-  && rm -rf %{buildroot};
+%postun libs
+/sbin/ldconfig
+
 
 ##############################################################################
 #  Files section
@@ -1048,8 +1100,8 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync_wan
 
-%attr(755, root, root) %{_sbindir}/mysqld
-%attr(755, root, root) %{_sbindir}/mysqld-debug
+%attr(755, root, root) %{_libexecdir}/mysqld
+%attr(755, root, root) %{_libexecdir}/mysqld-debug
 %attr(755, root, root) %{_sbindir}/rcmysql
 %attr(755, root, root) %{_libdir}/mysql/plugin/daemon_example.ini
 %attr(755, root, root) %{_libdir}/mysql/plugin/adt_null.so
@@ -1120,7 +1172,6 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_datadir}/mysql/errmsg-utf8.txt
 %attr(755, root, root) %{_datadir}/mysql/fill_help_tables.sql
 %attr(755, root, root) %{_datadir}/mysql/magic
-%attr(755, root, root) %{_datadir}/mysql/mcluster-bootstrap
 %attr(755, root, root) %{_datadir}/mysql/my-huge.cnf
 %attr(755, root, root) %{_datadir}/mysql/my-innodb-heavy-4G.cnf
 %attr(755, root, root) %{_datadir}/mysql/my-large.cnf
@@ -1136,6 +1187,8 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_datadir}/mysql/ndb-config-2-node.ini
 %attr(755, root, root) %{_datadir}/mysql/wsrep.cnf
 %attr(755, root, root) %{_datadir}/mysql/wsrep_notify
+
+%attr(755, root, root) /usr/share/mysql/mcluster-bootstrap
 
 
 # ----------------------------------------------------------------------------
@@ -1234,12 +1287,9 @@ echo "====="                                     >> $STATUS_HISTORY
 %lang(uk) %{_datadir}/mysql/ukrainian
 %{_datadir}/mysql/charsets
 
-
-%post libs
-/sbin/ldconfig
-
-%postun libs
-/sbin/ldconfig
+%files bench
+%defattr(-,root,root)
+%{_datadir}/sql-bench
 
 # ----------------------------------------------------------------------------
 %files test
