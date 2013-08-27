@@ -4,7 +4,6 @@ Summary: Package that installs %scl
 Name: %scl_name
 Version: 1
 Release: 1%{?dist}
-BuildArch: noarch
 License: GPLv2+
 Requires: %{scl_prefix}mysql
 BuildRequires: scl-utils-build
