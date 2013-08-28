@@ -604,7 +604,7 @@ mv %{_builddir}/%{_libdir} %{buildroot}%{_libdir}
 install -d %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/{logrotate.d,xinetd.d,rc.d/init.d}
 install -d %{buildroot}%{_localstatedir}/run/mysqld
 
-install -d %{buildroot}%{mysqldatadir}/mysql
+install -d %{buildroot}%{mysqldatadir}
 install -d %{buildroot}%{_datadir}/mysql-test
 install -d %{buildroot}%{_datadir}/mysql/SELinux/RHEL4
 install -d %{buildroot}%{_includedir}
@@ -931,7 +931,7 @@ fi
 %attr(755, root, root) %{_datadir}/mysql/wsrep_notify
 
 %attr(755, root, root) /usr/share/mysql/mcluster-bootstrap
-%attr(0755,mysql,mysql) %dir %{mysqldatadir}/mysql
+%attr(0755,mysql,mysql) %dir %{mysqldatadir}
 
 
 # ----------------------------------------------------------------------------
