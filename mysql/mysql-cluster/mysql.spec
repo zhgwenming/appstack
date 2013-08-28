@@ -502,6 +502,7 @@ mkdir debug
         -DWITH_SSL=system \
         -DWITH_ZLIB=system \
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}" \
+        -DSYSCONFDIR="%{?_scl_root}/etc" \
         -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now"
 
   echo BEGIN_DEBUG_CONFIG ; egrep '^#define' include/config.h ; echo END_DEBUG_CONFIG
@@ -542,6 +543,7 @@ mkdir release
         -DWITH_SSL=system \
         -DWITH_ZLIB=system \
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}" \
+        -DSYSCONFDIR="%{?_scl_root}/etc" \
         -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now"
 
   echo BEGIN_NORMAL_CONFIG ; egrep '^#define' include/config.h ; echo END_NORMAL_CONFIG
