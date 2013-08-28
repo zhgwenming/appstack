@@ -40,7 +40,7 @@
 
 %define mysqld_user     mysql
 %define mysqld_group    mysql
-%define mysqldatadir    %{_localstatedir}/lib/mysql
+%define mysqldatadir    %{?scl:/srv/%{scl}/mysql}%{!?scl:%{_localstatedir}/lib/mysql}
 
 %if %{undefined revision}
 %define revision	1
@@ -604,7 +604,7 @@ mv %{_builddir}/%{_libdir} %{buildroot}%{_libdir}
 install -d %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/{logrotate.d,xinetd.d,rc.d/init.d}
 install -d %{buildroot}%{_localstatedir}/run/mysqld
 
-#install -d %{buildroot}%{mysqldatadir}/mysql
+install -d %{buildroot}%{mysqldatadir}/mysql
 install -d %{buildroot}%{_datadir}/mysql-test
 install -d %{buildroot}%{_datadir}/mysql/SELinux/RHEL4
 install -d %{buildroot}%{_includedir}
@@ -654,7 +654,8 @@ install -m 0755 %{src_dir}/mysql.init %{buildroot}%{?scl:%_root_sysconfdir}%{!?s
 
 install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
-sed -i -e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}%{_sysconfdir}/my.cnf
+sed -i	-e 's|__SCL_ROOT__|%{_scl_root}|' \
+	-e 's|__SCL__|%{scl}|' %{buildroot}%{_sysconfdir}/my.cnf
 
 mkdir -p %{buildroot}/var/log
 touch %{buildroot}/var/log/%{?scl_prefix}mysqld.log
@@ -662,8 +663,7 @@ touch %{buildroot}/var/log/%{?scl_prefix}mysqld.log
 # always install it to the base system, like other scripts
 install -d  %{buildroot}/usr/share/mysql
 install -m 0755 %{SOURCE4} %{buildroot}/usr/share/mysql/mcluster-bootstrap
-sed -i	-e 's|__SCL_ROOT__|%{_scl_root}|' \
-	-e 's|__SCL__|%{scl}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
+sed -i	-e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
@@ -931,6 +931,7 @@ fi
 %attr(755, root, root) %{_datadir}/mysql/wsrep_notify
 
 %attr(755, root, root) /usr/share/mysql/mcluster-bootstrap
+%attr(0755,mysql,mysql) %dir %{mysqldatadir}/mysql
 
 
 # ----------------------------------------------------------------------------
