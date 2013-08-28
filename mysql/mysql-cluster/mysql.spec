@@ -638,6 +638,8 @@ mv -v %{buildroot}/%{_libdir}/*.a %{buildroot}/%{_libdir}/mysql/
 
 # Install logrotate and autostart
 install -m 644 $MBD/release/support-files/mysql-log-rotate %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/logrotate.d/%{?scl_prefix}mysqld
+sed -i -e 's|/var/log/mysql|/var/log/%{?scl_prefix}mysql|g' %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/logrotate.d/%{?scl_prefix}mysqld
+
 install -m 644 $MBD/release/support-files/mysqlchk %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/xinetd.d/%{?scl_prefix}mysqlchk
 #install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
 sed -i  -e 's|/etc/my.cnf|%{_sysconfdir}/my.cnf|g' \
@@ -654,14 +656,18 @@ install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
 sed -i -e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}%{_sysconfdir}/my.cnf
 
+mkdir -p %{?scl:%_root_buildroot}%{!?scl:%buildroot}/var/log
+touch %{?scl:%_root_buildroot}%{!?scl:%buildroot}/var/log/%{?scl_prefix}mysqld.log
+
 # always install it to the base system, like other scripts
 install -d  %{buildroot}/usr/share/mysql
 install -m 0755 %{SOURCE4} %{buildroot}/usr/share/mysql/mcluster-bootstrap
-sed -i -e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
+sed -i	-e 's|__SCL_ROOT__|%{_scl_root}|' \
+	-e 's|__SCL__|%{scl}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
-ln -s %{_sysconfdir}/init.d/mysql %{buildroot}%{_sbindir}/rcmysql
+ln -s %{?scl:_root_sysconfdir}{!?scl:_sysconfdir}/init.d/mysql %{buildroot}%{_sbindir}/rcmysql
 
 # Create a wsrep_sst_rsync_wan symlink.
 install -d %{buildroot}%{_bindir}
@@ -895,6 +901,7 @@ fi
 %config(noreplace) %{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/xinetd.d/%{?scl_prefix}mysqlchk
 
 %attr(0755,mysql,mysql) %dir %{_localstatedir}/run/mysqld
+%attr(0640,mysql,mysql) %config(noreplace) %verify(not md5 size mtime) /var/log/%{?scl_prefix}mysqld.log
 
 #%{_datadir}/mysql/
 #%attr(755, root, root) %{_datadir}/mysql/
