@@ -656,8 +656,8 @@ install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
 sed -i -e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}%{_sysconfdir}/my.cnf
 
-mkdir -p %{?scl:%_root_buildroot}%{!?scl:%buildroot}/var/log
-touch %{?scl:%_root_buildroot}%{!?scl:%buildroot}/var/log/%{?scl_prefix}mysqld.log
+mkdir -p %{buildroot}/var/log
+touch %{buildroot}/var/log/%{?scl_prefix}mysqld.log
 
 # always install it to the base system, like other scripts
 install -d  %{buildroot}/usr/share/mysql
