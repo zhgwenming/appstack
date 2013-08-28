@@ -652,10 +652,12 @@ install -m 0755 %{src_dir}/mysql.init %{buildroot}%{?scl:%_root_sysconfdir}%{!?s
 
 install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf
+sed -i -e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}%{_sysconfdir}/my.cnf
 
 # always install it to the base system, like other scripts
 install -d  %{buildroot}/usr/share/mysql
 install -m 0755 %{SOURCE4} %{buildroot}/usr/share/mysql/mcluster-bootstrap
+sed -i -e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
@@ -699,196 +701,15 @@ echo "%{_libdir}/mysql" > %{buildroot}/etc/ld.so.conf.d/%{name}-%{_arch}.conf
 
 %pre server
 
-# ATTENTION: Parts of this are duplicated in the "triggerpostun" !
-
-mysql_datadir=%{mysqldatadir}
-# Check if we can safely upgrade.  An upgrade is only safe if it's from one
-# of our RPMs in the same version family.
-
-installed=`rpm -q --whatprovides mysql-server 2> /dev/null`
-if [ $? -eq 0 -a -n "$installed" ]; then
-  vendor=`rpm -q --queryformat='%{VENDOR}' "$installed" 2>&1`
-  version=`rpm -q --queryformat='%{VERSION}' "$installed" 2>&1`
-  myoldvendor='%{mysql_old_vendor}'
-  myvendor_2='%{mysql_vendor_2}'
-  myvendor='%{mysql_vendor}'
-  perconaservervendor='%{mysql_server_vendor}'
-  myversion='%{mysql_version}'
-
-  old_family=`echo $version \
-    | sed -n -e 's,^\([1-9][0-9]*\.[0-9][0-9]*\)\..*$,\1,p'`
-  new_family=`echo $myversion \
-    | sed -n -e 's,^\([1-9][0-9]*\.[0-9][0-9]*\)\..*$,\1,p'`
-
-  [ -z "$vendor" ] && vendor='<unknown>'
-  [ -z "$old_family" ] && old_family="<unrecognized version $version>"
-  [ -z "$new_family" ] && new_family="<bad package specification: version $myversion>"
-
-  error_text=
-  if [ "$vendor" != "$myoldvendor" \
-    -a "$vendor" != "$myvendor_2" \
-    -a "$vendor" != "$myvendor" \
-    -a "$vendor" != "$perconaservervendor" ]; then
-    error_text="$error_text
-The current MySQL server package is provided by a different
-vendor ($vendor) than $myoldvendor, $myvendor_2,
-$myvendor, or $perconaservervendor.
-Some files may be installed to different locations, including log
-files and the service startup script in %{_sysconfdir}/init.d/.
-"
-  fi
-
-  if [ "$old_family" != "$new_family" ]; then
-    error_text="$error_text
-Upgrading directly from MySQL $old_family to MySQL $new_family may not
-be safe in all cases.  A manual dump and restore using mysqldump is
-recommended.  It is important to review the MySQL manual's Upgrading
-section for version-specific incompatibilities.
-"
-  fi
-
-  if [ -n "$error_text" ]; then
-    cat <<HERE >&2
-
-******************************************************************
-A MySQL server package ($installed) is installed.
-$error_text
-A manual upgrade is required.
-
-- Ensure that you have a complete, working backup of your data and my.cnf
-  files
-- Shut down the MySQL server cleanly
-- Remove the existing MySQL packages.  Usually this command will
-  list the packages you should remove:
-  rpm -qa | grep -i '^mysql-'
-
-  You may choose to use 'rpm --nodeps -ev <package-name>' to remove
-  the package which contains the mysqlclient shared library.  The
-  library will be reinstalled by the MySQL-shared-compat package.
-- Install the new MySQL packages supplied by $myvendor
-- Ensure that the MySQL server is started
-- Run the 'mysql_upgrade' program
-
-This is a brief description of the upgrade process.  Important details
-can be found in the MySQL manual, in the Upgrading section.
-******************************************************************
-HERE
-    exit 1
-  fi
-fi
-
-# We assume that if there is exactly one ".pid" file,
-# it contains the valid PID of a running MySQL server.
-NR_PID_FILES=`ls $mysql_datadir/*.pid 2>/dev/null | wc -l`
-case $NR_PID_FILES in
-	0 ) SERVER_TO_START=''  ;;  # No "*.pid" file == no running server
-	1 ) SERVER_TO_START='true' ;;
-	* ) SERVER_TO_START=''      # Situation not clear
-	    SEVERAL_PID_FILES=true ;;
-esac
-# That logic may be debated: We might check whether it is non-empty,
-# contains exactly one number (possibly a PID), and whether "ps" finds it.
-# OTOH, if there is no such process, it means a crash without a cleanup -
-# is that a reason not to start a new server after upgrade?
-
-STATUS_FILE=$mysql_datadir/RPM_UPGRADE_MARKER
-
-if [ -f $STATUS_FILE ]; then
-	echo "Some previous upgrade was not finished:"
-	ls -ld $STATUS_FILE
-	echo "Please check its status, then do"
-	echo "    rm $STATUS_FILE"
-	echo "before repeating the MySQL upgrade."
-	exit 1
-elif [ -n "$SEVERAL_PID_FILES" ] ; then
-	echo "Your MySQL directory '$mysql_datadir' has more than one PID file:"
-	ls -ld $mysql_datadir/*.pid
-	echo "Please check which one (if any) corresponds to a running server"
-	echo "and delete all others before repeating the MySQL upgrade."
-	exit 1
-fi
-
-NEW_VERSION=%{mysql_version}-%{release}
-
-# The "pre" section code is also run on a first installation,
-# when there  is no data directory yet. Protect against error messages.
-if [ -d $mysql_datadir ] ; then
-	echo "MySQL RPM upgrade to version $NEW_VERSION"  > $STATUS_FILE
-	echo "'pre' step running at `date`"          >> $STATUS_FILE
-	echo                                         >> $STATUS_FILE
-	echo "ERR file(s):"                          >> $STATUS_FILE
-	ls -ltr $mysql_datadir/*.err                 >> $STATUS_FILE
-	echo                                         >> $STATUS_FILE
-	echo "Latest 'Version' line in latest file:" >> $STATUS_FILE
-	grep '^Version' `ls -tr $mysql_datadir/*.err | tail -1` | \
-		tail -1                              >> $STATUS_FILE
-	echo                                         >> $STATUS_FILE
-
-	if [ -n "$SERVER_TO_START" ] ; then
-		# There is only one PID file, race possibility ignored
-		echo "PID file:"                           >> $STATUS_FILE
-		ls -l   $mysql_datadir/*.pid               >> $STATUS_FILE
-		cat     $mysql_datadir/*.pid               >> $STATUS_FILE
-		echo                                       >> $STATUS_FILE
-		echo "Server process:"                     >> $STATUS_FILE
-		ps -fp `cat $mysql_datadir/*.pid`          >> $STATUS_FILE
-		echo                                       >> $STATUS_FILE
-		echo "SERVER_TO_START=$SERVER_TO_START"    >> $STATUS_FILE
-	else
-		# Take a note we checked it ...
-		echo "PID file:"                           >> $STATUS_FILE
-		ls -l   $mysql_datadir/*.pid               >> $STATUS_FILE 2>&1
-	fi
-fi
-
 # Shut down a previously installed server first
-# Note we *could* make that depend on $SERVER_TO_START, but we rather don't,
-# so a "stop" is attempted even if there is no PID file.
-# (Maybe the "stop" doesn't work then, but we might fix that in itself.)
-if [ -x %{_sysconfdir}/init.d/mysql ] ; then
-        %{_sysconfdir}/init.d/mysql stop > /dev/null 2>&1
-        echo "Giving mysqld 5 seconds to exit nicely"
-        sleep 5
+if [ -x %{?scl:_root_sysconfdir}%{!?scl:%_sysconfdir}/init.d/%{?scl_prefix}mysqld ] ; then
+        service %{?scl_prefix}mysqld stop
 fi
 
 %post server
 
-# ATTENTION: Parts of this are duplicated in the "triggerpostun" !
-
-mysql_datadir=%{mysqldatadir}
-NEW_VERSION=%{mysql_version}-%{release}
-STATUS_FILE=$mysql_datadir/RPM_UPGRADE_MARKER
-
-# ----------------------------------------------------------------------
-# Create data directory if needed, check whether upgrade or install
-# ----------------------------------------------------------------------
-if [ ! -d $mysql_datadir ] ; then mkdir -m 755 $mysql_datadir; fi
-if [ -f $STATUS_FILE ] ; then
-	SERVER_TO_START=`grep '^SERVER_TO_START=' $STATUS_FILE | cut -c17-`
-else
-	SERVER_TO_START=''
-fi
-# echo "Analyzed: SERVER_TO_START=$SERVER_TO_START"
-if [ ! -d $mysql_datadir/mysql ] ; then
-	mkdir $mysql_datadir/mysql;
-	echo "MySQL RPM installation of version $NEW_VERSION" >> $STATUS_FILE
-else
-	# If the directory exists, we may assume it is an upgrade.
-	echo "MySQL RPM upgrade to version $NEW_VERSION" >> $STATUS_FILE
-fi
-if [ ! -d $mysql_datadir/test ] ; then mkdir $mysql_datadir/test; fi
-
-# ----------------------------------------------------------------------
-# Make MySQL start/shutdown automatically when the machine does it.
-# ----------------------------------------------------------------------
-# NOTE: This still needs to be debated. Should we check whether these links
-# for the other run levels exist(ed) before the upgrade?
-# use chkconfig on Enterprise Linux and newer SuSE releases
 if [ -x /sbin/chkconfig ] ; then
-        /sbin/chkconfig --add mysql
-# use insserv for older SuSE Linux versions
-elif [ -x /sbin/insserv ] ; then
-        /sbin/insserv %{_sysconfdir}/init.d/mysql
+        /sbin/chkconfig --add %{?scl_prefix}mysqld
 fi
 
 # ----------------------------------------------------------------------
@@ -902,81 +723,12 @@ useradd -M -r -d $mysql_datadir -s /bin/bash -c "MySQL server" \
 # (BUG#12823)
 usermod -g %{mysqld_group} %{mysqld_user} 2> /dev/null || true
 
-# ----------------------------------------------------------------------
-# Change permissions so that the user that will run the MySQL daemon
-# owns all database files.
-# ----------------------------------------------------------------------
-chown -R %{mysqld_user}:%{mysqld_group} $mysql_datadir
-
-# ----------------------------------------------------------------------
-# Initiate databases if needed
-# ----------------------------------------------------------------------
-%{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}
-
-# ----------------------------------------------------------------------
-# Upgrade databases if needed would go here - but it cannot be automated yet
-# ----------------------------------------------------------------------
-
-# ----------------------------------------------------------------------
-# Change permissions again to fix any new files.
-# ----------------------------------------------------------------------
-chown -R %{mysqld_user}:%{mysqld_group} $mysql_datadir
-
-# ----------------------------------------------------------------------
-# Fix permissions for the permission database so that only the user
-# can read them.
-# ----------------------------------------------------------------------
-chmod -R og-rw $mysql_datadir/mysql
-
-# ----------------------------------------------------------------------
-# Issue a warning about SELinux if running.
-# ----------------------------------------------------------------------
-if test -x /usr/sbin/selinuxenabled && test -r /selinux/enforce
-then
-    if /usr/sbin/selinuxenabled && "x$(cat /selinux/enforce)" == "x1"
-    then
-        echo "WARNING. SELinux is ebabled. For proper work of a cluster it is recommended"
-        echo "to disable it. To do so, run (for example):"
-        echo "  echo 0 > /selinux/enforce"
-        echo
-    fi
-fi
-
-if [ -x sbin/restorecon ] ; then
-  sbin/restorecon -R var/lib/mysql
-fi
-
-# Was the server running before the upgrade? If so, restart the new one.
-if [ "$SERVER_TO_START" = "true" ] ; then
-	# Restart in the same way that mysqld will be started normally.
-	if [ -x %{_sysconfdir}/init.d/mysqld ] ; then
-		%{_sysconfdir}/init.d/mysqld start
-		echo "Giving mysqld 5 seconds to start"
-		sleep 5
-	fi
-fi
-
-echo "MySQL Galera Cluster is distributed with several useful UDFs from Percona Toolkit."
+echo "MySQL Galera Cluster is distributed with several useful UDFs"
 echo "Run the following commands to create these functions:"
 echo "mysql -e \"CREATE FUNCTION fnv1a_64 RETURNS INTEGER SONAME 'libfnv1a_udf.so'\""
 echo "mysql -e \"CREATE FUNCTION fnv_64 RETURNS INTEGER SONAME 'libfnv_udf.so'\""
 echo "mysql -e \"CREATE FUNCTION murmur_hash RETURNS INTEGER SONAME 'libmurmur_udf.so'\""
 echo "See http://code.google.com/p/maatkit/source/browse/trunk/udf for more details"
-
-# Collect an upgrade history ...
-echo "Upgrade/install finished at `date`"        >> $STATUS_FILE
-echo                                             >> $STATUS_FILE
-echo "====="                                     >> $STATUS_FILE
-STATUS_HISTORY=$mysql_datadir/RPM_UPGRADE_HISTORY
-cat $STATUS_FILE >> $STATUS_HISTORY
-mv -f  $STATUS_FILE ${STATUS_FILE}-LAST  # for "triggerpostun"
-
-
-#echo "Thank you for installing the MySQL Community Server! For Production
-#systems, we recommend MySQL Enterprise, which contains enterprise-ready
-#software, intelligent advisory services, and full production support with
-#scheduled service packs and more.  Visit www.mysql.com/enterprise for more
-#information."
 
 %preun server
 
@@ -991,70 +743,11 @@ mv -f  $STATUS_FILE ${STATUS_FILE}-LAST  # for "triggerpostun"
  
 if [ $1 = 0 ] ; then
         # Stop MySQL before uninstalling it
-        if [ -x %{_sysconfdir}/init.d/mysqld ] ; then
-                %{_sysconfdir}/init.d/mysqld stop > /dev/null
-                # Remove autostart of MySQL
-                # use chkconfig on Enterprise Linux and newer SuSE releases
-                if [ -x /sbin/chkconfig ] ; then
-                        /sbin/chkconfig --del mysqld
-                # For older SuSE Linux versions
-                elif [ -x /sbin/insserv ] ; then
-                        /sbin/insserv -r %{_sysconfdir}/init.d/mysqld
-                fi
-        fi
+	service %{scl_prefix}mysqld stop
 fi
 
 # We do not remove the mysql user since it may still own a lot of
 # database files.
-
-%triggerpostun server --MySQL-server-community
-
-# Setup: We renamed this package, so any existing "server-community"
-#   package will be removed when this "server" is installed.
-# Problem: RPM will first run the "pre" and "post" sections of this script,
-#   and only then the "preun" of that old community server.
-#   But this "preun" includes stopping the server and uninstalling the service,
-#   "chkconfig --del mysqld" which removes the symlinks to the start script.
-# Solution: *After* the community server got removed, restart this server
-#   and re-install the service.
-#
-# For information about triggers in spec files, see the Fedora docs:
-#   http://docs.fedoraproject.org/en-US/Fedora_Draft_Documentation/0.1/html/RPM_Guide/ch10s02.html
-# For all details of this code, see the "pre" and "post" sections.
-
-mysql_datadir=%{mysqldatadir}
-NEW_VERSION=%{mysql_version}-%{release}
-STATUS_FILE=$mysql_datadir/RPM_UPGRADE_MARKER-LAST  # Note the difference!
-STATUS_HISTORY=$mysql_datadir/RPM_UPGRADE_HISTORY
-
-if [ -f $STATUS_FILE ] ; then
-	SERVER_TO_START=`grep '^SERVER_TO_START=' $STATUS_FILE | cut -c17-`
-else
-	# This should never happen, but let's be prepared
-	SERVER_TO_START=''
-fi
-echo "Analyzed: SERVER_TO_START=$SERVER_TO_START"
-
-if [ -x /sbin/chkconfig ] ; then
-        /sbin/chkconfig --add mysqld
-# use insserv for older SuSE Linux versions
-elif [ -x /sbin/insserv ] ; then
-        /sbin/insserv %{_sysconfdir}/init.d/mysqld
-fi
-
-# Was the server running before the upgrade? If so, restart the new one.
-if [ "$SERVER_TO_START" = "true" ] ; then
-	# Restart in the same way that mysqld will be started normally.
-	if [ -x %{_sysconfdir}/init.d/mysqld ] ; then
-		%{_sysconfdir}/init.d/mysqld start
-		echo "Giving mysqld 5 seconds to start"
-		sleep 5
-	fi
-fi
-
-echo "Trigger 'postun --community' finished at `date`"        >> $STATUS_HISTORY
-echo                                             >> $STATUS_HISTORY
-echo "====="                                     >> $STATUS_HISTORY
 
 %post libs
 /sbin/ldconfig

@@ -3,6 +3,18 @@
 
 NAME=mcluster-mysqld
 
+. /opt/letv/mcluster/service-environment
+for sclname in $MCLUSTER_MYSQLD_SCLS_ENABLED ; do
+    . /opt/letv/mcluster/enable
+    export X_SCLS="$X_SCLS $sclname"
+done
+
+# we want start daemon only inside "scl enable" invocation
+if ! scl_enabled mcluster ; then
+    echo "Collection mcluster has to be listed in /opt/letv/mcluster/service-environment"
+    exit 1
+fi
+
 function rand_pass()
 {
 	head -c6 /dev/urandom | base64
@@ -51,28 +63,30 @@ if ! service $NAME status >/dev/null; then
         echo " DONE"
 
 
-        mysql_install_db
+        #mysql_install_db
 
-	echo Setting up /etc/my.cnf
-	sed -i "s/^wsrep_sst_auth=.*$/wsrep_sst_auth='sstuser:$SSTPASS'/" /etc/my.cnf
+	echo Setting up __SCL_ROOT__/etc/my.cnf
+	sed -i "s/^wsrep_sst_auth=.*$/wsrep_sst_auth='sstuser:$SSTPASS'/" __SCL_ROOT__/etc/my.cnf
 
 	echo "Starting new mysql cluster"
-	service $NAME start --wsrep-cluster-address="gcomm://"
+	if service $NAME start --wsrep-cluster-address="gcomm://"; then
+		echo -n "Waiting the new mcluster to be ready.."
+		while :; do
+			sleep 1
+			if service $NAME status >/dev/null 2>&1; then
+				mysqladmin -uroot password 'Mcluster' >/dev/null 2>&1 && break 
+			fi
+			echo -n .
+		done
 
-	echo -n "Waiting the new mcluster to be ready.."
-	while :; do
-		sleep 1
-		if service $NAME status >/dev/null 2>&1; then
-			mysqladmin -uroot password 'Mcluster' >/dev/null 2>&1 && break 
-		fi
-		echo -n .
-	done
+		echo " DONE"
 
-	echo " DONE"
-
-	sst_user Mcluster "$SSTPASS"
-	
-	echo "New mcluster started, you can copy the /etc/my.cnf to other nodes"
+		sst_user Mcluster "$SSTPASS"
+		
+		echo "New mcluster started, you can copy the /etc/my.cnf to other nodes"
+	else
+		echo "Error! $NAME daemon failed to start, please check manually"
+	fi
 else
 	echo "This will setup a new cluster, if this is what want to do, please stop the mysql first then try this again."
 fi
