@@ -1,0 +1,55 @@
+diff -up mysql-5.5.31/mysql.init.daemonstatus mysql-5.5.31/mysql.init
+--- mysql-5.5.31/mysql.init.daemonstatus	2013-05-06 00:22:22.312706111 +0200
++++ mysql-5.5.31/mysql.init	2013-05-06 00:25:19.236566512 +0200
+@@ -24,7 +24,7 @@
+ 
+ 
+ exec="/usr/bin/mysqld_safe"
+-prog="mysqld"
++prog="__SCL_NAME__-mysqld"
+ 
+ # Set timeouts here so they can be overridden from /etc/sysconfig/mysqld
+ STARTTIMEOUT=120
+@@ -61,12 +61,19 @@ mypidfile="$result"
+ start(){
+     [ -x $exec ] || exit 5
+     # check to see if it's already running
++    MYSQLDRUNNING=0
++    if [ -f "$mypidfile" ]; then
++        MYSQLPID=`cat "$mypidfile"`
++        if [ -n "$MYSQLPID" ]; then
++            /bin/kill -0 "$MYSQLPID" && MYSQLDRUNNING=1
++        fi
++    fi
+     RESPONSE=`/usr/bin/mysqladmin --socket="$socketfile" --user=UNKNOWN_MYSQL_USER ping 2>&1`
+-    if [ $? = 0 ]; then
++    if [ $MYSQLDRUNNING = 1 ] && [ $? = 0 ]; then
+ 	# already running, do nothing
+ 	action $"Starting $prog: " /bin/true
+ 	ret=0
+-    elif echo "$RESPONSE" | grep -q "Access denied for user"
++    elif [ $MYSQLDRUNNING = 1 ] && echo "$RESPONSE" | grep -q "Access denied for user"
+     then
+ 	# already running, do nothing
+ 	action $"Starting $prog: " /bin/true
+@@ -103,6 +110,11 @@ start(){
+ 	# and some users might prefer to configure logging to syslog.)
+ 	# Note: set --basedir to prevent probes that might trigger SELinux
+ 	# alarms, per bug #547485
++	if [ -S "$socketfile" ] ; then
++		echo "Another MySQL daemon already running with the same unix socket."
++		action $"Starting $prog: " /bin/false
++		return 1
++	fi
+ 	$exec   --datadir="$datadir" --socket="$socketfile" \
+ 		--pid-file="$mypidfile" \
+ 		--basedir=/usr --user=mysql >/dev/null 2>&1 &
+@@ -221,7 +233,7 @@ case "$1" in
+     stop
+     ;;
+   status)
+-    status $prog
++    status -p $mypidfile $prog
+     ;;
+   restart)
+     restart

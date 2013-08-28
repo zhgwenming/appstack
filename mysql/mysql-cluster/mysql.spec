@@ -28,7 +28,7 @@
 %define mysql_server_vendor	%{pkgvendor}
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 904.23.7.2
+%define wsrep_version 905.23.7.2
 %define revision 389
 
 %define mysql_version   5.5.29
@@ -249,6 +249,10 @@ BuildRequires:  pam-devel
 
 Source3: my.cnf
 Source4: mcluster-bootstrap
+Source101: mysql.init
+
+Patch101: mysql-scl-env-check.patch
+Patch102: mysql-daemonstatus.patch
 
 # Think about what you use here since the first step is to
 # run a rm -rf
@@ -355,6 +359,27 @@ and applications need to dynamically load and use MySQL Galera Cluster.
 ##############################################################################
 %prep
 %setup -T -a 0 -c %{?scl:-n %{pkg_name}-%{version}}
+
+# path adding collection name into some scripts
+# patch is applied only if building into SCL
+# some values in patch are replaced by real value depending on collection name
+cp -p %{SOURCE101} %{src_dir}/mysql.init
+(cd %{src_dir};
+%if 0%{?scl:1}
+%global scl_sed_patches 1
+%if %scl_sed_patches
+cat %{PATCH101} | sed -e "s/__SCL_NAME__/%{?scl}/g" \
+                      -e "s|__SCL_SCRIPTS__|%{?_scl_scripts}|g" \
+                | patch -p1 -b --suffix .scl-env-check
+cat %{PATCH102} | sed -e "s/__SCL_NAME__/%{?scl}/" \
+                | patch -p1 -b --suffix .daemonstatus
+%else
+patch -p1 -b --suffix .scl-env-check<%{PATCH101}
+patch -p1 -b --suffix .daemonstatus<%{PATCH102}
+%endif
+%endif
+)
+
 
 ##############################################################################
 %build
@@ -608,7 +633,16 @@ mv -v %{buildroot}/%{_libdir}/*.a %{buildroot}/%{_libdir}/mysql/
 # Install logrotate and autostart
 install -m 644 $MBD/release/support-files/mysql-log-rotate %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/logrotate.d/%{?scl_prefix}mysqld
 install -m 644 $MBD/release/support-files/mysqlchk %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/xinetd.d/%{?scl_prefix}mysqlchk
-install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
+#install -m 755 $MBD/release/support-files/mysql.server %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
+sed -i  -e 's|/etc/my.cnf|%{_sysconfdir}/my.cnf|g' \
+        -e 's|/etc/sysconfig/mysqld|%{_sysconfdir}/sysconfig/mysqld|g' \
+        -e 's|/etc/sysconfig/\$prog|%{_sysconfdir}/sysconfig/\$prog|g' \
+        -e 's|/var/run/mysqld/|%{?_scl_root}/var/run/mysqld/|g' \
+        -e 's|/usr|%{_prefix}|g' \
+        -e 's|/var/lib/|%{?_scl_root}/var/lib/|g' \
+        -e 's|/var/log/mysql|/var/log/%{?scl_prefix}mysql|g' \
+        -e 's|get_mysql_option mysqld socket "$datadir/mysql.sock"|get_mysql_option mysqld socket "/var/lib/mysql/mysql.sock"|' %{src_dir}/mysql.init
+install -m 0755 %{src_dir}/mysql.init %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
 
 install -d %{buildroot}/%{_sysconfdir}
 install -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/my.cnf

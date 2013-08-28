@@ -1,0 +1,76 @@
+diff -up mysql-5.5.29/mysql.init.scl-env-check mysql-5.5.29/mysql.init
+--- mysql-5.5.29/mysql.init.scl-env-check	2013-04-25 18:13:09.196461194 +0200
++++ mysql-5.5.29/mysql.init	2013-05-02 14:50:51.410527433 +0200
+@@ -1,7 +1,7 @@
+ #!/bin/sh
+ #
+-# mysqld	This shell script takes care of starting and stopping
+-#		the MySQL subsystem (mysqld).
++# __SCL_NAME__-mysqld	This shell script takes care of starting and stopping
++#                       the MySQL subsystem (mysqld).
+ #
+ # chkconfig: - 64 36
+ # description:	MySQL database server.
+@@ -9,7 +9,7 @@
+ # config: /etc/my.cnf
+ # pidfile: /var/run/mysqld/mysqld.pid
+ ### BEGIN INIT INFO
+-# Provides: mysqld
++# Provides: __SCL_NAME__-mysqld
+ # Required-Start: $local_fs $remote_fs $network $named $syslog $time
+ # Required-Stop: $local_fs $remote_fs $network $named $syslog $time
+ # Short-Description: start and stop MySQL server
+@@ -196,6 +203,21 @@ condrestart(){
+     [ -e $lockfile ] && restart || :
+ }
+ 
++# We have to re-enable SCL environment, because /sbin/service
++# clears almost all environment variables.
++# Since X_SCLS is cleared as well, we lose information about other
++# collections enabled.
++. __SCL_SCRIPTS__/service-environment
++for sclname in $MYSQL55_MYSQLD_SCLS_ENABLED ; do
++    . __SCL_SCRIPTS__/enable
++    export X_SCLS="$X_SCLS $sclname"
++done
++
++# we want start daemon only inside "scl enable" invocation
++if ! scl_enabled __SCL_NAME__ ; then
++    echo "Collection __SCL_NAME__ has to be listed in __SCL_SCRIPTS__/service-environment"
++    exit 1
++fi
+ 
+ # See how we were called.
+ case "$1" in
+diff -up mysql-5.5.29/scripts/mysqld_safe.sh.scl-env-check mysql-5.5.29/scripts/mysqld_safe.sh
+--- mysql-5.5.29/scripts/mysqld_safe.sh.scl-env-check	2013-03-25 14:14:58.000000000 +0100
++++ mysql-5.5.29/scripts/mysqld_safe.sh	2013-05-02 14:46:21.577433667 +0200
+@@ -11,6 +11,12 @@
+ # mysql.server works by first doing a cd to the base directory and from there
+ # executing mysqld_safe
+ 
++# we want start daemon only inside "scl enable" invocation
++if ! scl_enabled __SCL_NAME__ ; then
++    echo "Use \"scl enable __SCL_NAME__ 'service ...'\" invocation"
++    exit 1
++fi
++
+ # Initialize script globals
+ KILL_MYSQLD=1;
+ MYSQLD=
+diff -up mysql-5.5.29/scripts/mysql_install_db.sh.scl-env-check mysql-5.5.29/scripts/mysql_install_db.sh
+--- mysql-5.5.29/scripts/mysql_install_db.sh.scl-env-check	2013-03-25 14:14:58.000000000 +0100
++++ mysql-5.5.29/scripts/mysql_install_db.sh	2013-05-02 14:46:21.585433669 +0200
+@@ -18,6 +18,12 @@
+ #
+ # All unrecognized arguments to this script are passed to mysqld.
+ 
++# we want start daemon only inside "scl enable" invocation
++if ! scl_enabled __SCL_NAME__ ; then
++    echo "Use \"scl enable __SCL_NAME__ 'service ...'\" invocation"
++    exit 1
++fi
++
+ basedir=""
+ builddir=""
+ ldata="@localstatedir@"
