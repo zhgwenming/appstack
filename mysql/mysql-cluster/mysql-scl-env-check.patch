@@ -29,7 +29,7 @@ diff -up mysql-5.5.29/mysql.init.scl-env-check mysql-5.5.29/mysql.init
 +# Since X_SCLS is cleared as well, we lose information about other
 +# collections enabled.
 +. __SCL_SCRIPTS__/service-environment
-+for sclname in $MYSQL55_MYSQLD_SCLS_ENABLED ; do
++for sclname in $MCLUSTER_MYSQLD_SCLS_ENABLED ; do
 +    . __SCL_SCRIPTS__/enable
 +    export X_SCLS="$X_SCLS $sclname"
 +done

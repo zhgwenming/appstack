@@ -244,6 +244,7 @@ URL:            http://www.percona.com/
 Packager:       MySQL Development Team
 Vendor:         %{mysql_server_vendor}
 Provides:       %{?scl_prefix}mysql
+Requires:	%{name}-libs = %{version}-%{release}
 BuildRequires:  %{distro_buildreq}
 BuildRequires:  pam-devel
 
@@ -275,6 +276,7 @@ provisioning with primary focus on data consistency.
 Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
 Requires:       %{distro_requires} %{?scl_prefix}mysql-libs mysql-cluster-galera xtrabackup >= 1.9.0 tar nc rsync
+Requires:	%{name} = %{version}-%{release}
 %{?scl:Requires:%scl_runtime}
 Provides:       %{?scl_prefix}mysql-server MySQL-server 
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
@@ -598,6 +600,8 @@ mv %{_builddir}/%{_libdir} %{buildroot}%{_libdir}
 
 # Ensure that needed directories exists
 install -d %{buildroot}%{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/{logrotate.d,xinetd.d,rc.d/init.d}
+install -d %{buildroot}%{_localstatedir}/run/mysqld
+
 #install -d %{buildroot}%{mysqldatadir}/mysql
 install -d %{buildroot}%{_datadir}/mysql-test
 install -d %{buildroot}%{_datadir}/mysql/SELinux/RHEL4
@@ -1194,6 +1198,8 @@ echo "====="                                     >> $STATUS_HISTORY
 %{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/rc.d/init.d/%{?scl_prefix}mysqld
 %config(noreplace) %{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/logrotate.d/%{?scl_prefix}mysqld
 %config(noreplace) %{?scl:%_root_sysconfdir}%{!?scl:%_sysconfdir}/xinetd.d/%{?scl_prefix}mysqlchk
+
+%attr(0755,mysql,mysql) %dir %{_localstatedir}/run/mysqld
 
 #%{_datadir}/mysql/
 #%attr(755, root, root) %{_datadir}/mysql/

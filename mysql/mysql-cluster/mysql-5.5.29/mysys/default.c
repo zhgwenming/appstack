@@ -1234,13 +1234,13 @@ static const char **init_default_directories(MEM_ROOT *alloc)
 
 #else
 
-  errors += add_directory(alloc, "/etc/", dirs);
-  errors += add_directory(alloc, "/etc/mysql/", dirs);
-
 #if defined(DEFAULT_SYSCONFDIR)
   if (DEFAULT_SYSCONFDIR[0])
     errors += add_directory(alloc, DEFAULT_SYSCONFDIR, dirs);
 #endif /* DEFAULT_SYSCONFDIR */
+
+  errors += add_directory(alloc, "/etc/", dirs);
+  errors += add_directory(alloc, "/etc/mysql/", dirs);
 
 #endif
 
