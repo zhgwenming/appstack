@@ -66,7 +66,7 @@ if ! service $NAME status >/dev/null; then
         #mysql_install_db
 
 	echo Setting up __SCL_ROOT__/etc/my.cnf
-	sed -i "s/^wsrep_sst_auth=.*$/wsrep_sst_auth='sstuser:$SSTPASS'/" __SCL_ROOT__/etc/my.cnf
+	sed -i "s|^wsrep_sst_auth=.*$|wsrep_sst_auth='sstuser:$SSTPASS'|" __SCL_ROOT__/etc/my.cnf
 
 	echo "Starting new mysql cluster"
 	if service $NAME start --wsrep-cluster-address="gcomm://"; then
@@ -83,7 +83,7 @@ if ! service $NAME status >/dev/null; then
 
 		sst_user Mcluster "$SSTPASS"
 		
-		echo "New mcluster started, you can copy the /etc/my.cnf to other nodes"
+		echo "New mcluster started, you can copy the __SCL_ROOT__/etc/my.cnf to other nodes"
 	else
 		echo "Error! $NAME daemon failed to start, please check manually"
 	fi
