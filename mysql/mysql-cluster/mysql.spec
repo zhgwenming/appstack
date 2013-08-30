@@ -707,6 +707,11 @@ echo "%{_libdir}/mysql" > %{buildroot}/etc/ld.so.conf.d/%{name}-%{_arch}.conf
 
 %pre server
 
+/usr/sbin/groupadd -g 27 -o -r mysql >/dev/null 2>&1 || :
+/usr/sbin/useradd -M -N -g mysql -o -r -d %{mysqldatadir} -s /bin/bash \
+	-c "MySQL Server" -u 27 mysql >/dev/null 2>&1 || :
+
+
 # Shut down a previously installed server first
 if [ -x %{?scl:_root_sysconfdir}%{!?scl:%_sysconfdir}/init.d/%{?scl_prefix}mysqld ] ; then
         service %{?scl_prefix}mysqld stop
@@ -717,17 +722,6 @@ fi
 if [ -x /sbin/chkconfig ] ; then
         /sbin/chkconfig --add %{?scl_prefix}mysqld
 fi
-
-# ----------------------------------------------------------------------
-# Create a MySQL user and group. Do not report any problems if it already
-# exists.
-# ----------------------------------------------------------------------
-groupadd -r %{mysqld_group} 2> /dev/null || true
-useradd -M -r -d $mysql_datadir -s /bin/bash -c "MySQL server" \
-  -g %{mysqld_group} %{mysqld_user} 2> /dev/null || true
-# The user may already exist, make sure it has the proper group nevertheless
-# (BUG#12823)
-usermod -g %{mysqld_group} %{mysqld_user} 2> /dev/null || true
 
 echo "MySQL Galera Cluster is distributed with several useful UDFs"
 echo "Run the following commands to create these functions:"
