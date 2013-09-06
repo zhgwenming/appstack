@@ -28,7 +28,7 @@
 %define mysql_server_vendor	%{pkgvendor}
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 907.23.7.2
+%define wsrep_version 908.23.7.2
 %define revision 389
 
 %define mysql_version   5.5.29
@@ -250,6 +250,7 @@ BuildRequires:  pam-devel
 
 Source3: my.cnf
 Source4: mcluster-bootstrap
+Source5: mcheck
 Source101: mysql.init
 
 Patch101: mysql-scl-env-check.patch
@@ -277,6 +278,7 @@ Summary:        MySQL Galera Cluster - server package
 Group:          Applications/Databases
 Requires:       %{distro_requires} %{?scl_prefix}mysql-libs mysql-cluster-galera xtrabackup >= 1.9.0 tar nc rsync
 Requires:	%{name} = %{version}-%{release}
+Requires:	ruby-mysql
 %{?scl:Requires:%scl_runtime}
 Provides:       %{?scl_prefix}mysql-server MySQL-server 
 Conflicts:	Percona-Server-server-55 Percona-Server-server-51
@@ -663,6 +665,7 @@ touch %{buildroot}/var/log/%{?scl_prefix}mysqld.log
 # always install it to the base system, like other scripts
 install -d  %{buildroot}/usr/share/mysql
 install -m 0755 %{SOURCE4} %{buildroot}/usr/share/mysql/mcluster-bootstrap
+install -m 0755 %{SOURCE5} %{buildroot}{_bindir}/mcheck
 sed -i	-e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
@@ -925,6 +928,7 @@ fi
 %attr(755, root, root) %{_datadir}/mysql/wsrep_notify
 
 %attr(755, root, root) /usr/share/mysql/mcluster-bootstrap
+%attr(755, root, root) {_bindir}/mcheck
 %attr(0755,mysql,mysql) %dir %{mysqldatadir}
 
 

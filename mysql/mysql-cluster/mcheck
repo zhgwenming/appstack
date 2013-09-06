@@ -1,0 +1,38 @@
+#!/bin/env ruby
+
+require 'mysql'
+
+$getconf="/opt/letv/mcluster/root/usr/bin/my_print_defaults mysqld"
+$user="monitor"
+
+def usage
+    abort("Usage:
+    #{$0} host")
+end
+
+begin
+    $host = ARGV[0]
+    if $host == nil
+	usage()
+    end
+
+    %x(#$getconf).each do |r|
+	if r =~ /--wsrep_sst_auth=(.*)/
+		$pass = $1.split(":")[1]
+	end
+    end
+
+    con = Mysql.new($host, $user, $pass)
+
+    rs = con.query('show status')
+    rs.each do |r|
+	if r[0] == 'wsrep_ready'
+		puts r[1]
+	end
+    end
+    
+rescue Mysql::Error => e
+    puts e.errno
+ensure
+    con.close if con
+end
