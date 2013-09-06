@@ -34,9 +34,15 @@ function sst_user()
 
 #CREATE USER 'sstuser'@'localhost' IDENTIFIED BY 's3cret';
 	mysql -uroot -p"$rootpwd" <<EOF
+DROP DATABASE test;
+CREATE DATABASE monitor;
 CREATE USER 'sstuser'@'localhost' IDENTIFIED BY '$sstpwd';
 CREATE USER 'monitor'@'%' IDENTIFIED BY '$sstpwd';
 GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT ON *.* TO 'sstuser'@'localhost';
+GRANT ALL ON monitor.* to 'monitor'@'%' WITH MAX_QUERIES_PER_HOUR 3600
+    MAX_UPDATES_PER_HOUR 3600
+    MAX_CONNECTIONS_PER_HOUR 3600
+    MAX_USER_CONNECTIONS 4;
 FLUSH PRIVILEGES;
 EOF
 
