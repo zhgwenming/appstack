@@ -665,7 +665,7 @@ touch %{buildroot}/var/log/%{?scl_prefix}mysqld.log
 # always install it to the base system, like other scripts
 install -d  %{buildroot}/usr/share/mysql
 install -m 0755 %{SOURCE4} %{buildroot}/usr/share/mysql/mcluster-bootstrap
-install -m 0755 %{SOURCE5} %{buildroot}{_bindir}/mcheck
+install -m 0755 %{SOURCE5} %{buildroot}%{_bindir}/mcheck
 sed -i	-e 's|__SCL_ROOT__|%{_scl_root}|' %{buildroot}/usr/share/mysql/mcluster-bootstrap
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
