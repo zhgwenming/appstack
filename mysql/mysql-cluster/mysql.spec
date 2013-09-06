@@ -928,7 +928,7 @@ fi
 %attr(755, root, root) %{_datadir}/mysql/wsrep_notify
 
 %attr(755, root, root) /usr/share/mysql/mcluster-bootstrap
-%attr(755, root, root) {_bindir}/mcheck
+%attr(755, root, root) %{_bindir}/mcheck
 %attr(0755,mysql,mysql) %dir %{mysqldatadir}
 
 
