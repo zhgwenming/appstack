@@ -35,6 +35,7 @@ function sst_user()
 #CREATE USER 'sstuser'@'localhost' IDENTIFIED BY 's3cret';
 	mysql -uroot -p"$rootpwd" <<EOF
 CREATE USER 'sstuser'@'localhost' IDENTIFIED BY '$sstpwd';
+CREATE USER 'monitor'@'%' IDENTIFIED BY '$sstpwd';
 GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT ON *.* TO 'sstuser'@'localhost';
 FLUSH PRIVILEGES;
 EOF
