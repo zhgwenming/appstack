@@ -1,0 +1,205 @@
+diff -Naur flashcache-1.0.20101201git.orig/src/sysconfig/flashcache flashcache-1.0.20101201git/src/sysconfig/flashcache
+--- flashcache-1.0.20101201git.orig/src/sysconfig/flashcache	1970-01-01 09:00:00.000000000 +0900
++++ flashcache-1.0.20101201git/src/sysconfig/flashcache	2010-12-06 20:05:50.065221290 +0900
+@@ -0,0 +1,26 @@
++#-- entry for cachedev0
++#CACHE_DEV0=cachedev0
++#CACHE_MODE0=write-through
++#CACHE_SIZE0=
++#BLOCK_SIZE0=4k
++#SSD_DEV0=/dev/sdb1
++#HDD_DEV0=/dev/sda3
++#MNTPATH0=/mnt/cached-wt
++
++#-- entry for cachedev1
++#CACHE_DEV1=cachedev1
++#CACHE_MODE1=write-back
++#CACHE_SIZE1=
++#BLOCK_SIZE1=4k
++#SSD_DEV1=/dev/sdb2
++#HDD_DEV1=/dev/sda5
++#MNTPATH1=/mnt/cached-wb
++
++#-- entry for cachedev2
++#CACHE_DEV2=cachedev2
++#CACHE_MODE2=write-through
++#CACHE_SIZE2=
++#BLOCK_SIZE2=64k
++#SSD_DEV2=/dev/fioa
++#HDD_DEV2=/dev/sdb1
++#MNTPATH2=/mnt/test2
+diff -up flashcache-1.0.20120303git/src/sysvinit/flashcache.orig flashcache-1.0.20120303git/src/sysvinit/flashcache
+--- flashcache-1.0.20120303git/src/sysvinit/flashcache.orig	2012-03-20 12:33:20.767608025 +0800
++++ flashcache-1.0.20120303git/src/sysvinit/flashcache	2012-03-20 12:32:49.366664041 +0800
+@@ -0,0 +1,171 @@
++#!/bin/bash
++# 
++# flashcache	This starts, stops the flashcache
++#
++# chkconfig: 2345 15 85
++# description: Flashcache is a write back block cache Linux kernel module with SSD
++# config: /etc/sysconfig/flashcache
++#
++# Copyright 2010 Facebook, Inc.
++# Copyright 2012 LETV, Inc.
++#
++### BEGIN INIT INFO
++# Provides:      flashcache
++# X-Start-Before:
++# X-Stop-After:
++# Default-Start: 2 3 4 5
++# Default-Stop: 0 1 6
++# Short-Description: Start and stop the software disk cache
++# Description: Flashcache is a write back block cache Linux kernel module.
++# 	Flashcache was built primarily as a block cache for InnoDB
++# 	but is general purpose and can be used by other applications as well.
++# 	flashcache use SSD(solid state disk) for read/write IO cache
++### END INIT INFO
++
++PATH=/sbin:/usr/sbin:$PATH
++RETVAL=0
++
++prog=flashcache
++fc_wb_prog=/sbin/flashcache_load
++fc_wt_prog=/sbin/flashcache_create
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++if [ -f /etc/sysconfig/flashcache ]; then
++    . /etc/sysconfig/flashcache
++fi
++
++usage ()
++{
++    echo "Usage: service $prog {start|stop|status}"
++    RETVAL=1
++}
++
++
++start ()
++{
++    RETVAL=0
++
++    echo -n $"Starting $prog: "
++
++    [ -f /etc/sysconfig/flashcache ] || return 6
++
++    cachenum=0
++    while [ "x$(eval echo '$'CACHE_DEV$cachenum)x" != "xx" ]; do
++        if [ "x$(eval echo '$'CACHE_MODE$cachenum)x" == "xwrite-backx" ]; then
++	    # for write-back cache
++            cmd="$fc_wb_prog"
++
++            if [ "x$(eval echo '$'SSD_DEV$cachenum)x" == "xx" ]; then
++                RETVAL=1
++		return 1
++            fi
++
++            if [ "x$(eval echo '$'HDD_DEV$cachenum)x" == "xx" ]; then
++                RETVAL=1
++		return 1
++            fi
++
++            cmd="$cmd $(eval echo '$'SSD_DEV$cachenum)"
++            cmd="$cmd $(eval echo '$'CACHE_DEV$cachenum)"
++        else
++	    # for write-through/write-around cache
++	    pmode=$(eval echo '$'CACHE_MODE$cachenum)
++	    pmode=${pmode##write-}
++
++            cmd="$fc_wt_prog -p $pmode"
++		#echo $cmd; exit
++
++            if [ "x$(eval echo '$'BLOCK_SIZE$cachenum)x" != "xx" ]; then
++                cmd="$cmd -a 4096 -b $(eval echo '$'BLOCK_SIZE$cachenum)"
++            fi
++
++            if [ "x$(eval echo '$'CACHE_SIZE$cachenum)x" != "xx" ]; then
++                cmd="$cmd -s $(eval echo '$'CACHE_SIZE$cachenum)"
++            fi
++
++            if [ "x$(eval echo '$'CACHE_DEV$cachenum)x" == "xx" ]; then
++                RETVAL=1
++		return 1
++            fi
++
++            cmd="$cmd $(eval echo '$'CACHE_DEV$cachenum)"
++
++            if [ "x$(eval echo '$'SSD_DEV$cachenum)x" == "xx" ]; then
++                RETVAL=1
++		return 1
++            fi
++
++            if [ "x$(eval echo '$'HDD_DEV$cachenum)x" == "xx" ]; then
++                RETVAL=1
++                return 1
++            fi
++
++            cmd="$cmd $(eval echo '$'SSD_DEV$cachenum) $(eval echo '$'HDD_DEV$cachenum)"
++        fi
++
++	$($cmd) >/dev/null 2>&1
++        rc=$?
++        [ $rc -ne 0  ] && RETVAL=$rc
++        [ $rc -eq 127  ] && RETVAL=0
++
++        if [ "x$(eval echo '$'MNTPATH$cachenum)x" != "xx" ]; then
++            [ -d $(eval echo '$'MNTPATH$cachenum) ] ||
++		mkdir -p $(eval echo '$'MNTPATH$cachenum)
++
++            mount /dev/mapper/$(eval echo '$'CACHE_DEV$cachenum) \
++		$(eval echo '$'MNTPATH$cachenum)
++        fi
++
++	((cachenum=cachenum+1))
++    done
++
++    [ $RETVAL -eq 0 ] && success $"$prog start" || failure $"$prog start"
++    echo
++
++    return $RETVAL
++}
++  
++stop ()
++{
++    RETVAL=0
++
++    echo -n $"Stopping $prog: "
++
++    cachenum=0
++    while [ "x$(eval echo '$'CACHE_DEV$cachenum)x" != "xx" ]; do
++        if [ "x$(eval echo '$'MNTPATH$cachenum)x" != "xx" ]; then
++            if [ -d $(eval echo '$'MNTPATH$cachenum) ]; then
++                umount $(eval echo '$'MNTPATH$cachenum)
++            fi
++        fi
++
++        dmsetup remove $(eval echo '$'CACHE_DEV$cachenum)
++        rc=$?
++        [ $rc -ne 0 ] && RETVAL=$rc
++        ((cachenum=cachenum+1))
++    done
++
++    [ $RETVAL -eq 0 ] && success $"$prog shutdown" || failure $"$prog shutdown"
++    echo
++
++    return $RETVAL
++}
++
++case "$1" in
++  start)
++        start
++        ;;
++  stop)
++        stop
++        ;;
++  status)
++        dmsetup status
++        ;;
++  *)
++        echo $"Usage: $prog {start|stop|status}"
++        RETVAL=2
++esac
++
++exit $RETVAL
