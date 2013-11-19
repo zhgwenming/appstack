@@ -1,4 +1,4 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -113,6 +113,7 @@ When one supplies long data for a placeholder:
 #include <mysql_com.h>
 #endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
+#include "transaction.h"                        // trans_rollback_implicit
 
 // Uses the THD to update the global stats by user name and client IP
 void update_global_user_stats(THD* thd, bool create_user, time_t now);
@@ -1478,7 +1479,8 @@ static int mysql_test_select(Prepared_statement *stmt,
 
   if (!lex->result && !(lex->result= new (stmt->mem_root) select_send))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), static_cast<int>(sizeof(select_send)));
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+             static_cast<int>(sizeof(select_send)));
     goto error;
   }
 
@@ -1845,7 +1847,7 @@ static bool mysql_test_multidelete(Prepared_statement *stmt,
   stmt->thd->lex->current_select= &stmt->thd->lex->select_lex;
   if (add_item_to_list(stmt->thd, new Item_null()))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), 0);
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 0);
     goto error;
   }
 
@@ -2191,11 +2193,13 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
   double end_usecs=       0;
   /* cpu time */
   int cputime_error=      0;
+#ifdef HAVE_CLOCK_GETTIME
   struct timespec tp;
+#endif
   double start_cpu_nsecs= 0;
   double end_cpu_nsecs=   0;
 
-  if (opt_userstat)
+  if (unlikely(opt_userstat))
   {
 #ifdef HAVE_CLOCK_GETTIME
     /* get start cputime */
@@ -2237,7 +2241,7 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
 
   /* check_prepared_statemnt sends the metadata packet in case of success */
 end:
-  if (opt_userstat)
+  if (unlikely(opt_userstat))
   {
     // Gets the end time.
     if (!(end_time_error= gettimeofday(&end_time, NULL)))
@@ -2279,9 +2283,13 @@ end:
     else
       thd->cpu_time = 0;
   }
+
   // Updates THD stats and the global user stats.
-  thd->update_stats(true);
-  update_global_user_stats(thd, true, time(NULL));
+  if (unlikely(opt_userstat))
+  {
+    thd->update_stats(true);
+    update_global_user_stats(thd, true, time(NULL));
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -2642,7 +2650,9 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   double end_usecs=       0;
   /* cpu time */
   int cputime_error=      0;
+#ifdef HAVE_CLOCK_GETTIME
   struct timespec tp;
+#endif
   double start_cpu_nsecs= 0;
   double end_cpu_nsecs=   0;
 
@@ -2730,9 +2740,13 @@ end:
     else
       thd->cpu_time = 0;
   }
+
   // Updates THD stats and the global user stats.
-  thd->update_stats(true);
-  update_global_user_stats(thd, true, time(NULL));
+  if (unlikely(opt_userstat))
+  {
+    thd->update_stats(true);
+    update_global_user_stats(thd, true, time(NULL));
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -2814,7 +2828,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   double end_usecs=       0;
   /* cpu time */
   int cputime_error=      0;
+#ifdef HAVE_CLOCK_GETTIME
   struct timespec tp;
+#endif
   double start_cpu_nsecs= 0;
   double end_cpu_nsecs=   0;
 
@@ -2905,9 +2921,13 @@ end:
     } else
       thd->cpu_time= 0;
   }
+
   // Updates THD stats and the global user stats.
-  thd->update_stats(true);
-  update_global_user_stats(thd, true, time(NULL));
+  if (unlikely(opt_userstat))
+  {
+    thd->update_stats(true);
+    update_global_user_stats(thd, true, time(NULL));
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -2946,7 +2966,9 @@ void mysqld_stmt_reset(THD *thd, char *packet)
   double end_usecs=       0;
   /* cpu time */
   int cputime_error=      0;
+#ifdef HAVE_CLOCK_GETTIME
   struct timespec tp;
+#endif
   double start_cpu_nsecs= 0;
   double end_cpu_nsecs=   0;
 
@@ -3031,9 +3053,13 @@ end:
     else
       thd->cpu_time= 0;
   }
+
   // Updates THD stats and the global user stats.
-  thd->update_stats(true);
-  update_global_user_stats(thd, true, time(NULL));
+  if (unlikely(opt_userstat))
+  {
+    thd->update_stats(true);
+    update_global_user_stats(thd, true, time(NULL));
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -3591,6 +3617,22 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   close_thread_tables(thd);
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+
+  /*
+    Transaction rollback was requested since MDL deadlock was discovered
+    while trying to open tables. Rollback transaction in all storage
+    engines including binary log and release all locks.
+
+    Once dynamic SQL is allowed as substatements the below if-statement
+    has to be adjusted to not do rollback in substatement.
+  */
+  DBUG_ASSERT(! thd->in_sub_stmt);
+  if (thd->transaction_rollback_request)
+  {
+    trans_rollback_implicit(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+
   lex_end(lex);
   cleanup_stmt();
   thd->restore_backup_statement(this, &stmt_backup);
@@ -3682,7 +3724,9 @@ Prepared_statement::set_parameters(String *expanded_query,
   return res;
 }
 
-
+#ifdef WITH_WSREP
+void wsrep_replay_transaction(THD *thd);
+#endif /* WITH_WSREP */
 /**
   Execute a prepared statement. Re-prepare it a limited number
   of times if necessary.
@@ -3753,6 +3797,22 @@ reexecute:
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
+#ifdef WITH_WSREP
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  switch (thd->wsrep_conflict_state)
+  {
+  case CERT_FAILURE:
+    WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %ld err: %d",
+                thd->thread_id, thd->stmt_da->sql_errno() );
+    thd->wsrep_conflict_state = NO_CONFLICT;
+    break;
+
+  case MUST_REPLAY:
+    (void)wsrep_replay_transaction(thd);
+  default: break;
+  }
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
 
   if (error && !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
@@ -4050,7 +4110,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       alloc_query(thd, (char*) expanded_query->ptr(),
                   expanded_query->length()))
   {
-    my_error(ER_OUTOFMEMORY, 0, expanded_query->length());
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), expanded_query->length());
     goto error;
   }
   /*

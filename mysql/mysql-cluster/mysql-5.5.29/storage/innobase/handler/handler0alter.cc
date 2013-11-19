@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,8 +105,6 @@ innobase_col_to_mysql(
 		ut_ad(flen >= len);
 		ut_ad(DATA_MBMAXLEN(col->mbminmaxlen)
 		      >= DATA_MBMINLEN(col->mbminmaxlen));
-		ut_ad(DATA_MBMAXLEN(col->mbminmaxlen)
-		      > DATA_MBMINLEN(col->mbminmaxlen) || flen == len);
 		memcpy(dest, data, len);
 		break;
 
@@ -703,7 +701,7 @@ ha_innobase::add_index(
 	possible adaptive hash latch to avoid deadlocks of threads. */
 	trx_search_latch_release_if_reserved(prebuilt->trx);
 
-	if (prebuilt->trx->fake_changes) {
+	if (UNIV_UNLIKELY(prebuilt->trx->fake_changes)) {
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
@@ -712,7 +710,8 @@ ha_innobase::add_index(
 		DBUG_RETURN(-1);
 	}
 
-	indexed_table = dict_table_get(prebuilt->table->name, FALSE);
+	indexed_table = dict_table_get(prebuilt->table->name, FALSE,
+				       DICT_ERR_IGNORE_NONE);
 
 	if (UNIV_UNLIKELY(!indexed_table)) {
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
@@ -748,7 +747,7 @@ ha_innobase::add_index(
 	/* Create a background transaction for the operations on
 	the data dictionary tables. */
 	trx = innobase_trx_allocate(user_thd);
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		mem_heap_free(heap);
 		trx_general_rollback_for_mysql(trx, NULL);
 		trx_free_for_mysql(trx);
@@ -1122,7 +1121,7 @@ ha_innobase::prepare_drop_index(
 	trx_search_latch_release_if_reserved(prebuilt->trx);
 	trx = prebuilt->trx;
 
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
@@ -1334,7 +1333,7 @@ ha_innobase::final_drop_index(
 	/* Create a background transaction for the operations on
 	the data dictionary tables. */
 	trx = innobase_trx_allocate(user_thd);
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		trx_general_rollback_for_mysql(trx, NULL);
 		trx_free_for_mysql(trx);
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);

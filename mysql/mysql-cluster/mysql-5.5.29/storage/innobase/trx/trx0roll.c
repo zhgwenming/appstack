@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -135,7 +135,7 @@ trx_rollback_for_mysql(
 {
 	int	err;
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 
 		return(DB_SUCCESS);
 	}
@@ -170,7 +170,7 @@ trx_rollback_last_sql_stat_for_mysql(
 {
 	int	err;
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 
 		return(DB_SUCCESS);
 	}
@@ -278,7 +278,7 @@ trx_rollback_to_savepoint_for_mysql(
 		return(DB_NO_SAVEPOINT);
 	}
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 		ut_print_timestamp(stderr);
 		fputs("  InnoDB: Error: transaction has a savepoint ", stderr);
 		ut_print_name(stderr, trx, FALSE, savep->name);
@@ -575,7 +575,7 @@ loop:
 			continue;
 		}
 
-		switch (trx->conc_state) {
+		switch (trx->state) {
 		case TRX_NOT_STARTED:
 		case TRX_PREPARED:
 			continue;

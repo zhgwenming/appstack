@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -26,8 +26,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -58,6 +58,8 @@ Created 10/8/1995 Heikki Tuuri
 *******************************************************/
 
 /* Dummy comment */
+#include "m_string.h" /* for my_sys.h */
+#include "my_sys.h" /* DEBUG_SYNC_C */
 #include "srv0srv.h"
 
 #include "ut0mem.h"
@@ -182,11 +184,11 @@ UNIV_INTERN char*	srv_doublewrite_file = NULL;
 
 UNIV_INTERN ibool	srv_recovery_stats = FALSE;
 
-UNIV_INTERN my_bool	srv_track_changed_pages = TRUE;
+UNIV_INTERN my_bool	srv_track_changed_pages = FALSE;
 
 UNIV_INTERN ib_uint64_t	srv_max_bitmap_file_size = 100 * 1024 * 1024;
 
-UNIV_INTERN ulonglong	srv_changed_pages_limit = 0;
+UNIV_INTERN ulonglong	srv_max_changed_pages = 0;
 
 /** When TRUE, fake change transcations take S rather than X row locks.
     When FALSE, row locks are not taken at all. */
@@ -321,57 +323,10 @@ UNIV_INTERN ulong srv_purge_batch_size = 20;
 /* the number of rollback segments to use */
 UNIV_INTERN ulong srv_rollback_segments = TRX_SYS_N_RSEGS;
 
-/* variable counts amount of data read in total (in bytes) */
-UNIV_INTERN ulint srv_data_read = 0;
-
 /* Internal setting for "innodb_stats_method". Decides how InnoDB treats
 NULL value when collecting statistics. By default, it is set to
 SRV_STATS_NULLS_EQUAL(0), ie. all NULL value are treated equal */
-ulong srv_innodb_stats_method = SRV_STATS_NULLS_EQUAL;
-
-/* here we count the amount of data written in total (in bytes) */
-UNIV_INTERN ulint srv_data_written = 0;
-
-/* the number of the log write requests done */
-UNIV_INTERN ulint srv_log_write_requests = 0;
-
-/* the number of physical writes to the log performed */
-UNIV_INTERN ulint srv_log_writes = 0;
-
-/* amount of data written to the log files in bytes */
-UNIV_INTERN ulint srv_os_log_written = 0;
-
-/* amount of writes being done to the log files */
-UNIV_INTERN ulint srv_os_log_pending_writes = 0;
-
-/* we increase this counter, when there we don't have enough space in the
-log buffer and have to flush it */
-UNIV_INTERN ulint srv_log_waits = 0;
-
-/* this variable counts the amount of times, when the doublewrite buffer
-was flushed */
-UNIV_INTERN ulint srv_dblwr_writes = 0;
-
-/* here we store the number of pages that have been flushed to the
-doublewrite buffer */
-UNIV_INTERN ulint srv_dblwr_pages_written = 0;
-
-/* in this variable we store the number of write requests issued */
-UNIV_INTERN ulint srv_buf_pool_write_requests = 0;
-
-/* here we store the number of times when we had to wait for a free page
-in the buffer pool. It happens when the buffer pool is full and we need
-to make a flush, in order to be able to read or create a page. */
-UNIV_INTERN ulint srv_buf_pool_wait_free = 0;
-
-/* variable to count the number of pages that were written from buffer
-pool to the disk */
-UNIV_INTERN ulint srv_buf_pool_flushed = 0;
-UNIV_INTERN ulint buf_lru_flush_page_count = 0;
-
-/** Number of buffer pool reads that led to the
-reading of a disk page */
-UNIV_INTERN ulint srv_buf_pool_reads = 0;
+UNIV_INTERN ulong srv_innodb_stats_method = SRV_STATS_NULLS_EQUAL;
 
 /** Time in seconds between automatic buffer pool dumps */
 UNIV_INTERN uint srv_auto_lru_dump = 0;
@@ -414,6 +369,9 @@ UNIV_INTERN lint	srv_conc_n_threads	= 0;
 /* number of OS threads waiting in the FIFO for a permission to enter
 InnoDB */
 UNIV_INTERN ulint	srv_conc_n_waiting_threads = 0;
+
+/* print all user-level transactions deadlocks to mysqld stderr */
+UNIV_INTERN my_bool	srv_print_all_deadlocks = FALSE;
 
 typedef struct srv_conc_slot_struct	srv_conc_slot_t;
 struct srv_conc_slot_struct{
@@ -463,6 +421,11 @@ UNIV_INTERN ulong	srv_sys_stats_root_page = 0;
 #endif
 
 UNIV_INTERN ibool	srv_use_doublewrite_buf	= TRUE;
+UNIV_INTERN ibool       srv_use_atomic_writes = FALSE;
+#ifdef HAVE_POSIX_FALLOCATE
+UNIV_INTERN ibool       srv_use_posix_fallocate = FALSE;
+#endif
+
 UNIV_INTERN ibool	srv_use_checksums = TRUE;
 UNIV_INTERN ibool	srv_fast_checksum = FALSE;
 
@@ -484,8 +447,6 @@ UNIV_INTERN ulint	srv_expand_import = 0; /* 0:disable 1:enable */
 UNIV_INTERN ulint	srv_pass_corrupt_table = 0; /* 0:disable 1:enable */
 
 UNIV_INTERN ulint	srv_dict_size_limit = 0;
-
-UNIV_INTERN ulint	srv_lazy_drop_table = 0;
 /*-------------------------------------------*/
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 30;
 UNIV_INTERN ulong	srv_n_free_tickets_to_enter = 500;
@@ -501,23 +462,86 @@ UNIV_INTERN ibool	srv_print_log_io		= FALSE;
 UNIV_INTERN ibool	srv_print_latch_waits		= FALSE;
 #endif /* UNIV_DEBUG */
 
-UNIV_INTERN ulint		srv_n_rows_inserted		= 0;
-UNIV_INTERN ulint		srv_n_rows_updated		= 0;
-UNIV_INTERN ulint		srv_n_rows_deleted		= 0;
-UNIV_INTERN ulint		srv_n_rows_read			= 0;
-
 static ulint	srv_n_rows_inserted_old		= 0;
 static ulint	srv_n_rows_updated_old		= 0;
 static ulint	srv_n_rows_deleted_old		= 0;
 static ulint	srv_n_rows_read_old		= 0;
 
-UNIV_INTERN ulint		srv_n_lock_deadlock_count	= 0;
-UNIV_INTERN ulint		srv_n_lock_wait_count		= 0;
-UNIV_INTERN ulint		srv_n_lock_wait_current_count	= 0;
-UNIV_INTERN ib_int64_t	srv_n_lock_wait_time		= 0;
-UNIV_INTERN ulint		srv_n_lock_max_wait_time	= 0;
+/* Ensure counters are on separate cache lines */
 
-UNIV_INTERN ulint		srv_truncated_status_writes	= 0;
+#define CACHE_LINE_SIZE 64
+#define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE_SIZE)))
+
+UNIV_INTERN byte
+counters_pad_start[CACHE_LINE_SIZE] __attribute__((unused)) = {0};
+
+UNIV_INTERN ulint		srv_n_rows_inserted CACHE_ALIGNED	= 0;
+UNIV_INTERN ulint		srv_n_rows_updated CACHE_ALIGNED	= 0;
+UNIV_INTERN ulint		srv_n_rows_deleted CACHE_ALIGNED	= 0;
+UNIV_INTERN ulint		srv_n_rows_read CACHE_ALIGNED		= 0;
+
+UNIV_INTERN ulint		srv_read_views_memory CACHE_ALIGNED	= 0;
+UNIV_INTERN ulint		srv_descriptors_memory CACHE_ALIGNED	= 0;
+
+UNIV_INTERN ulint		srv_n_lock_deadlock_count CACHE_ALIGNED	= 0;
+UNIV_INTERN ulint		srv_n_lock_wait_count CACHE_ALIGNED	= 0;
+UNIV_INTERN ulint		srv_n_lock_wait_current_count CACHE_ALIGNED = 0;
+UNIV_INTERN ib_int64_t	srv_n_lock_wait_time CACHE_ALIGNED		= 0;
+UNIV_INTERN ulint		srv_n_lock_max_wait_time CACHE_ALIGNED	= 0;
+
+UNIV_INTERN ulint		srv_truncated_status_writes CACHE_ALIGNED = 0;
+
+/* variable counts amount of data read in total (in bytes) */
+UNIV_INTERN ulint srv_data_read CACHE_ALIGNED			= 0;
+
+/* here we count the amount of data written in total (in bytes) */
+UNIV_INTERN ulint srv_data_written CACHE_ALIGNED		= 0;
+
+/* the number of the log write requests done */
+UNIV_INTERN ulint srv_log_write_requests CACHE_ALIGNED		= 0;
+
+/* the number of physical writes to the log performed */
+UNIV_INTERN ulint srv_log_writes CACHE_ALIGNED			= 0;
+
+/* amount of data written to the log files in bytes */
+UNIV_INTERN ulint srv_os_log_written CACHE_ALIGNED		= 0;
+
+/* amount of writes being done to the log files */
+UNIV_INTERN ulint srv_os_log_pending_writes CACHE_ALIGNED	= 0;
+
+/* we increase this counter, when there we don't have enough space in the
+log buffer and have to flush it */
+UNIV_INTERN ulint srv_log_waits CACHE_ALIGNED			= 0;
+
+/* this variable counts the amount of times, when the doublewrite buffer
+was flushed */
+UNIV_INTERN ulint srv_dblwr_writes CACHE_ALIGNED		= 0;
+
+/* here we store the number of pages that have been flushed to the
+doublewrite buffer */
+UNIV_INTERN ulint srv_dblwr_pages_written CACHE_ALIGNED		= 0;
+
+/* in this variable we store the number of write requests issued */
+UNIV_INTERN ulint srv_buf_pool_write_requests CACHE_ALIGNED	= 0;
+
+/* here we store the number of times when we had to wait for a free page
+in the buffer pool. It happens when the buffer pool is full and we need
+to make a flush, in order to be able to read or create a page. */
+UNIV_INTERN ulint srv_buf_pool_wait_free CACHE_ALIGNED		= 0;
+
+/** Number of buffer pool reads that led to the
+reading of a disk page */
+UNIV_INTERN ulint srv_buf_pool_reads CACHE_ALIGNED		= 0;
+
+/* variable to count the number of pages that were written from buffer
+pool to the disk */
+UNIV_INTERN ulint srv_buf_pool_flushed CACHE_ALIGNED		= 0;
+
+/* variable to count the number of LRU flushed pages */
+UNIV_INTERN ulint buf_lru_flush_page_count CACHE_ALIGNED	= 0;
+
+UNIV_INTERN byte
+counters_pad_end[CACHE_LINE_SIZE] __attribute__((unused)) = {0};
 
 /*
   Set the following to 0 if you want InnoDB to write messages on
@@ -1232,6 +1256,23 @@ srv_general_init(void)
 /* Maximum allowable purge history length.  <=0 means 'infinite'. */
 UNIV_INTERN ulong	srv_max_purge_lag		= 0;
 
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx)	/*!< in: transaction object associated with the
+			thread */
+{
+	os_fast_mutex_lock(&srv_conc_mutex);
+	if (trx->wsrep_event) {
+		if (wsrep_debug) 
+			fprintf(stderr, "WSREP: conc slot cancel\n");
+		os_event_set(trx->wsrep_event);
+	}
+	os_fast_mutex_unlock(&srv_conc_mutex);
+}
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Puts an OS thread to wait if there are too many concurrent threads
 (>= srv_thread_concurrency) inside InnoDB. The threads wait in a FIFO queue. */
@@ -1275,8 +1316,10 @@ retry:
 		os_thread_yield();
 		goto retry;
 	}
-	if (trx->has_search_latch
-	    || NULL != UT_LIST_GET_FIRST(trx->trx_locks)) {
+
+	ut_ad(!trx->has_search_latch);
+
+	if (NULL != UT_LIST_GET_FIRST(trx->trx_locks)) {
 
 		conc_n_threads = os_atomic_increment_lint(&srv_conc_n_threads, 1);
 		enter_innodb_with_tickets(trx);
@@ -1319,7 +1362,9 @@ srv_conc_enter_innodb(
 	ulint                   sec;
 	ulint                   ms;
 
+	ut_ad(!trx->has_search_latch);
 #ifdef UNIV_SYNC_DEBUG
+	ut_ad(!btr_search_own_any());
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 
@@ -1391,7 +1436,9 @@ retry:
 	/* If the transaction is not holding resources, let it sleep
 	for SRV_THREAD_SLEEP_DELAY microseconds, and try again then */
 
-	if (!has_slept && !trx->has_search_latch
+	ut_ad(!trx->has_search_latch);
+
+	if (!has_slept
 	    && NULL == UT_LIST_GET_FIRST(trx->trx_locks)) {
 
 		has_slept = TRUE; /* We let it sleep only once to avoid
@@ -1446,10 +1493,8 @@ retry:
 		return;
 	}
 
-	/* Release possible search system latch this thread has */
-	if (trx->has_search_latch) {
-		trx_search_latch_release_if_reserved(trx);
-	}
+	/* No-op for XtraDB. */
+	trx_search_latch_release_if_reserved(trx);
 
 	/* Add to the queue */
 	slot->reserved = TRUE;
@@ -1464,6 +1509,19 @@ retry:
 
 	srv_conc_n_waiting_threads++;
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		srv_conc_n_waiting_threads--;
+		os_fast_mutex_unlock(&srv_conc_mutex);
+		if (wsrep_debug)
+			fprintf(stderr, "srv_conc_enter due to MUST_ABORT");
+		trx->declared_to_be_inside_innodb = TRUE;
+		trx->n_tickets_to_enter_innodb = SRV_FREE_TICKETS_TO_ENTER;
+		return;
+	}
+	trx->wsrep_event = slot->event;
+#endif /* WITH_WSREP */
 	os_fast_mutex_unlock(&srv_conc_mutex);
 
 	/* Go to wait for the event; when a thread leaves InnoDB it will
@@ -1471,10 +1529,11 @@ retry:
 
 	ut_ad(!trx->has_search_latch);
 #ifdef UNIV_SYNC_DEBUG
+	ut_ad(!btr_search_own_any());
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 
-	if (innobase_get_slow_log() && trx->take_stats) {
+	if (UNIV_UNLIKELY(trx->take_stats)) {
 		ut_usectime(&sec, &ms);
 		start_time = (ib_uint64_t)sec * 1000000 + ms;
 	} else {
@@ -1486,10 +1545,13 @@ retry:
 	thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 	os_event_wait(slot->event);
 	thd_wait_end(trx->mysql_thd);
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 
-	if (innobase_get_slow_log() && trx->take_stats && start_time) {
+	if (UNIV_UNLIKELY(start_time != 0)) {
 		ut_usectime(&sec, &ms);
 		finish_time = (ib_uint64_t)sec * 1000000 + ms;
 		trx->innodb_que_wait_timer += (ulint)(finish_time - start_time);
@@ -1525,7 +1587,9 @@ srv_conc_force_enter_innodb(
 	trx_t*	trx)	/*!< in: transaction object associated with the
 			thread */
 {
+	ut_ad(!trx->has_search_latch);
 #ifdef UNIV_SYNC_DEBUG
+	ut_ad(!btr_search_own_any());
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 
@@ -1632,7 +1696,9 @@ srv_conc_force_exit_innodb(
 		os_event_set(slot->event);
 	}
 
+	ut_ad(!trx->has_search_latch);
 #ifdef UNIV_SYNC_DEBUG
+	ut_ad(!btr_search_own_any());
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 }
@@ -1646,7 +1712,9 @@ srv_conc_exit_innodb(
 	trx_t*	trx)	/*!< in: transaction object associated with the
 			thread */
 {
+	ut_ad(!trx->has_search_latch);
 #ifdef UNIV_SYNC_DEBUG
+	ut_ad(!btr_search_own_any());
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 
@@ -1819,6 +1887,10 @@ srv_suspend_mysql_thread(
 
 	trx = thr_get_trx(thr);
 
+	if (trx->mysql_thd != 0) {
+		DEBUG_SYNC_C("srv_suspend_mysql_thread_enter");
+	}
+
 	os_event_set(srv_lock_timeout_thread_event);
 
 	mutex_enter(&kernel_mutex);
@@ -1915,7 +1987,9 @@ srv_suspend_mysql_thread(
 	os_event_wait(event);
 	thd_wait_end(trx->mysql_thd);
 
+	ut_ad(!trx->has_search_latch);
 #ifdef UNIV_SYNC_DEBUG
+	ut_ad(!btr_search_own_any());
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 
@@ -1956,7 +2030,8 @@ srv_suspend_mysql_thread(
 			finish_time = (ib_int64_t) sec * 1000000 + ms;
 		}
 
-		diff_time = (ulint) (finish_time - start_time);
+		diff_time = (finish_time > start_time) ?
+			    (ulint) (finish_time - start_time) : 0;
 
 		srv_n_lock_wait_current_count--;
 		srv_n_lock_wait_time = srv_n_lock_wait_time + diff_time;
@@ -2089,7 +2164,8 @@ srv_printf_innodb_monitor(
 	ulint	n_reserved;
 	ibool	ret;
 
-	ulint	btr_search_sys_subtotal;
+	ulong	btr_search_sys_constant;
+	ulong	btr_search_sys_variable;
 	ulint	lock_sys_subtotal;
 	ulint	recv_sys_subtotal;
 
@@ -2155,7 +2231,7 @@ srv_printf_innodb_monitor(
 	ibuf_print(file);
 
 	for (i = 0; i < btr_search_index_num; i++) {
-		ha_print_info(file, btr_search_get_hash_index((index_id_t)i));
+		ha_print_info(file, btr_search_sys->hash_tables[i]);
 	}
 
 	fprintf(file,
@@ -2180,16 +2256,31 @@ srv_printf_innodb_monitor(
 			"; in additional pool allocated " ULINTPF "\n",
 			ut_total_allocated_memory,
 			mem_pool_get_reserved(mem_comm_pool));
-	/* Calcurate reserved memories */
-	if (btr_search_sys && btr_search_sys->hash_index[0]->heap) {
-		btr_search_sys_subtotal = mem_heap_get_size(btr_search_sys->hash_index[0]->heap);
-	} else {
-		btr_search_sys_subtotal = 0;
-		for (i=0; i < btr_search_sys->hash_index[0]->n_mutexes; i++) {
-			btr_search_sys_subtotal += mem_heap_get_size(btr_search_sys->hash_index[0]->heaps[i]);
-		}
+	fprintf(file,
+		"Total memory allocated by read views " ULINTPF "\n",
+		srv_read_views_memory);
+
+	/* Calculate AHI constant and variable memory allocations */
+
+	btr_search_sys_constant = 0;
+	btr_search_sys_variable = 0;
+
+	ut_ad(btr_search_sys->hash_tables);
+
+	for (i = 0; i < btr_search_index_num; i++) {
+		hash_table_t* ht = btr_search_sys->hash_tables[i];
+
+		ut_ad(ht);
+		ut_ad(ht->heap);
+
+		/* Multiple mutexes/heaps are currently never used for adaptive
+		hash index tables. */
+		ut_ad(!ht->n_mutexes);
+		ut_ad(!ht->heaps);
+
+		btr_search_sys_variable += mem_heap_get_size(ht->heap);
+		btr_search_sys_constant += ht->n_cells * sizeof(hash_cell_t);
 	}
-	btr_search_sys_subtotal *= btr_search_index_num;
 
 	lock_sys_subtotal = 0;
 	if (trx_sys) {
@@ -2214,12 +2305,9 @@ srv_printf_innodb_monitor(
 			"    Lock system         %lu \t(%lu + %lu)\n"
 			"    Recovery system     %lu \t(%lu + %lu)\n",
 
-			(ulong) (btr_search_sys
-				? (btr_search_sys->hash_index[0]->n_cells * btr_search_index_num * sizeof(hash_cell_t)) : 0)
-			+ btr_search_sys_subtotal,
-			(ulong) (btr_search_sys
-				? (btr_search_sys->hash_index[0]->n_cells * btr_search_index_num * sizeof(hash_cell_t)) : 0),
-			(ulong) btr_search_sys_subtotal,
+			btr_search_sys_constant + btr_search_sys_variable,
+			btr_search_sys_constant,
+			btr_search_sys_variable,
 
 			(ulong) (buf_pool_from_array(0)->page_hash->n_cells * sizeof(hash_cell_t)),
 
@@ -2261,8 +2349,16 @@ srv_printf_innodb_monitor(
 		(long) srv_conc_n_threads,
 		(ulong) srv_conc_n_waiting_threads);
 
+	mutex_enter(&kernel_mutex);
+
 	fprintf(file, "%lu read views open inside InnoDB\n",
 		UT_LIST_GET_LEN(trx_sys->view_list));
+
+	fprintf(file, "%lu transactions active inside InnoDB\n",
+		UT_LIST_GET_LEN(trx_sys->trx_list));
+
+	fprintf(file, "%lu out of %lu descriptors used\n",
+		trx_sys->descr_n_used, trx_sys->descr_n_max);
 
 	if (UT_LIST_GET_LEN(trx_sys->view_list)) {
 		read_view_t*	view = UT_LIST_GET_LAST(trx_sys->view_list);
@@ -2273,6 +2369,8 @@ srv_printf_innodb_monitor(
 			fprintf(file, "-----------------\n");
 		}
 	}
+
+	mutex_exit(&kernel_mutex);
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {
@@ -2358,28 +2456,35 @@ void
 srv_export_innodb_status(void)
 /*==========================*/
 {
-	buf_pool_stat_t	stat;
-	ulint		LRU_len;
-	ulint		free_len;
-	ulint		flush_list_len;
-	ulint		mem_adaptive_hash, mem_dictionary;
-	read_view_t*	oldest_view;
-	ulint		i;
+	buf_pool_stat_t		stat;
+	buf_pools_list_size_t	buf_pools_list_size;
+	ulint			LRU_len;
+	ulint			free_len;
+	ulint			flush_list_len;
+	ulint			mem_adaptive_hash, mem_dictionary;
+	read_view_t*		oldest_view;
+	ulint			i;
 
 	buf_get_total_stat(&stat);
 	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
+	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
 
-	if (btr_search_sys && btr_search_sys->hash_index[0]->heap) {
-		mem_adaptive_hash = mem_heap_get_size(btr_search_sys->hash_index[0]->heap);
-	} else {
-		mem_adaptive_hash = 0;
-		for (i=0; i < btr_search_sys->hash_index[0]->n_mutexes; i++) {
-			mem_adaptive_hash += mem_heap_get_size(btr_search_sys->hash_index[0]->heaps[i]);
-		}
-	}
-	mem_adaptive_hash *= btr_search_index_num;
-	if (btr_search_sys) {
-		mem_adaptive_hash += (btr_search_sys->hash_index[0]->n_cells * btr_search_index_num * sizeof(hash_cell_t));
+	mem_adaptive_hash = 0;
+
+	ut_ad(btr_search_sys->hash_tables);
+
+	for (i = 0; i < btr_search_index_num; i++) {
+		hash_table_t*	ht = btr_search_sys->hash_tables[i];
+
+		ut_ad(ht);
+		ut_ad(ht->heap);
+		/* Multiple mutexes/heaps are currently never used for adaptive
+		hash index tables. */
+		ut_ad(!ht->n_mutexes);
+		ut_ad(!ht->heaps);
+
+		mem_adaptive_hash += mem_heap_get_size(ht->heap);
+		mem_adaptive_hash += ht->n_cells * sizeof(hash_cell_t);
 	}
 
 	mem_dictionary = (dict_sys ? ((dict_sys->table_hash->n_cells
@@ -2392,7 +2497,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_adaptive_hash_cells = 0;
 	export_vars.innodb_adaptive_hash_heap_buffers = 0;
 	for (i = 0; i < btr_search_index_num; i++) {
-		hash_table_t*	table = btr_search_get_hash_index((index_id_t)i);
+		hash_table_t*	table = btr_search_sys->hash_tables[i];
 
 		export_vars.innodb_adaptive_hash_cells
 			+= hash_get_n_cells(table);
@@ -2432,7 +2537,12 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_read_ahead_evicted
 		= stat.n_ra_pages_evicted;
 	export_vars.innodb_buffer_pool_pages_data = LRU_len;
+	export_vars.innodb_buffer_pool_bytes_data =
+		buf_pools_list_size.LRU_bytes
+		+ buf_pools_list_size.unzip_LRU_bytes;
 	export_vars.innodb_buffer_pool_pages_dirty = flush_list_len;
+	export_vars.innodb_buffer_pool_bytes_dirty =
+		buf_pools_list_size.flush_list_bytes;
 	export_vars.innodb_buffer_pool_pages_free = free_len;
 	export_vars.innodb_deadlocks = srv_n_lock_deadlock_count;
 #ifdef UNIV_DEBUG
@@ -2564,6 +2674,37 @@ srv_export_innodb_status(void)
 	export_vars.innodb_rows_updated = srv_n_rows_updated;
 	export_vars.innodb_rows_deleted = srv_n_rows_deleted;
 	export_vars.innodb_truncated_status_writes = srv_truncated_status_writes;
+	export_vars.innodb_read_views_memory = srv_read_views_memory;
+	export_vars.innodb_descriptors_memory = srv_descriptors_memory;
+
+#ifdef UNIV_DEBUG
+	{
+		trx_id_t	done_trx_no;
+		trx_id_t	up_limit_id;
+
+		rw_lock_s_lock(&purge_sys->latch);
+		done_trx_no	= purge_sys->done_trx_no;
+		up_limit_id	= purge_sys->view
+			? purge_sys->view->up_limit_id
+			: 0;
+		rw_lock_s_unlock(&purge_sys->latch);
+
+		if (trx_sys->max_trx_id < done_trx_no) {
+			export_vars.innodb_purge_trx_id_age = 0;
+		} else {
+			export_vars.innodb_purge_trx_id_age =
+				trx_sys->max_trx_id - done_trx_no;
+		}
+
+		if (!up_limit_id
+		    || trx_sys->max_trx_id < up_limit_id) {
+			export_vars.innodb_purge_view_trx_id_age = 0;
+		} else {
+			export_vars.innodb_purge_view_trx_id_age =
+				trx_sys->max_trx_id - up_limit_id;
+		}
+	}
+#endif /* UNIV_DEBUG */
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
@@ -2986,7 +3127,7 @@ rescan_idle:
 		mutex_enter(&kernel_mutex);
 		trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 		while (trx) {
-			if (trx->conc_state == TRX_ACTIVE
+			if (trx->state == TRX_ACTIVE
 			    && trx->mysql_thd
 			    && innobase_thd_is_idle(trx->mysql_thd)) {
 				ib_int64_t	start_time = innobase_thd_get_start_time(trx->mysql_thd);
@@ -3187,12 +3328,26 @@ srv_redo_log_follow_thread(
 		os_event_wait(srv_checkpoint_completed_event);
 		os_event_reset(srv_checkpoint_completed_event);
 
+#ifdef UNIV_DEBUG
+		if (!srv_track_changed_pages) {
+			continue;
+		}
+#endif
+
 		if (srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE) {
-			log_online_follow_redo_log();
+			if (!log_online_follow_redo_log()) {
+				/* TODO: sync with I_S log tracking status? */
+				fprintf(stderr,
+					"InnoDB: Error: log tracking bitmap "
+					"write failed, stopping log tracking "
+					"thread!\n");
+				break;
+			}
 		}
 
 	} while (srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE);
 
+	srv_track_changed_pages = FALSE;
 	log_online_read_shutdown();
 	os_event_set(srv_redo_log_thread_finished_event);
 
@@ -3434,6 +3589,26 @@ loop:
 	for (i = 0; i < 10; i++) {
 		ulint	cur_time = ut_time_ms();
 
+#ifdef UNIV_DEBUG
+		if (btr_cur_limit_optimistic_insert_debug
+		    && srv_n_purge_threads == 0) {
+			/* If btr_cur_limit_optimistic_insert_debug is enabled
+			and no purge_threads, purge opportunity is increased
+			by x100 (1purge/100msec), to speed up debug scripts
+			which should wait for purged. */
+			next_itr_time -= 900;
+
+			srv_main_thread_op_info = "master purging";
+
+			srv_master_do_purge();
+
+			if (srv_fast_shutdown && srv_shutdown_state > 0) {
+
+				goto background_loop;
+			}
+		}
+#endif /* UNIV_DEBUG */
+
 		n_pages_flushed = 0; /* initialize */
 
 		/* ALTER TABLE in MySQL requires on Unix that the table handler
@@ -3590,8 +3765,7 @@ loop:
 
 						buf_pool = buf_pool_from_array(j);
 
-						/* The scanning flush_list is optimistic here */
-
+						buf_flush_list_mutex_enter(buf_pool);
 						level = 0;
 						n_blocks = 0;
 						bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
@@ -3605,6 +3779,7 @@ loop:
 							bpage = UT_LIST_GET_NEXT(flush_list, bpage);
 							n_blocks++;
 						}
+						buf_flush_list_mutex_exit(buf_pool);
 
 						if (level) {
 							bpl += ((ib_uint64_t) n_blocks * n_blocks
@@ -3670,29 +3845,24 @@ retry_flush_batch:
 
 				/* prev_flush_info[j] should be the previous loop's */
 				for (j = 0; j < srv_buf_pool_instances; j++) {
-					lint	blocks_num, new_blocks_num, flushed_blocks_num;
-					ibool	found;
+					lint	blocks_num, new_blocks_num = 0;
+					lint	flushed_blocks_num;
 
 					buf_pool = buf_pool_from_array(j);
+					buf_flush_list_mutex_enter(buf_pool);
 
 					blocks_num = UT_LIST_GET_LEN(buf_pool->flush_list);
 					bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
-					new_blocks_num = 0;
 
-					found = FALSE;
 					while (bpage != NULL) {
 						if (prev_flush_info[j].space == bpage->space
 						    && prev_flush_info[j].offset == bpage->offset
 						    && prev_flush_info[j].oldest_modification
 								== bpage->oldest_modification) {
-							found = TRUE;
 							break;
 						}
 						bpage = UT_LIST_GET_NEXT(flush_list, bpage);
 						new_blocks_num++;
-					}
-					if (!found) {
-						new_blocks_num = blocks_num;
 					}
 
 					flushed_blocks_num = new_blocks_num + prev_flush_info[j].count
@@ -3708,7 +3878,9 @@ retry_flush_batch:
 						prev_flush_info[j].space = bpage->space;
 						prev_flush_info[j].offset = bpage->offset;
 						prev_flush_info[j].oldest_modification = bpage->oldest_modification;
+						buf_flush_list_mutex_exit(buf_pool);
 					} else {
+						buf_flush_list_mutex_exit(buf_pool);
 						prev_flush_info[j].space = 0;
 						prev_flush_info[j].offset = 0;
 						prev_flush_info[j].oldest_modification = 0;
@@ -3734,6 +3906,7 @@ retry_flush_batch:
 				/* store previous first pages of the flush_list */
 				for (j = 0; j < srv_buf_pool_instances; j++) {
 					buf_pool = buf_pool_from_array(j);
+					buf_flush_list_mutex_enter(buf_pool);
 
 					bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
 
@@ -3742,7 +3915,9 @@ retry_flush_batch:
 						prev_flush_info[j].space = bpage->space;
 						prev_flush_info[j].offset = bpage->offset;
 						prev_flush_info[j].oldest_modification = bpage->oldest_modification;
+						buf_flush_list_mutex_exit(buf_pool);
 					} else {
+						buf_flush_list_mutex_exit(buf_pool);
 						prev_flush_info[j].space = 0;
 						prev_flush_info[j].offset = 0;
 						prev_flush_info[j].oldest_modification = 0;
@@ -3935,14 +4110,18 @@ background_loop:
 flush_loop:
 	srv_main_thread_op_info = "flushing buffer pool pages";
 	srv_main_flush_loops++;
-	if (srv_fast_shutdown < 2) {
+	if (srv_fast_shutdown < 2 || srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		n_pages_flushed = buf_flush_list(
 			  PCT_IO(100), IB_ULONGLONG_MAX);
 	} else {
 		/* In the fastest shutdown we do not flush the buffer pool
 		to data files: we set n_pages_flushed to 0 artificially. */
+		ut_ad(srv_fast_shutdown == 2);
+		ut_ad(srv_shutdown_state > 0);
 
 		n_pages_flushed = 0;
+
+		DBUG_PRINT("master", ("doing very fast shutdown"));
 	}
 
 	srv_main_thread_op_info = "reserving kernel mutex";
@@ -3964,7 +4143,12 @@ flush_loop:
 
 	log_checkpoint(TRUE, FALSE);
 
-	if (buf_get_modified_ratio_pct() > srv_max_buf_pool_modified_pct) {
+	if (!(srv_fast_shutdown == 2 && srv_shutdown_state > 0)
+	    && (buf_get_modified_ratio_pct()
+		> srv_max_buf_pool_modified_pct)) {
+
+		/* If the server is doing a very fast shutdown, then
+		we will not come here. */
 
 		/* Try to keep the number of modified pages in the
 		buffer pool under the limit wished by the user */

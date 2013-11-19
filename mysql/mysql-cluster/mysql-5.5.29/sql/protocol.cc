@@ -523,7 +523,15 @@ void Protocol::end_statement()
     break;
   case Diagnostics_area::DA_EMPTY:
   default:
+#if defined(WITH_WSREP) && !defined(DBUG_OFF)
+    WSREP_WARN("Should not be here:\nDA status %d,\nwsrep_applier %d,\n"
+               "wsrep_exec_mode %d,\nwsrep_query_state %d,\n"
+               "wsrep_conflict_state %d",
+               thd->stmt_da->status(), thd->wsrep_applier, thd->wsrep_exec_mode,
+               thd->wsrep_query_state, thd->wsrep_conflict_state);
+#else
     DBUG_ASSERT(0);
+#endif
     error= send_ok(thd->server_status, 0, 0, 0, NULL);
     break;
   }
@@ -1221,7 +1229,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
       continue; // It's an IN-parameter.
 
     Item_func_set_user_var *suv=
-      new Item_func_set_user_var(*user_var_name, item_param);
+      new Item_func_set_user_var(*user_var_name, item_param, false);
     /*
       Item_func_set_user_var is not fixed after construction, call
       fix_fields().

@@ -76,23 +76,21 @@ size_t my_strnxfrm_simple(CHARSET_INFO * cs,
                           const uchar *src, size_t srclen)
 {
   uchar *map= cs->sort_order;
-  size_t dstlen= len;
-  set_if_smaller(len, srclen);
-  if (dest != src)
+  const uchar *end;
+
+  if (likely(len <= srclen))
   {
-    const uchar *end;
-    for ( end=src+len; src < end ;  )
+    for (end = src + len; src < end ;  )
       *dest++= map[*src++];
   }
   else
   {
-    const uchar *end;
-    for ( end=dest+len; dest < end ; dest++)
-      *dest= (char) map[(uchar) *dest];
+    for (end = src + srclen; src < end ;  )
+      *dest++= map[*src++];
+    memset(dest, ' ', len - srclen);
   }
-  if (dstlen > len)
-    bfill(dest, dstlen - len, ' ');
-  return dstlen;
+
+  return len;
 }
 
 
@@ -841,13 +839,16 @@ cnv:
 #define INC_PTR(cs,A,B) (A)++
 
 
-int my_wildcmp_8bit(CHARSET_INFO *cs,
-		    const char *str,const char *str_end,
-		    const char *wildstr,const char *wildend,
-		    int escape, int w_one, int w_many)
+static
+int my_wildcmp_8bit_impl(CHARSET_INFO *cs,
+                         const char *str,const char *str_end,
+                         const char *wildstr,const char *wildend,
+                         int escape, int w_one, int w_many, int recurse_level)
 {
   int result= -1;			/* Not found, using wildcards */
 
+  if (my_string_stack_guard && my_string_stack_guard(recurse_level))
+    return 1;
   while (wildstr != wildend)
   {
     while (*wildstr != w_many && *wildstr != w_one)
@@ -907,8 +908,9 @@ int my_wildcmp_8bit(CHARSET_INFO *cs,
 	  str++;
 	if (str++ == str_end) return(-1);
 	{
-	  int tmp=my_wildcmp_8bit(cs,str,str_end,wildstr,wildend,escape,w_one,
-				  w_many);
+	  int tmp=my_wildcmp_8bit_impl(cs,str,str_end,
+                                       wildstr,wildend,escape,w_one,
+                                       w_many, recurse_level+1);
 	  if (tmp <= 0)
 	    return(tmp);
 	}
@@ -917,6 +919,16 @@ int my_wildcmp_8bit(CHARSET_INFO *cs,
     }
   }
   return(str != str_end ? 1 : 0);
+}
+
+int my_wildcmp_8bit(CHARSET_INFO *cs,
+                    const char *str,const char *str_end,
+                    const char *wildstr,const char *wildend,
+                    int escape, int w_one, int w_many)
+{
+  return my_wildcmp_8bit_impl(cs, str, str_end,
+                              wildstr, wildend,
+                              escape, w_one, w_many, 1);
 }
 
 

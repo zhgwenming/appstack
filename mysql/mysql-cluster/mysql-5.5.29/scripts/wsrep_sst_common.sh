@@ -1,4 +1,4 @@
-# Copyright (C) 2010 Codership Oy
+# Copyright (C) 2012 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ case "$1" in
         shift
         ;;
     '--auth')
-        readonly WSREP_SST_OPT_AUTH="$2"
+        WSREP_SST_OPT_AUTH="$2"
         shift
         ;;
     '--bypass')
@@ -87,12 +87,27 @@ shift
 done
 readonly WSREP_SST_OPT_BYPASS
 
+# For Bug:1200727
+if my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then 
+    if [ -z $WSREP_SST_OPT_AUTH -o $WSREP_SST_OPT_AUTH = "(null)" ];then 
+            WSREP_SST_OPT_AUTH=$(my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+    fi
+fi
+
+if [ -n "${WSREP_SST_OPT_DATA:-}" ]
+then
+    SST_PROGRESS_FILE="$WSREP_SST_OPT_DATA/sst_in_progress"
+else
+    SST_PROGRESS_FILE=""
+fi
+
+
 wsrep_log()
 {
     # echo everything to stderr so that it gets into common error log
     # deliberately made to look different from the rest of the log
     local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
-    echo "WSREP_SST: $* ($tst)" >>/dev/stderr
+    echo "WSREP_SST: $* ($tst)" >&2
 }
 
 wsrep_log_error()
@@ -103,5 +118,10 @@ wsrep_log_error()
 wsrep_log_info()
 {
     wsrep_log "[INFO] $*"
+}
+
+wsrep_cleanup_progress_file()
+{
+    [ -n "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null
 }
 

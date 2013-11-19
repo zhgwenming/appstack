@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2013, Innobase Oy. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -33,6 +33,7 @@ Created 4/24/1996 Heikki Tuuri
 
 #include "btr0pcur.h"
 #include "btr0btr.h"
+#include "btr0sea.h"
 #include "page0page.h"
 #include "mach0data.h"
 #include "dict0dict.h"
@@ -105,7 +106,7 @@ dict_get_first_table_name_in_db(
 
 	mtr_start(&mtr);
 
-	sys_tables = dict_table_get_low("SYS_TABLES");
+	sys_tables = dict_table_get_low("SYS_TABLES", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_tables->indexes);
 	ut_a(!dict_table_is_comp(sys_tables));
 
@@ -271,7 +272,8 @@ dict_startscan_system(
 
 	ut_a(system_id < SYS_NUM_SYSTEM_TABLES);
 
-	system_table = dict_table_get_low(SYSTEM_TABLE_NAME[system_id]);
+	system_table = dict_table_get_low(SYSTEM_TABLE_NAME[system_id],
+					  DICT_ERR_IGNORE_NONE);
 
 	clust_index = UT_LIST_GET_FIRST(system_table->indexes);
 
@@ -336,7 +338,7 @@ dict_process_sys_tables_rec(
 	/* If DICT_TABLE_LOAD_FROM_CACHE is set, first check
 	whether there is cached dict_table_t struct first */
 	if (status & DICT_TABLE_LOAD_FROM_CACHE) {
-		*table = dict_table_get_low(table_name);
+		*table = dict_table_get_low(table_name, DICT_ERR_IGNORE_NONE);
 
 		if (!(*table)) {
 			err_msg = "Table not found in cache";
@@ -355,8 +357,11 @@ dict_process_sys_tables_rec(
 
 		/* Update statistics if DICT_TABLE_UPDATE_STATS
 		is set */
-		dict_update_statistics(*table, FALSE /* update even if
-				       initialized */, FALSE);
+		dict_update_statistics(
+			*table,
+			FALSE, /* update even if initialized */
+			FALSE,
+			FALSE /* update even if not changed too much */);
 	}
 
 	return(NULL);
@@ -745,7 +750,7 @@ dict_check_tablespaces_and_store_max_id(
 
 	mtr_start(&mtr);
 
-	sys_tables = dict_table_get_low("SYS_TABLES");
+	sys_tables = dict_table_get_low("SYS_TABLES", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_tables->indexes);
 	ut_a(!dict_table_is_comp(sys_tables));
 
@@ -1028,7 +1033,7 @@ dict_load_columns(
 
 	mtr_start(&mtr);
 
-	sys_columns = dict_table_get_low("SYS_COLUMNS");
+	sys_columns = dict_table_get_low("SYS_COLUMNS", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_columns->indexes);
 	ut_a(!dict_table_is_comp(sys_columns));
 
@@ -1235,7 +1240,7 @@ dict_load_fields(
 
 	mtr_start(&mtr);
 
-	sys_fields = dict_table_get_low("SYS_FIELDS");
+	sys_fields = dict_table_get_low("SYS_FIELDS", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_fields->indexes);
 	ut_a(!dict_table_is_comp(sys_fields));
 	ut_a(name_of_col_is(sys_fields, sys_index, 4, "COL_NAME"));
@@ -1428,6 +1433,7 @@ err_len:
 
 	(*index)->id = id;
 	(*index)->page = mach_read_from_4(field);
+	btr_search_index_init(*index);
 	ut_ad((*index)->page);
 
 	return(NULL);
@@ -1462,7 +1468,7 @@ dict_load_indexes(
 
 	mtr_start(&mtr);
 
-	sys_indexes = dict_table_get_low("SYS_INDEXES");
+	sys_indexes = dict_table_get_low("SYS_INDEXES", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_indexes->indexes);
 	ut_a(!dict_table_is_comp(sys_indexes));
 	ut_a(name_of_col_is(sys_indexes, sys_index, 4, "NAME"));
@@ -1834,7 +1840,7 @@ dict_load_table(
 
 	mtr_start(&mtr);
 
-	sys_tables = dict_table_get_low("SYS_TABLES");
+	sys_tables = dict_table_get_low("SYS_TABLES", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_tables->indexes);
 	ut_a(!dict_table_is_comp(sys_tables));
 	ut_a(name_of_col_is(sys_tables, sys_index, 3, "ID"));
@@ -1963,9 +1969,16 @@ err_exit:
 	all indexes were loaded. */
 	if (!cached) {
 	} else if (err == DB_SUCCESS) {
-		err = dict_load_foreigns(table->name, TRUE, TRUE);
+		err = dict_load_foreigns(table->name, TRUE, TRUE,
+					 ignore_err);
 
 		if (err != DB_SUCCESS) {
+			fprintf(stderr,
+				"InnoDB: Load table '%s' failed, the table "
+				"has missing foreign key indexes. Turn off "
+				"'foreign_key_checks' and try again.",
+				table->name);
+
 			dict_table_remove_from_cache(table);
 			table = NULL;
 		} else {
@@ -2163,7 +2176,8 @@ dict_load_foreign_cols(
 		foreign->heap, foreign->n_fields * sizeof(void*));
 	mtr_start(&mtr);
 
-	sys_foreign_cols = dict_table_get_low("SYS_FOREIGN_COLS");
+	sys_foreign_cols = dict_table_get_low("SYS_FOREIGN_COLS",
+					      DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_foreign_cols->indexes);
 	ut_a(!dict_table_is_comp(sys_foreign_cols));
 
@@ -2212,15 +2226,19 @@ static
 ulint
 dict_load_foreign(
 /*==============*/
-	const char*	id,	/*!< in: foreign constraint id, not
+	const char*		id,
+				/*!< in: foreign constraint id, not
 				necessary '\0'-terminated */
-	ulint		id_len,	/*!< in: id length */
-	ibool		check_charsets,
+	ulint			id_len,
+				/*!< in: id length */
+	ibool			check_charsets,
 				/*!< in: TRUE=check charset compatibility */
-	ibool		check_recursive)
+	ibool			check_recursive,
 				/*!< in: Whether to record the foreign table
 				parent count to avoid unlimited recursive
 				load of chained foreign tables */
+	dict_err_ignore_t	ignore_err)
+				/*!< in: error to be ignored */
 {
 	dict_foreign_t*	foreign;
 	dict_table_t*	sys_foreign;
@@ -2243,7 +2261,7 @@ dict_load_foreign(
 
 	mtr_start(&mtr);
 
-	sys_foreign = dict_table_get_low("SYS_FOREIGN");
+	sys_foreign = dict_table_get_low("SYS_FOREIGN", DICT_ERR_IGNORE_NONE);
 	sys_index = UT_LIST_GET_FIRST(sys_foreign->indexes);
 	ut_a(!dict_table_is_comp(sys_foreign));
 
@@ -2357,7 +2375,9 @@ dict_load_foreign(
 		have to load it so that we are able to make type comparisons
 		in the next function call. */
 
-		for_table = dict_table_get_low(foreign->foreign_table_name_lookup);
+		for_table = dict_table_get_low(
+				foreign->foreign_table_name_lookup,
+				DICT_ERR_IGNORE_NONE);
 
 		if (for_table && ref_table && check_recursive) {
 			/* This is to record the longest chain of ancesters
@@ -2380,7 +2400,7 @@ dict_load_foreign(
 	a new foreign key constraint but loading one from the data
 	dictionary. */
 
-	return(dict_foreign_add_to_cache(foreign, check_charsets));
+	return(dict_foreign_add_to_cache(foreign, check_charsets, ignore_err));
 }
 
 /***********************************************************************//**
@@ -2394,13 +2414,16 @@ UNIV_INTERN
 ulint
 dict_load_foreigns(
 /*===============*/
-	const char*	table_name,	/*!< in: table name */
-	ibool		check_recursive,/*!< in: Whether to check recursive
-					load of tables chained by FK */
-	ibool		check_charsets)	/*!< in: TRUE=check charset
-					compatibility */
+	const char*		table_name,	/*!< in: table name */
+	ibool			check_recursive,/*!< in: Whether to check
+						recursive load of tables
+						chained by FK */
+	ibool			check_charsets,	/*!< in: TRUE=check charset
+						compatibility */
+	dict_err_ignore_t	ignore_err)	/*!< in: error to be ignored */
 {
-	char		tuple_buf[DTUPLE_EST_ALLOC(1)];
+	ulint		tuple_buf[(DTUPLE_EST_ALLOC(1) + sizeof(ulint) - 1)
+				/ sizeof(ulint)];
 	btr_pcur_t	pcur;
 	dtuple_t*	tuple;
 	dfield_t*	dfield;
@@ -2414,7 +2437,7 @@ dict_load_foreigns(
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
-	sys_foreign = dict_table_get_low("SYS_FOREIGN");
+	sys_foreign = dict_table_get_low("SYS_FOREIGN", DICT_ERR_IGNORE_NONE);
 
 	if (sys_foreign == NULL) {
 		/* No foreign keys defined yet in this database */
@@ -2498,7 +2521,7 @@ loop:
 	/* Load the foreign constraint definition to the dictionary cache */
 
 	err = dict_load_foreign((char*) field, len, check_charsets,
-				check_recursive);
+				check_recursive, ignore_err);
 
 	if (err != DB_SUCCESS) {
 		btr_pcur_close(&pcur);

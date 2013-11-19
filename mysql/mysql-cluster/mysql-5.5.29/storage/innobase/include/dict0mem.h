@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -127,7 +127,7 @@ This could result in rescursive calls and out of stack error eventually.
 DICT_FK_MAX_RECURSIVE_LOAD defines the maximum number of recursive loads,
 when exceeded, the child table will not be loaded. It will be loaded when
 the foreign constraint check needs to be run. */
-#define DICT_FK_MAX_RECURSIVE_LOAD	255
+#define DICT_FK_MAX_RECURSIVE_LOAD	20
 
 /** Similarly, when tables are chained together with foreign key constraints
 with on cascading delete/update clause, delete from parent table could
@@ -368,6 +368,10 @@ struct dict_field_struct{
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_struct{
 	index_id_t	id;	/*!< id of the index */
+	rw_lock_t*	search_latch; /*!< latch protecting the AHI partition
+				      corresponding to this index */
+	hash_table_t*	search_table; /*!< hash table protected by
+				      search_latch */
 	mem_heap_t*	heap;	/*!< memory heap */
 	const char*	name;	/*!< index name */
 	const char*	table_name;/*!< table name */
@@ -610,7 +614,13 @@ struct dict_table_struct{
 				/*!< flag: TRUE if the maximum length of
 				a single row exceeds BIG_ROW_SIZE;
 				initialized in dict_table_add_to_cache() */
-				/** Statistics for query optimization */
+				/** Statistics for query optimization.
+				The following stat_* members are usually
+				protected by dict_table_stats_lock(). In
+				some exceptional cases (performance critical
+				code paths) we access or modify stat_n_rows
+				and stat_modified_counter without any
+				protection. */
 				/* @{ */
 	unsigned	stat_initialized:1; /*!< TRUE if statistics have
 				been calculated the first time

@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -49,12 +49,14 @@ the kernel mutex */
 extern ulint	trx_n_prepared;
 
 /********************************************************************//**
-Releases the search latch if trx has reserved it. */
-UNIV_INTERN
+In XtraDB it is impossible for a transaction to own a search latch outside of
+InnoDB code, so there is nothing to release on demand.  We keep this function to
+simplify maintenance.*/
+UNIV_INLINE
 void
 trx_search_latch_release_if_reserved(
 /*=================================*/
-	trx_t*	   trx); /*!< in: transaction */
+	trx_t*	   trx __attribute__((unused))); /*!< in: transaction */
 /******************************************************************//**
 Set detailed error message for the transaction. */
 UNIV_INTERN
@@ -447,6 +449,23 @@ trx_get_que_state_str(
 /*==================*/
 	const trx_t*	trx);	/*!< in: transaction */
 
+/*************************************************************//**
+Callback function for trx_find_descriptor() to compare trx IDs. */
+UNIV_INTERN
+int
+trx_descr_cmp(
+/*==========*/
+	const void *a,	/*!< in: pointer to first comparison argument */
+	const void *b);	/*!< in: pointer to second comparison argument */
+
+/*************************************************************//**
+Release a slot for a given trx in the global descriptors array. */
+UNIV_INTERN
+void
+trx_release_descriptor(
+/*===================*/
+	trx_t* trx);	/*!< in: trx pointer */
+
 /* Signal to a transaction */
 struct trx_sig_struct{
 	unsigned	type:3;		/*!< signal type */
@@ -477,10 +496,18 @@ struct trx_struct{
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */
-	ulint		conc_state;	/*!< state of the trx from the point
-					of view of concurrency control:
-					TRX_ACTIVE, TRX_COMMITTED_IN_MEMORY,
-					... */
+	ulint		state;		/*!< state of the trx from the point of
+					view of concurrency control: TRX_ACTIVE,
+					TRX_COMMITTED_IN_MEMORY, ...  This was
+					called 'conc_state' in the upstream and
+					has been renamed in Percona Server,
+					because changing it's value to/from
+					either TRX_ACTIVE or TRX_PREPARED
+					requires calling
+					trx_reserve_descriptor() /
+					trx_release_descriptor(). Different name
+					ensures we notice any new code changing
+					the state. */
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
        	commit between multiple storage engines and the binary log. When
@@ -495,6 +522,9 @@ struct trx_struct{
 					also be set to 1. This is used in the
 					XA code */
 	unsigned	called_commit_ordered:1;/* 1 if innobase_commit_ordered has run. */
+	unsigned	is_in_trx_serial_list:1;
+					/* Set when transaction is in the
+					trx_serial_list */
 	/*------------------------------*/
 	ulint		isolation_level;/* TRX_ISO_REPEATABLE_READ, ... */
 	ulint		check_foreigns;	/* normally TRUE, but if the user
@@ -527,8 +557,8 @@ struct trx_struct{
 					in that case we must flush the log
 					in trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
-	ulint		has_search_latch;
-					/* TRUE if this trx has latched the
+	ibool		has_search_latch;
+					/* TRUE if this trx has latched any
 					search system latch in S-mode */
 	ulint		deadlock_mark;	/*!< a mark field used in deadlock
 					checking algorithm.  */
@@ -628,6 +658,9 @@ struct trx_struct{
 	UT_LIST_NODE_T(trx_t)
 			mysql_trx_list;	/*!< list of transactions created for
 					MySQL */
+	UT_LIST_NODE_T(trx_t)
+			trx_serial_list;/*!< list node for
+					trx_sys->trx_serial_list */
 	/*------------------------------*/
 	ulint		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread
@@ -686,9 +719,6 @@ struct trx_struct{
 	UT_LIST_BASE_NODE_T(lock_t)
 			trx_locks;	/*!< locks reserved by the transaction */
 	/*------------------------------*/
-	mem_heap_t*	global_read_view_heap;
-					/* memory heap for the global read
-					view */
 	read_view_t*	global_read_view;
 					/* consistent read view associated
 					to a transaction or NULL */
@@ -698,6 +728,7 @@ struct trx_struct{
 					associated to a transaction (i.e.
 					same as global_read_view) or read view
 					associated to a cursor */
+	read_view_t*	prebuilt_view;	/* pre-built view array */
 	/*------------------------------*/
 	UT_LIST_BASE_NODE_T(trx_named_savept_t)
 			trx_savepoints;	/*!< savepoints set with SAVEPOINT ...,
@@ -758,6 +789,9 @@ struct trx_struct{
 #define	DPAH_SIZE	8192
 	byte*		distinct_page_access_hash;
 	ibool		take_stats;
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
 };
 
 #define TRX_MAX_N_THREADS	32	/* maximum number of

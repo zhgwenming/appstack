@@ -2177,7 +2177,11 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
   */
   m_wait.reset_status();
 
-  if (lock->needs_notification(ticket))
+  /*
+    Don't break conflicting locks if timeout is 0 as 0 is used
+    To check if there is any conflicting locks...
+  */
+  if (lock->needs_notification(ticket) && lock_wait_timeout)
     lock->notify_conflicting_locks(this);
 
   mysql_prlock_unlock(&lock->m_rwlock);
@@ -2733,6 +2737,12 @@ void MDL_context::release_locks_stored_before(enum_mdl_duration duration,
 }
 
 
+#ifdef WITH_WSREP
+void MDL_context::release_explicit_locks()
+{
+  release_locks_stored_before(MDL_EXPLICIT, NULL);
+}
+#endif
 /**
   Release all explicit locks in the context which correspond to the
   same name/object as this lock request.

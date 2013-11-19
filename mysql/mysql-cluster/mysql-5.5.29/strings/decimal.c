@@ -1,4 +1,4 @@
-/* Copyright (c) 2004, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2004, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /*
 =======================================================================
@@ -1170,7 +1170,7 @@ int decimal2longlong(decimal_t *from, longlong *to)
 
     And for -1234567890.1234 it would be
 
-                7E F2 04 37 2D FB 2D
+                7E F2 04 C7 2D FB 2D
 */
 int decimal2bin(decimal_t *from, uchar *to, int precision, int frac)
 {
@@ -1989,44 +1989,45 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
   int intg1=ROUND_UP(from1->intg), intg2=ROUND_UP(from2->intg),
       frac1=ROUND_UP(from1->frac), frac2=ROUND_UP(from2->frac),
       intg0=ROUND_UP(from1->intg+from2->intg),
-      frac0=frac1+frac2, error, i, j, d_to_move;
+      frac0=frac1+frac2, error, iii, jjj, d_to_move;
   dec1 *buf1=from1->buf+intg1, *buf2=from2->buf+intg2, *buf0,
        *start2, *stop2, *stop1, *start0, carry;
 
   sanity(to);
 
-  i=intg0;                                       /* save 'ideal' values */
-  j=frac0;
+  iii= intg0;                                       /* save 'ideal' values */
+  jjj= frac0;
   FIX_INTG_FRAC_ERROR(to->len, intg0, frac0, error);  /* bound size */
-  to->sign=from1->sign != from2->sign;
-  to->frac=from1->frac+from2->frac;              /* store size in digits */
+  to->sign= from1->sign != from2->sign;
+  to->frac= from1->frac + from2->frac;              /* store size in digits */
+  set_if_smaller(to->frac, NOT_FIXED_DEC);
   to->intg=intg0*DIG_PER_DEC1;
 
   if (unlikely(error))
   {
     set_if_smaller(to->frac, frac0*DIG_PER_DEC1);
     set_if_smaller(to->intg, intg0*DIG_PER_DEC1);
-    if (unlikely(i > intg0))                     /* bounded integer-part */
+    if (unlikely(iii > intg0))                     /* bounded integer-part */
     {
-      i-=intg0;
-      j=i >> 1;
-      intg1-= j;
-      intg2-=i-j;
+      iii-=intg0;
+      jjj= iii >> 1;
+      intg1-= jjj;
+      intg2-=iii-jjj;
       frac1=frac2=0; /* frac0 is already 0 here */
     }
     else                                         /* bounded fract part */
     {
-      j-=frac0;
-      i=j >> 1;
+      jjj-=frac0;
+      iii=jjj >> 1;
       if (frac1 <= frac2)
       {
-        frac1-= i;
-        frac2-=j-i;
+        frac1-= iii;
+        frac2-=jjj-iii;
       }
       else
       {
-        frac2-= i;
-        frac1-=j-i;
+        frac2-= iii;
+        frac1-=jjj-iii;
       }
     }
   }

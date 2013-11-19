@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -322,6 +322,7 @@ extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
 extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 extern "C" const char * wsrep_thd_exec_mode_str(THD *thd);
 extern "C" const char * wsrep_thd_conflict_state_str(THD *thd);
+extern "C" const char * wsrep_thd_consistency_check_str(THD *thd);
 extern "C" const char * wsrep_thd_query_state_str(THD *thd);
 extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd);
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -2095,12 +2095,12 @@ my_tosort_unicode(MY_UNICASE_INFO **uni_plane, my_wc_t *wc)
 **	 1 if matched with wildcard
 */
 
-int
-my_wildcmp_unicode(CHARSET_INFO *cs,
-                   const char *str,const char *str_end,
-                   const char *wildstr,const char *wildend,
-                   int escape, int w_one, int w_many,
-                   MY_UNICASE_INFO **weights)
+static
+int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
+                            const char *str,const char *str_end,
+                            const char *wildstr,const char *wildend,
+                            int escape, int w_one, int w_many,
+                            MY_UNICASE_INFO **weights, int recurse_level)
 {
   int result= -1;                             /* Not found, using wildcards */
   my_wc_t s_wc, w_wc;
@@ -2108,7 +2108,9 @@ my_wildcmp_unicode(CHARSET_INFO *cs,
   int (*mb_wc)(struct charset_info_st *, my_wc_t *,
                const uchar *, const uchar *);
   mb_wc= cs->cset->mb_wc;
-  
+
+  if (my_string_stack_guard && my_string_stack_guard(recurse_level))
+    return 1;
   while (wildstr != wildend)
   {
     while (1)
@@ -2230,9 +2232,9 @@ my_wildcmp_unicode(CHARSET_INFO *cs,
           return -1;
         
         str+= scan;
-        result= my_wildcmp_unicode(cs, str, str_end, wildstr, wildend,
-                                   escape, w_one, w_many,
-                                   weights);
+        result= my_wildcmp_unicode_impl(cs, str, str_end, wildstr, wildend,
+                                        escape, w_one, w_many,
+                                        weights, recurse_level+1);
         if (result <= 0)
           return result;
       } 
@@ -2242,6 +2244,17 @@ my_wildcmp_unicode(CHARSET_INFO *cs,
 }
 
 
+int
+my_wildcmp_unicode(CHARSET_INFO *cs,
+                   const char *str,const char *str_end,
+                   const char *wildstr,const char *wildend,
+                   int escape, int w_one, int w_many,
+                   MY_UNICASE_INFO **weights)
+{
+  return my_wildcmp_unicode_impl(cs, str, str_end,
+                                 wildstr, wildend,
+                                 escape, w_one, w_many, weights, 1);
+}
 /*
   Store sorting weights using 2 bytes per character.
 
@@ -4585,6 +4598,8 @@ my_mb_wc_filename(CHARSET_INFO *cs __attribute__((unused)),
     return MY_CS_TOOSMALL3;
   
   byte1= s[1];
+  if (byte1 == 0)
+    return MY_CS_ILSEQ; /* avoid possible out-of-bounds read */
   byte2= s[2];
   
   if (byte1 >= 0x30 && byte1 <= 0x7F &&

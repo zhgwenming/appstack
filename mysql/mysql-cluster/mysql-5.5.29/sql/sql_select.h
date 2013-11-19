@@ -1,7 +1,7 @@
 #ifndef SQL_SELECT_INCLUDED
 #define SQL_SELECT_INCLUDED
 
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -160,6 +160,20 @@ typedef struct st_join_table {
   TABLE		*table;
   KEYUSE	*keyuse;			/**< pointer to first used key */
   SQL_SELECT	*select;
+  /**
+    When doing filesort, the select object is used for building the
+    sort index. After the sort index is built, the pointer to the
+    select object is set to NULL to avoid that it is used when reading
+    the result records (@see create_sort_index()). For subqueries that
+    do filesort and that are executed multiple times, the pointer to
+    the select object must be restored before the next execution both
+    to ensure that the select object is used and to be able to cleanup
+    the select object after the final execution of the subquery. In
+    order to be able to restore the pointer to the select object, it
+    is saved in saved_select in create_sort_index() and restored in
+    JOIN::exec() after the main select is done.
+  */
+  SQL_SELECT    *saved_select;
   COND		*select_cond;
   QUICK_SELECT_I *quick;
   Item	       **on_expr_ref;   /**< pointer to the associated on expression   */
@@ -229,16 +243,40 @@ typedef struct st_join_table {
   nested_join_map embedding_map;
 
   void cleanup();
+  /*
+    In cases where filesort reads rows from a table using Loose Index
+    Scan, the fact that LIS was used is lost because
+    create_sort_index() deletes join_tab->select->quick. MySQL needs
+    this information during JOIN::exec().
+
+    This variable is a hack for MySQL 5.5 only. A value of true means
+    that filesort used LIS to read from the table. In MySQL 5.6 and
+    later, join_tab->filesort is a separate structure with it's own
+    select that can be inquired to get the same information. There is
+    no need for this variable in MySQL 5.6 and later.
+  */
+  bool		filesort_used_loose_index_scan;
+  /*
+    Similar hack as for filesort_used_loose_index_scan. Not needed for
+    MySQL 5.6 and later.
+  */
+  bool		filesort_used_loose_index_scan_agg_distinct;
   inline bool is_using_loose_index_scan()
   {
-    return (select && select->quick &&
-            (select->quick->get_type() ==
-             QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX));
+    return (filesort_used_loose_index_scan || 
+            (select && select->quick &&
+             (select->quick->get_type() ==
+              QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX))
+            );
   }
   bool is_using_agg_loose_index_scan ()
   {
-    return (is_using_loose_index_scan() &&
-            ((QUICK_GROUP_MIN_MAX_SELECT *)select->quick)->is_agg_distinct());
+    return (filesort_used_loose_index_scan_agg_distinct ||
+            (select && select->quick &&
+             (select->quick->get_type() ==
+              QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX) &&
+             ((QUICK_GROUP_MIN_MAX_SELECT *)select->quick)->is_agg_distinct())
+            );
   }
 } JOIN_TAB;
 

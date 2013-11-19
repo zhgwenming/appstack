@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,6 +22,8 @@ Data dictionary system
 
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
+
+#include <my_sys.h>
 
 #include "dict0dict.h"
 
@@ -753,15 +755,18 @@ UNIV_INTERN
 dict_table_t*
 dict_table_get(
 /*===========*/
-	const char*	table_name,	/*!< in: table name */
-	ibool		inc_mysql_count)/*!< in: whether to increment the open
-					handle count on the table */
+	const char*		table_name,	/*!< in: table name */
+	ibool			inc_mysql_count,/*!< in: whether to increment
+						the open handle count on the
+						table */
+	dict_err_ignore_t	ignore_err)	/*!< in: errors to ignore when
+						loading the table */
 {
 	dict_table_t*	table;
 
 	mutex_enter(&(dict_sys->mutex));
 
-	table = dict_table_get_low(table_name);
+	table = dict_table_get_low(table_name, ignore_err);
 
 	if (inc_mysql_count && table) {
 		table->n_mysql_handles_opened++;
@@ -775,8 +780,11 @@ dict_table_get(
 		/* If table->ibd_file_missing == TRUE, this will
 		print an error message and return without doing
 		anything. */
-		dict_update_statistics(table, TRUE /* only update stats
-				       if they have not been initialized */, FALSE);
+		dict_update_statistics(
+			table,
+			TRUE, /* only update stats if not initialized */
+			FALSE,
+			FALSE /* update even if not changed too much */);
 	}
 
 	return(table);
@@ -1119,21 +1127,77 @@ dict_table_rename_in_cache(
 			dict_mem_foreign_table_name_lookup_set(foreign, FALSE);
 		}
 		if (strchr(foreign->id, '/')) {
+			/* This is a >= 4.0.18 format id */
+
 			ulint	db_len;
 			char*	old_id;
+			char    old_name_cs_filename[MAX_TABLE_NAME_LEN+20];
+			uint    errors = 0;
 
-			/* This is a >= 4.0.18 format id */
+			/* All table names are internally stored in charset
+			my_charset_filename (except the temp tables and the
+			partition identifier suffix in partition tables). The
+			foreign key constraint names are internally stored
+			in UTF-8 charset.  The variable fkid here is used
+			to store foreign key constraint name in charset
+			my_charset_filename for comparison further below. */
+			char    fkid[MAX_TABLE_NAME_LEN+20];
+			ibool	on_tmp = FALSE;
+
+			/* The old table name in my_charset_filename is stored
+			in old_name_cs_filename */
+
+			strncpy(old_name_cs_filename, old_name,
+				MAX_TABLE_NAME_LEN);
+			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
+
+				innobase_convert_to_system_charset(
+					strchr(old_name_cs_filename, '/') + 1,
+					strchr(old_name, '/') + 1,
+					MAX_TABLE_NAME_LEN, &errors);
+
+				if (errors) {
+					/* There has been an error to convert
+					old table into UTF-8.  This probably
+					means that the old table name is
+					actually in UTF-8. */
+					innobase_convert_to_filename_charset(
+						strchr(old_name_cs_filename,
+						       '/') + 1,
+						strchr(old_name, '/') + 1,
+						MAX_TABLE_NAME_LEN);
+				} else {
+					/* Old name already in
+					my_charset_filename */
+					strncpy(old_name_cs_filename, old_name,
+						MAX_TABLE_NAME_LEN);
+				}
+			}
+
+			strncpy(fkid, foreign->id, MAX_TABLE_NAME_LEN);
+
+			if (strstr(fkid, TEMP_TABLE_PATH_PREFIX) == NULL) {
+				innobase_convert_to_filename_charset(
+					strchr(fkid, '/') + 1,
+					strchr(foreign->id, '/') + 1,
+					MAX_TABLE_NAME_LEN+20);
+			} else {
+				on_tmp = TRUE;
+			}
 
 			old_id = mem_strdup(foreign->id);
 
-			if (ut_strlen(foreign->id) > ut_strlen(old_name)
+			if (ut_strlen(fkid) > ut_strlen(old_name_cs_filename)
 			    + ((sizeof dict_ibfk) - 1)
-			    && !memcmp(foreign->id, old_name,
-				       ut_strlen(old_name))
-			    && !memcmp(foreign->id + ut_strlen(old_name),
+			    && !memcmp(fkid, old_name_cs_filename,
+				       ut_strlen(old_name_cs_filename))
+			    && !memcmp(fkid + ut_strlen(old_name_cs_filename),
 				       dict_ibfk, (sizeof dict_ibfk) - 1)) {
 
 				/* This is a generated >= 4.0.18 format id */
+
+				char	table_name[MAX_TABLE_NAME_LEN] = "";
+				uint	errors = 0;
 
 				if (strlen(table->name) > strlen(old_name)) {
 					foreign->id = mem_heap_alloc(
@@ -1142,11 +1206,36 @@ dict_table_rename_in_cache(
 						+ strlen(old_id) + 1);
 				}
 
+				/* Convert the table name to UTF-8 */
+				strncpy(table_name, table->name,
+					MAX_TABLE_NAME_LEN);
+				innobase_convert_to_system_charset(
+					strchr(table_name, '/') + 1,
+					strchr(table->name, '/') + 1,
+					MAX_TABLE_NAME_LEN, &errors);
+
+				if (errors) {
+					/* Table name could not be converted
+					from charset my_charset_filename to
+					UTF-8. This means that the table name
+					is already in UTF-8 (#mysql#50). */
+					strncpy(table_name, table->name,
+						MAX_TABLE_NAME_LEN);
+				}
+
 				/* Replace the prefix 'databasename/tablename'
 				with the new names */
-				strcpy(foreign->id, table->name);
-				strcat(foreign->id,
-				       old_id + ut_strlen(old_name));
+				strcpy(foreign->id, table_name);
+				if (on_tmp) {
+					strcat(foreign->id,
+					       old_id + ut_strlen(old_name));
+				} else {
+					sprintf(strchr(foreign->id, '/') + 1,
+						"%s%s",
+						strchr(table_name, '/') +1,
+						strstr(old_id, "_ibfk_") );
+				}
+
 			} else {
 				/* This is a >= 4.0.18 format id where the user
 				gave the id name */
@@ -1529,6 +1618,10 @@ dict_index_too_big_for_tree(
 	/* maximum allowed size of a node pointer record */
 	ulint	page_ptr_max;
 
+	DBUG_EXECUTE_IF(
+		"ib_force_create_table",
+		return(FALSE););
+
 	comp = dict_table_is_comp(table);
 	zip_size = dict_table_zip_size(table);
 
@@ -1543,7 +1636,10 @@ dict_index_too_big_for_tree(
 		number in the page modification log.  The maximum
 		allowed node pointer size is half that. */
 		page_rec_max = page_zip_empty_size(new_index->n_fields,
-						   zip_size) - 1;
+						   zip_size);
+		if (page_rec_max) {
+			page_rec_max--;
+		}
 		page_ptr_max = page_rec_max / 2;
 		/* On a compressed page, there is a two-byte entry in
 		the dense page directory for every record.  But there
@@ -1805,6 +1901,11 @@ undo_size_ok:
 		       dict_index_is_ibuf(index)
 		       ? SYNC_IBUF_INDEX_TREE : SYNC_INDEX_TREE);
 
+	DBUG_EXECUTE_IF(
+		"index_partially_created_should_kick",
+		DEBUG_SYNC_C("index_partially_created");
+	);
+
 	if (!UNIV_UNLIKELY(new_index->type & DICT_UNIVERSAL)) {
 
 		new_index->stat_n_diff_key_vals = mem_heap_alloc(
@@ -1871,7 +1972,7 @@ dict_index_remove_from_cache(
 	zero. */
 
 	for (;;) {
-		ulint ref_count = btr_search_info_get_ref_count(info, index->id);
+		ulint ref_count = btr_search_info_get_ref_count(info, index);
 		if (ref_count == 0) {
 			break;
 		}
@@ -2123,6 +2224,7 @@ dict_index_build_internal_clust(
 	new_index->n_user_defined_cols = index->n_fields;
 
 	new_index->id = index->id;
+	btr_search_index_init(new_index);
 
 	/* Copy the fields of index */
 	dict_index_copy(new_index, index, table, 0, index->n_fields);
@@ -2293,6 +2395,7 @@ dict_index_build_internal_non_clust(
 	new_index->n_user_defined_cols = index->n_fields;
 
 	new_index->id = index->id;
+	btr_search_index_init(new_index);
 
 	/* Copy fields from index to new_index */
 	dict_index_copy(new_index, index, table, 0, index->n_fields);
@@ -2742,9 +2845,11 @@ UNIV_INTERN
 ulint
 dict_foreign_add_to_cache(
 /*======================*/
-	dict_foreign_t*	foreign,	/*!< in, own: foreign key constraint */
-	ibool		check_charsets)	/*!< in: TRUE=check charset
-					compatibility */
+	dict_foreign_t*		foreign,	/*!< in, own: foreign key
+						constraint */
+	ibool			check_charsets,	/*!< in: TRUE=check charset
+						compatibility */
+	dict_err_ignore_t	ignore_err)	/*!< in: error to be ignored */
 {
 	dict_table_t*	for_table;
 	dict_table_t*	ref_table;
@@ -2784,7 +2889,8 @@ dict_foreign_add_to_cache(
 			for_in_cache->n_fields, for_in_cache->foreign_index,
 			check_charsets, FALSE);
 
-		if (index == NULL) {
+		if (index == NULL
+		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
 			dict_foreign_error_report(
 				ef, for_in_cache,
 				"there is no index in referenced table"
@@ -2819,7 +2925,8 @@ dict_foreign_add_to_cache(
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
 			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
 
-		if (index == NULL) {
+		if (index == NULL
+		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
 			dict_foreign_error_report(
 				ef, for_in_cache,
 				"there is no index in the table"
@@ -2869,14 +2976,27 @@ dict_scan_to(
 	const char*	string)	/*!< in: look for this */
 {
 	char	quote	= '\0';
+	ibool	escape	= FALSE;
 
 	for (; *ptr; ptr++) {
 		if (*ptr == quote) {
 			/* Closing quote character: do not look for
 			starting quote or the keyword. */
-			quote = '\0';
+
+			/* If the quote character is escaped by a
+			backslash, ignore it. */
+			if (escape) {
+				escape = FALSE;
+			} else {
+				quote = '\0';
+			}
 		} else if (quote) {
 			/* Within quotes: do nothing. */
+			if (escape) {
+				escape = FALSE;
+			} else if (*ptr == '\\') {
+				escape = TRUE;
+			}
 		} else if (*ptr == '`' || *ptr == '"' || *ptr == '\'') {
 			/* Starting quote: remember the quote character. */
 			quote = *ptr;
@@ -3195,7 +3315,7 @@ dict_scan_table_name(
 	            2 = Store as given, compare in lower; case semi-sensitive */
 	if (innobase_get_lower_case_table_names() == 2) {
 		innobase_casedn_str(ref);
-		*table = dict_table_get_low(ref);
+		*table = dict_table_get_low(ref, DICT_ERR_IGNORE_NONE);
 		memcpy(ref, database_name, database_name_len);
 		ref[database_name_len] = '/';
 		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
@@ -3208,7 +3328,7 @@ dict_scan_table_name(
 #else
 		innobase_casedn_str(ref);
 #endif /* !__WIN__ */
-		*table = dict_table_get_low(ref);
+		*table = dict_table_get_low(ref, DICT_ERR_IGNORE_NONE);
 	}
 
 	*success = TRUE;
@@ -3262,6 +3382,11 @@ dict_strip_comments(
 	char*		ptr;
 	/* unclosed quote character (0 if none) */
 	char		quote	= 0;
+	ibool		escape = FALSE;
+
+	DBUG_ENTER("dict_strip_comments");
+
+	DBUG_PRINT("dict_strip_comments", ("%s", sql_string));
 
 	str = mem_alloc(sql_length + 1);
 
@@ -3276,16 +3401,29 @@ end_of_string:
 
 			ut_a(ptr <= str + sql_length);
 
-			return(str);
+			DBUG_PRINT("dict_strip_comments", ("%s", str));
+			DBUG_RETURN(str);
 		}
 
 		if (*sptr == quote) {
 			/* Closing quote character: do not look for
 			starting quote or comments. */
-			quote = 0;
+
+			/* If the quote character is escaped by a
+			backslash, ignore it. */
+			if (escape) {
+				escape = FALSE;
+			} else {
+				quote = 0;
+			}
 		} else if (quote) {
 			/* Within quotes: do not look for
 			starting quotes or comments. */
+			if (escape) {
+				escape = FALSE;
+			} else if (*sptr == '\\') {
+				escape = TRUE;
+			}
 		} else if (*sptr == '"' || *sptr == '`' || *sptr == '\'') {
 			/* Starting quote: remember the quote character. */
 			quote = *sptr;
@@ -3458,7 +3596,7 @@ dict_create_foreign_constraints_low(
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
-	table = dict_table_get_low(name);
+	table = dict_table_get_low(name, DICT_ERR_IGNORE_NONE);
 
 	if (table == NULL) {
 		mutex_enter(&dict_foreign_err_mutex);
@@ -4438,7 +4576,7 @@ dict_reload_statistics(
 	while (index) {
 		mtr_t mtr;
 
-		if (table->is_corrupt) {
+		if (UNIV_UNLIKELY(table->is_corrupt)) {
 			ut_a(srv_pass_corrupt_table);
 			mem_heap_free(heap);
 			return(FALSE);
@@ -4596,7 +4734,7 @@ dict_store_statistics(
 	heap = mem_heap_create(1000);
 
 	while (index) {
-		if (table->is_corrupt) {
+		if (UNIV_UNLIKELY(table->is_corrupt)) {
 			ut_a(srv_pass_corrupt_table);
 			mem_heap_free(heap);
 			return;
@@ -4726,7 +4864,12 @@ dict_update_statistics(
 					update/recalc the stats if they have
 					not been initialized yet, otherwise
 					do nothing */
-	ibool		sync)		/*!< in: TRUE if must update SYS_STATS */
+	ibool		sync,		/*!< in: TRUE if must update
+					SYS_STATS */
+	ibool		only_calc_if_changed_too_much)/*!< in: only
+					update/recalc the stats if the table
+					has been changed too much since the
+					last stats update/recalc */
 {
 	dict_index_t*	index;
 	ulint		sum_of_index_sizes	= 0;
@@ -4777,12 +4920,21 @@ dict_update_statistics(
 
 	dict_table_stats_lock(table, RW_X_LATCH);
 
-	if (only_calc_if_missing_stats && table->stat_initialized) {
+	if ((only_calc_if_missing_stats && table->stat_initialized)
+	    || (only_calc_if_changed_too_much
+		&& !DICT_TABLE_CHANGED_TOO_MUCH(table))) {
+
 		dict_table_stats_unlock(table, RW_X_LATCH);
 		return;
 	}
 
-	do {
+	for (; index != NULL; index = dict_table_get_next_index(index)) {
+
+		/* Skip incomplete indexes. */
+		if (index->name[0] == TEMP_INDEX_PREFIX) {
+			continue;
+		}
+
 		if (UNIV_LIKELY
 		    (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE
 		     || (srv_force_recovery < SRV_FORCE_NO_LOG_REDO
@@ -4790,7 +4942,7 @@ dict_update_statistics(
 			mtr_t	mtr;
 			ulint	size;
 
-			if (table->is_corrupt) {
+			if (UNIV_UNLIKELY(table->is_corrupt)) {
 				ut_a(srv_pass_corrupt_table);
 				dict_table_stats_unlock(table, RW_X_LATCH);
 				return;
@@ -4842,9 +4994,7 @@ fake_statistics:
 			       (1 + dict_index_get_n_unique(index))
                                * sizeof(*index->stat_n_non_null_key_vals));
 		}
-
-		index = dict_table_get_next_index(index);
-	} while (index);
+	}
 
 	if (srv_use_sys_stats_table && !((table->flags >> DICT_TF2_SHIFT) & DICT_TF2_TEMPORARY)) {
 		/* store statistics to SYS_STATS table */
@@ -4997,7 +5147,7 @@ dict_table_print_by_name(
 
 	mutex_enter(&(dict_sys->mutex));
 
-	table = dict_table_get_low(name);
+	table = dict_table_get_low(name, DICT_ERR_IGNORE_NONE);
 
 	ut_a(table);
 
@@ -5019,8 +5169,14 @@ dict_table_print_low(
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
-	if (srv_stats_auto_update)
-		dict_update_statistics(table, FALSE /* update even if initialized */, FALSE);
+	if (srv_stats_auto_update) {
+
+		dict_update_statistics(
+			table,
+			FALSE /* update even if initialized */,
+			FALSE,
+			FALSE /* update even if not changed too much */);
+	}
 
 	dict_table_stats_lock(table, RW_S_LATCH);
 

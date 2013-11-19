@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 #include <mysqld.h>
 #include <sql_class.h>
@@ -35,6 +35,7 @@ const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
 ulong   wsrep_OSU_method_options;
+ulong   wsrep_reject_queries_options;
 static int   wsrep_thread_change    = 0;
 
 int wsrep_init_vars()
@@ -236,7 +237,17 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
 
   WSREP_DEBUG("wsrep_provider_update: %s", wsrep_provider);
 
+  /* stop replication is heavy operation, and includes closing all client 
+     connections. Closing clients may need to get LOCK_global_system_variables
+     at least in MariaDB.
+
+     Note: releasing LOCK_global_system_variables may cause race condition, if 
+     there can be several concurrent clients changing wsrep_provider
+  */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   wsrep_stop_replication(thd);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
   wsrep_deinit();
 
   char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider 
@@ -286,9 +297,33 @@ bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
   if (ret != WSREP_OK)
   {
     WSREP_ERROR("Set options returned %d", ret);
+    refresh_provider_options();
     return true;
   }
   return refresh_provider_options();
+}
+
+bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
+{
+    switch (wsrep_reject_queries_options) {
+        case WSREP_REJ_NONE:
+            wsrep_ready_set(TRUE); 
+            WSREP_INFO("Allowing client queries due to manual setting");
+            break;
+        case WSREP_REJ_ALL:
+            wsrep_ready_set(FALSE);
+            WSREP_INFO("Rejecting client queries due to manual setting");
+            break;
+        case WSREP_REJ_ALL_KILL:
+            wsrep_ready_set(FALSE);
+            wsrep_close_client_connections(FALSE);
+            WSREP_INFO("Rejecting client queries and killing connections due to manual setting");
+            break;
+        default:
+            WSREP_INFO("Unknown value");
+            return true;
+    }
+    return false;
 }
 
 void wsrep_provider_options_init(const char* value)
@@ -459,6 +494,45 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
   }
   return false;
 }
+
+bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
+{
+  bool new_wsrep_desync = var->value->val_bool();
+  if (wsrep_desync == new_wsrep_desync) {
+    if (new_wsrep_desync) {
+      push_warning (thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "'wsrep_desync' is already ON.");
+    } else {
+      push_warning (thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "'wsrep_desync' is already OFF.");
+    }
+  }
+  return 0;
+}
+
+bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
+{
+  wsrep_status_t ret(WSREP_WARNING);
+  if (wsrep_desync) {
+    ret = wsrep->desync (wsrep);
+    if (ret != WSREP_OK) {
+      WSREP_WARN ("SET desync failed %d for %s", ret, thd->query());
+      my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
+      return true;
+    }
+  } else {
+    ret = wsrep->resync (wsrep);
+    if (ret != WSREP_OK) {
+      WSREP_WARN ("SET resync failed %d for %s", ret, thd->query());
+      my_error (ER_CANNOT_USER, MYF(0), "'resync'", thd->query());
+      return true;
+    }
+  }
+  return false;
+}
+
 /*
  * Status variables stuff below
  */

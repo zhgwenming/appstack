@@ -1,4 +1,4 @@
-/* Copyright (c) 2005, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2005, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /*
   This file is a container for general functionality related
@@ -87,7 +87,9 @@ const LEX_STRING partition_keywords[]=
   { C_STRING_WITH_LEN("KEY") },
   { C_STRING_WITH_LEN("MAXVALUE") },
   { C_STRING_WITH_LEN("LINEAR ") },
-  { C_STRING_WITH_LEN(" COLUMNS") }
+  { C_STRING_WITH_LEN(" COLUMNS") },
+  { C_STRING_WITH_LEN("ALGORITHM") }
+
 };
 static const char *part_str= "PARTITION";
 static const char *sub_str= "SUB";
@@ -171,7 +173,8 @@ int get_part_iter_for_interval_via_walking(partition_info *part_info,
 static int cmp_rec_and_tuple(part_column_list_val *val, uint32 nvals_in_rec);
 static int cmp_rec_and_tuple_prune(part_column_list_val *val,
                                    uint32 n_vals_in_rec,
-                                   bool tail_is_min);
+                                   bool is_left_endpoint,
+                                   bool include_endpoint);
 
 /*
   Convert constants in VALUES definition to the character set the
@@ -368,7 +371,7 @@ int get_parts_for_update(const uchar *old_data, uchar *new_data,
   longlong old_func_value;
   DBUG_ENTER("get_parts_for_update");
 
-  DBUG_ASSERT(new_data == rec0);
+  DBUG_ASSERT(new_data == rec0);             // table->record[0]
   set_field_ptr(part_field_array, old_data, rec0);
   error= part_info->get_partition_id(part_info, old_part_id,
                                      &old_func_value);
@@ -526,12 +529,12 @@ static bool set_up_field_array(TABLE *table,
   }
   if (num_fields > MAX_REF_PARTS)
   {
-    char *ptr;
+    char *err_str;
     if (is_sub_part)
-      ptr= (char*)"subpartition function";
+      err_str= (char*)"subpartition function";
     else
-      ptr= (char*)"partition function";
-    my_error(ER_TOO_MANY_PARTITION_FUNC_FIELDS_ERROR, MYF(0), ptr);
+      err_str= (char*)"partition function";
+    my_error(ER_TOO_MANY_PARTITION_FUNC_FIELDS_ERROR, MYF(0), err_str);
     DBUG_RETURN(TRUE);
   }
   if (num_fields == 0)
@@ -1004,6 +1007,7 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   table->map= 1; //To ensure correct calculation of const item
   table->get_fields_in_item_tree= TRUE;
   table_list->table= table;
+  table_list->cacheable_table= false;
   return FALSE;
 }
 
@@ -2410,6 +2414,58 @@ end:
   return err;
 }
 
+
+/**
+  Add 'KEY' word, with optional 'ALGORTIHM = N'.
+
+  @param fptr                   File to write to.
+  @param part_info              partition_info holding the used key_algorithm
+  @param current_comment_start  NULL, or comment string encapsulating the
+                                PARTITION BY clause.
+
+  @return Operation status.
+    @retval 0    Success
+    @retval != 0 Failure
+*/
+
+static int add_key_with_algorithm(File fptr, partition_info *part_info,
+                                  const char *current_comment_start)
+{
+  int err= 0;
+  err+= add_part_key_word(fptr, partition_keywords[PKW_KEY].str);
+
+  /*
+    current_comment_start is given when called from SHOW CREATE TABLE,
+    Then only add ALGORITHM = 1, not the default 2 or non-set 0!
+    For .frm current_comment_start is NULL, then add ALGORITHM if != 0.
+  */
+  if (part_info->key_algorithm == partition_info::KEY_ALGORITHM_51 || // SHOW
+      (!current_comment_start &&                                      // .frm
+       (part_info->key_algorithm != partition_info::KEY_ALGORITHM_NONE)))
+  {
+    /* If we already are within a comment, end that comment first. */
+    if (current_comment_start)
+      err+= add_string(fptr, "*/ ");
+    err+= add_string(fptr, "/*!50531 ");
+    err+= add_part_key_word(fptr, partition_keywords[PKW_ALGORITHM].str);
+    err+= add_equal(fptr);
+    err+= add_space(fptr);
+    err+= add_int(fptr, part_info->key_algorithm);
+    err+= add_space(fptr);
+    err+= add_string(fptr, "*/ ");
+    if (current_comment_start)
+    {
+      /* Skip new line. */
+      if (current_comment_start[0] == '\n')
+        current_comment_start++;
+      err+= add_string(fptr, current_comment_start);
+      err+= add_space(fptr);
+    }
+  }
+  return err;
+}
+
+
 /*
   Generate the partition syntax from the partition data structure.
   Useful for support of generating defaults, SHOW CREATE TABLES
@@ -2454,7 +2510,8 @@ char *generate_partition_syntax(partition_info *part_info,
                                 bool use_sql_alloc,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info)
+                                Alter_info *alter_info,
+                                const char *current_comment_start)
 {
   uint i,j, tot_num_parts, num_subparts;
   partition_element *part_elem;
@@ -2488,7 +2545,8 @@ char *generate_partition_syntax(partition_info *part_info,
         err+= add_string(fptr, partition_keywords[PKW_LINEAR].str);
       if (part_info->list_of_part_fields)
       {
-        err+= add_part_key_word(fptr, partition_keywords[PKW_KEY].str);
+        err+= add_key_with_algorithm(fptr, part_info,
+                                     current_comment_start);
         err+= add_part_field_list(fptr, part_info->part_field_list);
       }
       else
@@ -2528,8 +2586,9 @@ char *generate_partition_syntax(partition_info *part_info,
       err+= add_string(fptr, partition_keywords[PKW_LINEAR].str);
     if (part_info->list_of_subpart_fields)
     {
-      add_part_key_word(fptr, partition_keywords[PKW_KEY].str);
-      add_part_field_list(fptr, part_info->subpart_field_list);
+      err+= add_key_with_algorithm(fptr, part_info,
+                                   current_comment_start);
+      err+= add_part_field_list(fptr, part_info->subpart_field_list);
     }
     else
       err+= add_part_key_word(fptr, partition_keywords[PKW_HASH].str);
@@ -2738,10 +2797,82 @@ static uint32 calculate_key_value(Field **field_array)
 {
   ulong nr1= 1;
   ulong nr2= 4;
+  bool use_51_hash;
+  use_51_hash= test((*field_array)->table->part_info->key_algorithm ==
+                    partition_info::KEY_ALGORITHM_51);
 
   do
   {
     Field *field= *field_array;
+    if (use_51_hash)
+    {
+      switch (field->real_type()) {
+      case MYSQL_TYPE_TINY:
+      case MYSQL_TYPE_SHORT:
+      case MYSQL_TYPE_LONG:
+      case MYSQL_TYPE_FLOAT:
+      case MYSQL_TYPE_DOUBLE:
+      case MYSQL_TYPE_NEWDECIMAL:
+      case MYSQL_TYPE_TIMESTAMP:
+      case MYSQL_TYPE_LONGLONG:
+      case MYSQL_TYPE_INT24:
+      case MYSQL_TYPE_TIME:
+      case MYSQL_TYPE_DATETIME:
+      case MYSQL_TYPE_YEAR:
+      case MYSQL_TYPE_NEWDATE:
+        {
+          if (field->is_null())
+          {
+            nr1^= (nr1 << 1) | 1;
+            continue;
+          }
+          /* Force this to my_hash_sort_bin, which was used in 5.1! */
+          uint len= field->pack_length();
+          my_charset_bin.coll->hash_sort(&my_charset_bin, field->ptr, len,
+                                         &nr1, &nr2);
+          /* Done with this field, continue with next one. */
+          continue;
+        }
+      case MYSQL_TYPE_STRING:
+      case MYSQL_TYPE_VARCHAR:
+      case MYSQL_TYPE_BIT:
+        /* Not affected, same in 5.1 and 5.5 */
+        break;
+      /*
+        ENUM/SET uses my_hash_sort_simple in 5.1 (i.e. my_charset_latin1)
+        and my_hash_sort_bin in 5.5!
+      */
+      case MYSQL_TYPE_ENUM:
+      case MYSQL_TYPE_SET:
+        {
+          if (field->is_null())
+          {
+            nr1^= (nr1 << 1) | 1;
+            continue;
+          }
+          /* Force this to my_hash_sort_bin, which was used in 5.1! */
+          uint len= field->pack_length();
+          my_charset_latin1.coll->hash_sort(&my_charset_latin1, field->ptr,
+                                            len, &nr1, &nr2);
+          continue;
+        }
+      /* These types should not be allowed for partitioning! */
+      case MYSQL_TYPE_NULL:
+      case MYSQL_TYPE_DECIMAL:
+      case MYSQL_TYPE_DATE:
+      case MYSQL_TYPE_TINY_BLOB:
+      case MYSQL_TYPE_MEDIUM_BLOB:
+      case MYSQL_TYPE_LONG_BLOB:
+      case MYSQL_TYPE_BLOB:
+      case MYSQL_TYPE_VAR_STRING:
+      case MYSQL_TYPE_GEOMETRY:
+        /* fall through. */
+      default:
+        DBUG_ASSERT(0);                    // New type?
+        /* Fall through for default hashing (5.5). */
+      }
+      /* fall through, use collation based hashing. */
+    }
     field->hash(&nr1, &nr2);
   } while (*(++field_array));
   return (uint32) nr1;
@@ -3164,44 +3295,6 @@ notfound:
 }
 
 
-/*
-  Find the sub-array part_info->list_array that corresponds to given interval
-
-  SYNOPSIS 
-    get_list_array_idx_for_endpoint()
-      part_info         Partitioning info (partitioning type must be LIST)
-      left_endpoint     TRUE  - the interval is [a; +inf) or (a; +inf)
-                        FALSE - the interval is (-inf; a] or (-inf; a)
-      include_endpoint  TRUE iff the interval includes the endpoint
-
-  DESCRIPTION
-    This function finds the sub-array of part_info->list_array where values of
-    list_array[idx].list_value are contained within the specifed interval.
-    list_array is ordered by list_value, so
-    1. For [a; +inf) or (a; +inf)-type intervals (left_endpoint==TRUE), the 
-       sought sub-array starts at some index idx and continues till array end.
-       The function returns first number idx, such that 
-       list_array[idx].list_value is contained within the passed interval.
-       
-    2. For (-inf; a] or (-inf; a)-type intervals (left_endpoint==FALSE), the
-       sought sub-array starts at array start and continues till some last 
-       index idx.
-       The function returns first number idx, such that 
-       list_array[idx].list_value is NOT contained within the passed interval.
-       If all array elements are contained, part_info->num_list_values is
-       returned.
-
-  NOTE
-    The caller will call this function and then will run along the sub-array of
-    list_array to collect partition ids. If the number of list values is 
-    significantly higher then number of partitions, this could be slow and
-    we could invent some other approach. The "run over list array" part is
-    already wrapped in a get_next()-like function.
-
-  RETURN
-    The edge of corresponding sub-array of part_info->list_array
-*/
-
 uint32 get_partition_id_cols_list_for_endpoint(partition_info *part_info,
                                                bool left_endpoint,
                                                bool include_endpoint,
@@ -3209,36 +3302,80 @@ uint32 get_partition_id_cols_list_for_endpoint(partition_info *part_info,
 {
   part_column_list_val *list_col_array= part_info->list_col_array;
   uint num_columns= part_info->part_field_list.elements;
-  int list_index, cmp;
+  uint list_index;
   uint min_list_index= 0;
-  uint max_list_index= part_info->num_list_values - 1;
-  bool tailf= !(left_endpoint ^ include_endpoint);
+  uint max_list_index= part_info->num_list_values;
   DBUG_ENTER("get_partition_id_cols_list_for_endpoint");
 
+  /* Find the matching partition (including taking endpoint into account). */
   do
   {
+    /* Midpoint, adjusted down, so it can never be > last index. */
     list_index= (max_list_index + min_list_index) >> 1;
-    cmp= cmp_rec_and_tuple_prune(list_col_array + list_index*num_columns,
-                                 nparts, tailf);
-    if (cmp > 0)
+    if (cmp_rec_and_tuple_prune(list_col_array + list_index*num_columns,
+                                nparts, left_endpoint, include_endpoint) > 0)
       min_list_index= list_index + 1;
-    else if (cmp < 0)
-    {
-      if (!list_index)
-        goto notfound;
-      max_list_index= list_index - 1;
-    }
-    else 
-    {
-      DBUG_RETURN(list_index + test(!tailf));
-    }
-  } while (max_list_index >= min_list_index);
-  if (cmp > 0)
-    list_index++;
-notfound:
+    else
+      max_list_index= list_index;
+  } while (max_list_index > min_list_index);
+  list_index= max_list_index;
+
+  /* Given value must be LESS THAN or EQUAL to the found partition. */
+  DBUG_ASSERT(list_index == part_info->num_list_values ||
+              (0 >= cmp_rec_and_tuple_prune(list_col_array +
+                                              list_index*num_columns,
+                                            nparts, left_endpoint,
+                                            include_endpoint)));
+  /* Given value must be GREATER THAN the previous partition. */
+  DBUG_ASSERT(list_index == 0 ||
+              (0 < cmp_rec_and_tuple_prune(list_col_array +
+                                            (list_index - 1)*num_columns,
+                                           nparts, left_endpoint,
+                                           include_endpoint)));
+
+  if (!left_endpoint)
+  {
+    /* Set the end after this list tuple if not already after the last. */
+    if (list_index < part_info->num_parts)
+      list_index++;
+  }
+
   DBUG_RETURN(list_index);
 }
 
+
+/**
+  Find the sub-array part_info->list_array that corresponds to given interval.
+
+  @param part_info         Partitioning info (partitioning type must be LIST)
+  @param left_endpoint     TRUE  - the interval is [a; +inf) or (a; +inf)
+                           FALSE - the interval is (-inf; a] or (-inf; a)
+  @param include_endpoint  TRUE iff the interval includes the endpoint
+
+  This function finds the sub-array of part_info->list_array where values of
+  list_array[idx].list_value are contained within the specifed interval.
+  list_array is ordered by list_value, so
+  1. For [a; +inf) or (a; +inf)-type intervals (left_endpoint==TRUE), the
+     sought sub-array starts at some index idx and continues till array end.
+     The function returns first number idx, such that
+     list_array[idx].list_value is contained within the passed interval.
+
+  2. For (-inf; a] or (-inf; a)-type intervals (left_endpoint==FALSE), the
+     sought sub-array starts at array start and continues till some last
+     index idx.
+     The function returns first number idx, such that
+     list_array[idx].list_value is NOT contained within the passed interval.
+     If all array elements are contained, part_info->num_list_values is
+     returned.
+
+  @note The caller will call this function and then will run along the
+  sub-array of list_array to collect partition ids. If the number of list
+  values is significantly higher then number of partitions, this could be slow
+  and we could invent some other approach. The "run over list array" part is
+  already wrapped in a get_next()-like function.
+
+  @return The index of corresponding sub-array of part_info->list_array.
+*/
 
 uint32 get_list_array_idx_for_endpoint_charset(partition_info *part_info,
                                                bool left_endpoint,
@@ -5489,13 +5626,24 @@ the generated partition syntax in a correct manner.
         Need to cater for engine types that can handle partition without
         using the partition handler.
       */
-      if (thd->work_part_info != table->part_info)
+      if (part_info != table->part_info)
       {
-        DBUG_PRINT("info", ("partition changed"));
-        *partition_changed= TRUE;
-        if (thd->work_part_info->fix_parser_data(thd))
+        if (part_info->fix_parser_data(thd))
         {
           goto err;
+        }
+        /*
+          Compare the old and new part_info. If only key_algorithm
+          change is done, don't consider it as changed partitioning (to avoid
+          rebuild). This is to handle KEY (numeric_cols) partitioned tables
+          created in 5.1. For more info, see bug#14521864.
+        */
+        if (alter_info->flags != ALTER_PARTITION ||
+            !table->part_info ||
+            !table->part_info->has_same_partitioning(part_info))
+        {
+          DBUG_PRINT("info", ("partition changed"));
+          *partition_changed= true;
         }
       }
       /*
@@ -7049,7 +7197,8 @@ void set_key_field_ptr(KEY *key_info, const uchar *new_buf,
 
 void mem_alloc_error(size_t size)
 {
-  my_error(ER_OUTOFMEMORY, MYF(0), static_cast<int>(size));
+  my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+           static_cast<int>(size));
 }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7136,12 +7285,12 @@ void make_used_partitions_str(partition_info *part_info, String *parts_str)
     definition)
 
   IMPLEMENTATION
-    There are two available interval analyzer functions:
-    (1) get_part_iter_for_interval_via_mapping 
+    There are three available interval analyzer functions:
+    (1) get_part_iter_for_interval_via_mapping
     (2) get_part_iter_for_interval_cols_via_map 
     (3) get_part_iter_for_interval_via_walking
 
-    They both have limited applicability:
+    They all have limited applicability:
     (1) is applicable for "PARTITION BY <RANGE|LIST>(func(t.field))", where
     func is a monotonic function.
 
@@ -7278,15 +7427,17 @@ uint32 store_tuple_to_record(Field **pfield,
   return nparts;
 }
 
-/*
-  RANGE(columns) partitioning: compare value bound and probe tuple.
+/**
+  RANGE(columns) partitioning: compare partition value bound and probe tuple.
 
-  The value bound always is a full tuple (but may include the MAXVALUE
-  special value).
+  @param val           Partition column values.
+  @param nvals_in_rec  Number of (prefix) fields to compare.
 
-  The probe tuple may be a prefix of partitioning tuple. The tail_is_min
-  parameter specifies whether the suffix components should be assumed to
-  hold MAXVALUE
+  @return Less than/Equal to/Greater than 0 if the record is L/E/G than val.
+
+  @note The partition value bound is always a full tuple (but may include the
+  MAXVALUE special value). The probe tuple may be a prefix of partitioning
+  tuple.
 */
 
 static int cmp_rec_and_tuple(part_column_list_val *val, uint32 nvals_in_rec)
@@ -7316,25 +7467,73 @@ static int cmp_rec_and_tuple(part_column_list_val *val, uint32 nvals_in_rec)
 }
 
 
+/**
+  Compare record and columns partition tuple including endpoint handling.
+
+  @param  val               Columns partition tuple
+  @param  n_vals_in_rec     Number of columns to compare
+  @param  is_left_endpoint  True if left endpoint (part_tuple < rec or
+                            part_tuple <= rec)
+  @param  include_endpoint  If endpoint is included (part_tuple <= rec or
+                            rec <= part_tuple)
+
+  @return Less than/Equal to/Greater than 0 if the record is L/E/G than
+  the partition tuple.
+
+  @see get_list_array_idx_for_endpoint() and
+  get_partition_id_range_for_endpoint().
+*/
+
 static int cmp_rec_and_tuple_prune(part_column_list_val *val,
                                    uint32 n_vals_in_rec,
-                                   bool tail_is_min)
+                                   bool is_left_endpoint,
+                                   bool include_endpoint)
 {
   int cmp;
   Field **field;
-  partition_info *part_info;
   if ((cmp= cmp_rec_and_tuple(val, n_vals_in_rec)))
     return cmp;
-  part_info= val->part_info;
-  field= part_info->part_field_array + n_vals_in_rec;
-  for (; *field; field++, val++)
+  field= val->part_info->part_field_array + n_vals_in_rec;
+  if (!(*field))
   {
-    if (tail_is_min)
-      return -1;
-    if (!tail_is_min && !val->max_value)
-      return +1;
+    /*
+      Full match, if right endpoint and not including the endpoint,
+      (rec < part) return lesser.
+    */
+    if (!is_left_endpoint && !include_endpoint)
+      return -4;
+
+    /* Otherwise they are equal! */
+    return 0;
   }
-  return 0;
+  /*
+    The prefix is equal and there are more partition columns to compare.
+
+    If including left endpoint or not including right endpoint
+    then the record is considered lesser compared to the partition.
+
+    i.e:
+    part(10, x) <= rec(10, unknown) and rec(10, unknown) < part(10, x)
+    part <= rec -> lesser (i.e. this or previous partitions)
+    rec < part -> lesser (i.e. this or previous partitions)
+  */
+  if (is_left_endpoint == include_endpoint)
+    return -2;
+
+  /*
+    If right endpoint and the first additional partition value
+    is MAXVALUE, then the record is lesser.
+  */
+  if (!is_left_endpoint && (val + n_vals_in_rec)->max_value)
+    return -3;
+
+  /*
+    Otherwise the record is considered greater.
+
+    rec <= part -> greater (i.e. does not match this partition, seek higher).
+    part < rec -> greater (i.e. does not match this partition, seek higher).
+  */
+  return 2;
 }
 
 
@@ -7345,90 +7544,64 @@ typedef uint32 (*get_col_endpoint_func)(partition_info*, bool left_endpoint,
                                         bool include_endpoint,
                                         uint32 num_parts);
 
-/*
-  Partitioning Interval Analysis: Initialize the iterator for "mapping" case
+/**
+  Get partition for RANGE COLUMNS endpoint.
 
-  SYNOPSIS
-    get_part_iter_for_interval_via_mapping()
-      part_info   Partition info
-      is_subpart  TRUE  - act for subpartitioning
-                  FALSE - act for partitioning
-      min_value   minimum field value, in opt_range key format.
-      max_value   minimum field value, in opt_range key format.
-      flags       Some combination of NEAR_MIN, NEAR_MAX, NO_MIN_RANGE,
-                  NO_MAX_RANGE.
-      part_iter   Iterator structure to be initialized
+  @param part_info         Partitioning metadata.
+  @param is_left_endpoint     True if left endpoint (const <=/< cols)
+  @param include_endpoint  True if range includes the endpoint (<=/>=)
+  @param nparts            Total number of partitions
 
-  DESCRIPTION
-    Initialize partition set iterator to walk over the interval in
-    ordered-array-of-partitions (for RANGE partitioning) or 
-    ordered-array-of-list-constants (for LIST partitioning) space.
+  @return Partition id of matching partition.
 
-  IMPLEMENTATION
-    This function is used when partitioning is done by
-    <RANGE|LIST>(ascending_func(t.field)), and we can map an interval in
-    t.field space into a sub-array of partition_info::range_int_array or
-    partition_info::list_array (see get_partition_id_range_for_endpoint,
-    get_list_array_idx_for_endpoint for details).
-    
-    The function performs this interval mapping, and sets the iterator to
-    traverse the sub-array and return appropriate partitions.
-    
-  RETURN
-    0 - No matching partitions (iterator not initialized)
-    1 - Ok, iterator intialized for traversal of matching partitions.
-   -1 - All partitions would match (iterator not initialized)
+  @see get_partition_id_cols_list_for_endpoint and
+  get_partition_id_range_for_endpoint.
 */
 
 uint32 get_partition_id_cols_range_for_endpoint(partition_info *part_info,
-                                                bool left_endpoint,
+                                                bool is_left_endpoint,
                                                 bool include_endpoint,
                                                 uint32 nparts)
 {
-  uint max_partition= part_info->num_parts - 1;
-  uint min_part_id= 0, max_part_id= max_partition, loc_part_id;
+  uint min_part_id= 0, max_part_id= part_info->num_parts, loc_part_id;
   part_column_list_val *range_col_array= part_info->range_col_array;
   uint num_columns= part_info->part_field_list.elements;
-  bool tailf= !(left_endpoint ^ include_endpoint);
   DBUG_ENTER("get_partition_id_cols_range_for_endpoint");
 
-  /* Get the partitioning function value for the endpoint */
-  while (max_part_id > min_part_id)
+  /* Find the matching partition (including taking endpoint into account). */
+  do
   {
-    loc_part_id= (max_part_id + min_part_id + 1) >> 1;
-    if (cmp_rec_and_tuple_prune(range_col_array + loc_part_id*num_columns,
-                                nparts, tailf) >= 0)
+    /* Midpoint, adjusted down, so it can never be > last partition. */
+    loc_part_id= (max_part_id + min_part_id) >> 1;
+    if (0 <= cmp_rec_and_tuple_prune(range_col_array +
+                                       loc_part_id * num_columns,
+                                     nparts,
+                                     is_left_endpoint,
+                                     include_endpoint))
       min_part_id= loc_part_id + 1;
     else
-      max_part_id= loc_part_id - 1;
-  }
+      max_part_id= loc_part_id;
+  } while (max_part_id > min_part_id);
   loc_part_id= max_part_id;
-  if (loc_part_id < max_partition && 
-      cmp_rec_and_tuple_prune(range_col_array + (loc_part_id+1)*num_columns,
-                              nparts, tailf) >= 0
-      )
+
+  /* Given value must be LESS THAN the found partition. */
+  DBUG_ASSERT(loc_part_id == part_info->num_parts ||
+              (0 > cmp_rec_and_tuple_prune(range_col_array +
+                                             loc_part_id * num_columns,
+                                           nparts, is_left_endpoint,
+                                           include_endpoint)));
+  /* Given value must be GREATER THAN or EQUAL to the previous partition. */
+  DBUG_ASSERT(loc_part_id == 0 ||
+              (0 <= cmp_rec_and_tuple_prune(range_col_array +
+                                              (loc_part_id - 1) * num_columns,
+                                            nparts, is_left_endpoint,
+                                            include_endpoint)));
+
+  if (!is_left_endpoint)
   {
-     loc_part_id++;
-  }
-  if (left_endpoint)
-  {
-    if (cmp_rec_and_tuple_prune(range_col_array + loc_part_id*num_columns,
-                                nparts, tailf) >= 0)
+    /* Set the end after this partition if not already after the last. */
+    if (loc_part_id < part_info->num_parts)
       loc_part_id++;
-  }
-  else 
-  {
-    if (loc_part_id < max_partition)
-    {
-      int res= cmp_rec_and_tuple_prune(range_col_array +
-                                       loc_part_id * num_columns,
-                                       nparts, tailf);
-      if (!res)
-        loc_part_id += test(include_endpoint);
-      else if (res > 0)
-        loc_part_id++;
-    }
-    loc_part_id++;
   }
   DBUG_RETURN(loc_part_id);
 }
@@ -7501,6 +7674,40 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
 }
 
 
+/**
+  Partitioning Interval Analysis: Initialize the iterator for "mapping" case
+
+  @param part_info   Partition info
+  @param is_subpart  TRUE  - act for subpartitioning
+                     FALSE - act for partitioning
+  @param store_length_array  Ignored.
+  @param min_value   minimum field value, in opt_range key format.
+  @param max_value   minimum field value, in opt_range key format.
+  @param min_len     Ignored.
+  @param max_len     Ignored.
+  @param flags       Some combination of NEAR_MIN, NEAR_MAX, NO_MIN_RANGE,
+                     NO_MAX_RANGE.
+  @param part_iter   Iterator structure to be initialized
+
+  @details Initialize partition set iterator to walk over the interval in
+  ordered-array-of-partitions (for RANGE partitioning) or
+  ordered-array-of-list-constants (for LIST partitioning) space.
+
+  This function is used when partitioning is done by
+  <RANGE|LIST>(ascending_func(t.field)), and we can map an interval in
+  t.field space into a sub-array of partition_info::range_int_array or
+  partition_info::list_array (see get_partition_id_range_for_endpoint,
+  get_list_array_idx_for_endpoint for details).
+
+  The function performs this interval mapping, and sets the iterator to
+  traverse the sub-array and return appropriate partitions.
+
+  @return Status of iterator
+    @retval 0   No matching partitions (iterator not initialized)
+    @retval 1   Ok, iterator intialized for traversal of matching partitions.
+    @retval -1  All partitions would match (iterator not initialized)
+*/
+
 int get_part_iter_for_interval_via_mapping(partition_info *part_info,
                                            bool is_subpart,
                                            uint32 *store_length_array, /* ignored */
@@ -7514,6 +7721,9 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   get_endpoint_func  UNINIT_VAR(get_endpoint);
   bool               can_match_multiple_values;  /* is not '=' */
   uint field_len= field->pack_length_in_rec();
+  MYSQL_TIME start_date;
+  bool check_zero_dates= false;
+  bool zero_in_start_date= true;
   DBUG_ENTER("get_part_iter_for_interval_via_mapping");
   DBUG_ASSERT(!is_subpart);
   (void) store_length_array;
@@ -7570,6 +7780,7 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
     {
       /* col is NOT NULL, but F(col) can return NULL, add NULL partition */
       part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
+      check_zero_dates= true;
     }
   }
 
@@ -7613,6 +7824,19 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         DBUG_RETURN(1);
       }
       part_iter->part_nums.cur= part_iter->part_nums.start;
+      if (check_zero_dates && !part_info->part_expr->null_value)
+      {
+        if (!(flags & NO_MAX_RANGE) &&
+            (field->type() == MYSQL_TYPE_DATE ||
+             field->type() == MYSQL_TYPE_DATETIME))
+        {
+          /* Monotonic, but return NULL for dates with zeros in month/day. */
+          zero_in_start_date= field->get_date(&start_date, 0);
+          DBUG_PRINT("info", ("zero start %u %04d-%02d-%02d",
+                              zero_in_start_date, start_date.year,
+                              start_date.month, start_date.day));
+        }
+      }
       if (part_iter->part_nums.start == max_endpoint_val)
         DBUG_RETURN(0); /* No partitions */
     }
@@ -7626,6 +7850,29 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
     store_key_image_to_rec(field, max_value, field_len);
     bool include_endp= !test(flags & NEAR_MAX);
     part_iter->part_nums.end= get_endpoint(part_info, 0, include_endp);
+    if (check_zero_dates &&
+        !zero_in_start_date &&
+        !part_info->part_expr->null_value)
+    {
+      MYSQL_TIME end_date;
+      bool zero_in_end_date= field->get_date(&end_date, 0);
+      /*
+        This is an optimization for TO_DAYS()/TO_SECONDS() to avoid scanning
+        the NULL partition for ranges that cannot include a date with 0 as
+        month/day.
+      */
+      DBUG_PRINT("info", ("zero end %u %04d-%02d-%02d",
+                          zero_in_end_date,
+                          end_date.year, end_date.month, end_date.day));
+      DBUG_ASSERT(!memcmp(((Item_func*) part_info->part_expr)->func_name(),
+                          "to_days", 7) ||
+                  !memcmp(((Item_func*) part_info->part_expr)->func_name(),
+                          "to_seconds", 10));
+      if (!zero_in_end_date &&
+          start_date.month == end_date.month &&
+          start_date.year == end_date.year)
+        part_iter->ret_null_part= part_iter->ret_null_part_orig= false;
+    }
     if (part_iter->part_nums.start >= part_iter->part_nums.end &&
         !part_iter->ret_null_part)
       DBUG_RETURN(0); /* No partitions */

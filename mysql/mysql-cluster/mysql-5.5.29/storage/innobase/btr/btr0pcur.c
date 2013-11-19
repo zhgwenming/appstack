@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -116,10 +116,7 @@ btr_pcur_store_position(
 
 	block = btr_pcur_get_block(cursor);
 
-	if (srv_pass_corrupt_table && !block) {
-		return;
-	}
-	ut_a(block);
+	SRV_CORRUPT_TABLE_CHECK(block, return;);
 
 	index = btr_cur_get_index(btr_pcur_get_btr_cur(cursor));
 
@@ -439,14 +436,16 @@ btr_pcur_move_to_next_page(
 				   btr_pcur_get_btr_cur(cursor)->index, mtr);
 	next_page = buf_block_get_frame(next_block);
 
-	if (srv_pass_corrupt_table && !next_page) {
+	SRV_CORRUPT_TABLE_CHECK(next_page,
+	{
 		btr_leaf_page_release(btr_pcur_get_block(cursor),
 				      cursor->latch_mode, mtr);
 		btr_pcur_get_page_cur(cursor)->block = 0;
 		btr_pcur_get_page_cur(cursor)->rec = 0;
+
 		return;
-	}
-	ut_a(next_page);
+	});
+
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));
 	ut_a(btr_page_get_prev(next_page, mtr)

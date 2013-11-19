@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -667,9 +667,9 @@ row_vers_build_for_semi_consistent_read(
 
 		mutex_enter(&kernel_mutex);
 		version_trx = trx_get_on_id(version_trx_id);
-		if (version_trx
-		    && (version_trx->conc_state == TRX_COMMITTED_IN_MEMORY
-			|| version_trx->conc_state == TRX_NOT_STARTED)) {
+		if (version_trx &&
+		    (version_trx->state == TRX_COMMITTED_IN_MEMORY
+		     || version_trx->state == TRX_NOT_STARTED)) {
 
 			version_trx = NULL;
 		}

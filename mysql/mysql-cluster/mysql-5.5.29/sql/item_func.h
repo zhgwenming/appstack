@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Function items used by mysql */
@@ -480,12 +480,18 @@ public:
 class Item_func_signed :public Item_int_func
 {
 public:
-  Item_func_signed(Item *a) :Item_int_func(a) {}
+  Item_func_signed(Item *a) :Item_int_func(a)
+  {
+    unsigned_flag= 0;
+  }
   const char *func_name() const { return "cast_as_signed"; }
   longlong val_int();
   longlong val_int_from_str(int *error);
   void fix_length_and_dec()
-  { fix_char_length(args[0]->max_char_length()); unsigned_flag=0; }
+  {
+    fix_char_length(min(args[0]->max_char_length(),
+                        MY_INT64_NUM_DECIMAL_DIGITS));
+  }
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }
 };
@@ -494,14 +500,11 @@ public:
 class Item_func_unsigned :public Item_func_signed
 {
 public:
-  Item_func_unsigned(Item *a) :Item_func_signed(a) {}
-  const char *func_name() const { return "cast_as_unsigned"; }
-  void fix_length_and_dec()
+  Item_func_unsigned(Item *a) :Item_func_signed(a)
   {
-    fix_char_length(min(args[0]->max_char_length(),
-                        DECIMAL_MAX_PRECISION + 2));
-    unsigned_flag=1;
+    unsigned_flag= 1;
   }
+  const char *func_name() const { return "cast_as_unsigned"; }
   longlong val_int();
   virtual void print(String *str, enum_query_type query_type);
 };
@@ -1457,6 +1460,20 @@ class Item_func_set_user_var :public Item_func
        user variable it the first connection context).
   */
   my_thread_id entry_thread_id;
+  /**
+    Delayed setting of non-constness.
+
+    Normally, Item_func_get_user_var objects are tagged as not const
+    when Item_func_set_user_var::fix_fields() is called for the same
+    variable in the same query. If delayed_non_constness is set, the
+    tagging is delayed until the variable is actually set. This means
+    that Item_func_get_user_var objects will still be treated as a
+    constant by the optimizer and executor until the variable is
+    actually changed.
+
+    @see select_dumpvar::send_data().
+   */
+  bool delayed_non_constness;
   char buffer[MAX_FIELD_WIDTH];
   String value;
   my_decimal decimal_buff;
@@ -1471,10 +1488,18 @@ class Item_func_set_user_var :public Item_func
 
 public:
   LEX_STRING name; // keep it public
-  Item_func_set_user_var(LEX_STRING a,Item *b)
+  Item_func_set_user_var(LEX_STRING a,Item *b, bool delayed)
     :Item_func(b), cached_result_type(INT_RESULT),
-     entry(NULL), entry_thread_id(0), name(a)
+     entry(NULL), entry_thread_id(0), delayed_non_constness(delayed), name(a)
   {}
+  Item_func_set_user_var(THD *thd, Item_func_set_user_var *item)
+    :Item_func(thd, item), cached_result_type(item->cached_result_type),
+    entry(item->entry), entry_thread_id(item->entry_thread_id),
+    value(item->value), decimal_buff(item->decimal_buff),
+    null_item(item->null_item), save_result(item->save_result),
+    name(item->name)
+  {}
+
   enum Functype functype() const { return SUSERVAR_FUNC; }
   double val_real();
   longlong val_int();

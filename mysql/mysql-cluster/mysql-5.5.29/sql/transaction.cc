@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -142,6 +142,9 @@ bool trans_begin(THD *thd, uint flags)
 #endif /* WITH_WSREP */
     thd->server_status&= ~SERVER_STATUS_IN_TRANS;
     res= test(ha_commit_trans(thd, TRUE));
+#ifdef WITH_WSREP
+    wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -194,6 +197,9 @@ bool trans_commit(THD *thd)
 #endif /* WITH_WSREP */
   thd->server_status&= ~SERVER_STATUS_IN_TRANS;
   res= ha_commit_trans(thd, TRUE);
+#ifdef WITH_WSREP
+  wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   if (res)
     /*
       if res is non-zero, then ha_commit_trans has rolled back the
@@ -240,6 +246,9 @@ bool trans_commit_implicit(THD *thd)
 #endif /* WITH_WSREP */
     thd->server_status&= ~SERVER_STATUS_IN_TRANS;
     res= test(ha_commit_trans(thd, TRUE));
+#ifdef WITH_WSREP
+    wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -291,6 +300,55 @@ bool trans_rollback(THD *thd)
 
 
 /**
+  Implicitly rollback the current transaction, typically
+  after deadlock was discovered.
+
+  @param thd     Current thread
+
+  @retval False Success
+  @retval True  Failure
+
+  @note ha_rollback_low() which is indirectly called by this
+        function will mark XA transaction for rollback by
+        setting appropriate RM error status if there was
+        transaction rollback request.
+*/
+
+bool trans_rollback_implicit(THD *thd)
+{
+  int res;
+  DBUG_ENTER("trans_rollback_implict");
+
+  /*
+    Always commit/rollback statement transaction before manipulating
+    with the normal one.
+    Don't perform rollback in the middle of sub-statement, wait till
+    its end.
+  */
+  DBUG_ASSERT(thd->transaction.stmt.is_empty() && !thd->in_sub_stmt);
+
+#ifdef WITH_WSREP
+  wsrep_register_hton(thd, true);
+#endif /* WITH_WSREP */
+  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+  res= ha_rollback_trans(thd, true);
+  /*
+    We don't reset OPTION_BEGIN flag below to simulate implicit start
+    of new transacton in @@autocommit=1 mode. This is necessary to
+    preserve backward compatibility.
+  */
+  thd->variables.option_bits&= ~(OPTION_KEEP_LOG);
+  thd->transaction.all.modified_non_trans_table= false;
+
+  /* Rollback should clear transaction_rollback_request flag. */
+  DBUG_ASSERT(! thd->transaction_rollback_request);
+
+  DBUG_RETURN(test(res));
+}
+
+
+/**
   Commit the single statement transaction.
 
   @note Note that if the autocommit is on, then the following call
@@ -324,7 +382,14 @@ bool trans_commit_stmt(THD *thd)
 #endif /* WITH_WSREP */
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
+#ifdef WITH_WSREP
+    {
+#endif /* WITH_WSREP */
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+#ifdef WITH_WSREP
+      wsrep_post_commit(thd, FALSE);
+    }
+#endif /* WITH_WSREP */
   }
 
   if (res)
@@ -368,15 +433,6 @@ bool trans_rollback_stmt(THD *thd)
     wsrep_register_hton(thd, FALSE);
 #endif /* WITH_WSREP */
     ha_rollback_trans(thd, FALSE);
-    if (thd->transaction_rollback_request && !thd->in_sub_stmt)
-#ifdef WITH_WSREP
-    {
-      wsrep_register_hton(thd, TRUE);
-#endif /* WITH_WSREP */
-      ha_rollback_trans(thd, TRUE);
-#ifdef WITH_WSREP
-    }
-#endif /* WITH_WSREP */
     if (! thd->in_active_multi_stmt_transaction())
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
   }
@@ -603,15 +659,19 @@ bool trans_xa_start(THD *thd)
     my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
   else if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
     my_error(ER_XAER_OUTSIDE, MYF(0));
-  else if (xid_cache_search(thd->lex->xid))
-    my_error(ER_XAER_DUPID, MYF(0));
   else if (!trans_begin(thd))
   {
     DBUG_ASSERT(thd->transaction.xid_state.xid.is_null());
     thd->transaction.xid_state.xa_state= XA_ACTIVE;
     thd->transaction.xid_state.rm_error= 0;
     thd->transaction.xid_state.xid.set(thd->lex->xid);
-    xid_cache_insert(&thd->transaction.xid_state);
+    if (xid_cache_insert(&thd->transaction.xid_state))
+    {
+      thd->transaction.xid_state.xa_state= XA_NOTR;
+      thd->transaction.xid_state.xid.null();
+      trans_rollback(thd);
+      DBUG_RETURN(true);
+    }
     DBUG_RETURN(FALSE);
   }
 
@@ -697,6 +757,16 @@ bool trans_xa_commit(THD *thd)
 
   if (!thd->transaction.xid_state.xid.eq(thd->lex->xid))
   {
+    /*
+      xid_state.in_thd is always true beside of xa recovery procedure.
+      Note, that there is no race condition here between xid_cache_search
+      and xid_cache_delete, since we always delete our own XID
+      (thd->lex->xid == thd->transaction.xid_state.xid).
+      The only case when thd->lex->xid != thd->transaction.xid_state.xid
+      and xid_state->in_thd == 0 is in the function
+      xa_cache_insert(XID, xa_states), which is called before starting
+      client connections, and thus is always single-threaded.
+    */
     XID_STATE *xs= xid_cache_search(thd->lex->xid);
     res= !xs || xs->in_thd;
     if (res)
@@ -723,6 +793,9 @@ bool trans_xa_commit(THD *thd)
     int r= ha_commit_trans(thd, TRUE);
     if ((res= test(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
+#ifdef WITH_WSREP
+    wsrep_post_commit(thd, TRUE);
+#endif /* WITH_WSREP */
   }
   else if (xa_state == XA_PREPARED && thd->lex->xa_opt == XA_NONE)
   {

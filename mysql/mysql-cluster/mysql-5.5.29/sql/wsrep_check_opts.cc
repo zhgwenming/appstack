@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 //#include <mysqld.h>
 #include <sql_class.h>
@@ -40,7 +40,7 @@ static struct opt opts[] =
 {
     { "wsrep_slave_threads",     "1" }, // mysqld.cc
     { "bind_address",      "0.0.0.0" }, // mysqld.cc
-    { "wsrep_sst_method","mysqldump" }, // mysqld.cc
+    { "wsrep_sst_method",    "rsync" }, // mysqld.cc
     { "wsrep_sst_receive_address","AUTO"}, // mysqld.cc
     { "binlog_format",         "ROW" }, // mysqld.cc
     { "wsrep_provider",       "none" }, // mysqld.cc
@@ -285,14 +285,10 @@ check_opts (int const argc, const char* const argv[], struct opt opts[])
     int rcode = 0;
 
     if (slave_threads > 1)
-        /* Need to check AUTOINC_LOCK_MODE and LOCKS_UNSAFE_FOR_BINLOG */
+        /* Need to check AUTOINC_LOCK_MODE */
     {
         long long autoinc_lock_mode;
         err = get_long_long (opts[AUTOINC_LOCK_MODE], &autoinc_lock_mode, 10);
-        if (err) return err;
-
-        bool locks_unsafe_for_binlog;
-        err = get_bool (opts[LOCKS_UNSAFE_FOR_BINLOG],&locks_unsafe_for_binlog);
         if (err) return err;
 
         if (autoinc_lock_mode != 2)
@@ -309,7 +305,7 @@ check_opts (int const argc, const char* const argv[], struct opt opts[])
     if ((err = get_long_long (opts[QUERY_CACHE_TYPE], &query_cache_type, 10)))
         return err;
 
-    if (0 != query_cache_size && 0 != query_cache_type)
+    if (0 != query_cache_size || 0 != query_cache_type)
     {
         WSREP_ERROR ("Query cache is not supported (size=%lld type=%lld)",
                      query_cache_size, query_cache_type);

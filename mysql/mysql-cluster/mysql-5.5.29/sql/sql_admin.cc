@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -286,7 +286,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   item->maybe_null = 1;
   field_list.push_back(item = new Item_empty_string("Msg_type", 10));
   item->maybe_null = 1;
-  field_list.push_back(item = new Item_empty_string("Msg_text", 255));
+  field_list.push_back(item = new Item_empty_string("Msg_text",
+                                                    SQL_ADMIN_MSG_TEXT_SIZE));
   item->maybe_null = 1;
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -688,6 +689,11 @@ send_result_message:
 
     case HA_ADMIN_TRY_ALTER:
     {
+      uint save_flags;
+      Alter_info *alter_info= &lex->alter_info;
+
+      /* Store the original value of alter_info->flags */
+      save_flags= alter_info->flags;
       /*
         This is currently used only by InnoDB. ha_innobase::optimize() answers
         "try with alter", so here we close the table, do an ALTER TABLE,
@@ -700,10 +706,19 @@ send_result_message:
       thd->mdl_context.release_transactional_locks();
       DEBUG_SYNC(thd, "ha_admin_try_alter");
       protocol->store(STRING_WITH_LEN("note"), system_charset_info);
-      protocol->store(STRING_WITH_LEN(
-          "Table does not support optimize, doing recreate + analyze instead"),
-                      system_charset_info);
-      if (protocol->write())
+      if(alter_info->flags & ALTER_ADMIN_PARTITION)
+      {
+        protocol->store(STRING_WITH_LEN(
+        "Table does not support optimize on partitions. All partitions "
+        "will be rebuilt and analyzed."),system_charset_info);
+      }
+      else
+      {
+        protocol->store(STRING_WITH_LEN(
+        "Table does not support optimize, doing recreate + analyze instead"),
+        system_charset_info);
+      }
+     if (protocol->write())
         goto err;
       DBUG_PRINT("info", ("HA_ADMIN_TRY_ALTER, trying analyze..."));
       TABLE_LIST *save_next_local= table->next_local,
@@ -731,6 +746,11 @@ send_result_message:
         table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
+        /*
+          Reset the ALTER_ADMIN_PARTITION bit in alter_info->flags
+          to force analyze on all partitions.
+        */
+        alter_info->flags &= ~(ALTER_ADMIN_PARTITION);
         if ((table->table= open_ltable(thd, table, lock_type, 0)))
         {
           result_code= table->table->file->ha_analyze(thd, check_opt);
@@ -741,6 +761,7 @@ send_result_message:
         }
         else
           result_code= -1; // open failed
+        alter_info->flags= save_flags;
       }
       /* Start a new row for the final status row */
       protocol->prepare_for_resend();
@@ -838,8 +859,20 @@ send_result_message:
       }
     }
     /* Error path, a admin command failed. */
-    trans_commit_stmt(thd);
-    trans_commit_implicit(thd);
+    if (thd->transaction_rollback_request)
+    {
+      /*
+        Unlikely, but transaction rollback was requested by one of storage
+        engines (e.g. due to deadlock). Perform it.
+      */
+      if (trans_rollback_stmt(thd) || trans_rollback_implicit(thd))
+        goto err;
+    }
+    else
+    {
+      if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
+        goto err;
+    }
     close_thread_tables(thd);
     thd->mdl_context.release_transactional_locks();
 
@@ -1012,6 +1045,8 @@ bool Optimize_table_statement::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
+
+  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
   res= (specialflag & (SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC)) ?
     mysql_recreate_table(thd, first_table) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
@@ -1043,6 +1078,7 @@ bool Repair_table_statement::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
+  WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
                          test(m_lex->check_opt.sql_flags & TT_USEFRM),

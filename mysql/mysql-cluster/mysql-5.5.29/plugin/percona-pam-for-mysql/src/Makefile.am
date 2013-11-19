@@ -1,4 +1,4 @@
-# (C) 2011 Percona Inc.
+# (C) 2011-2013 Percona LLC and/or its affiliates
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 #
 
 plugindir = @PLUGINDIR@
@@ -20,11 +20,14 @@ plugin_LTLIBRARIES = auth_pam.la auth_pam_compat.la test_auth_pam_client.la dial
 plugin_CPPFLAGS = -DMYSQL_DYNAMIC_PLUGIN
 plugin_LDFLAGS = -module -avoid-version -shared
 
-auth_pam_la_SOURCES = auth_pam_common.c auth_pam.c lib_auth_pam_client.h lib_auth_pam_client.c auth_mapping.c
+auth_pam_la_SOURCES = auth_pam_common.c auth_pam.c lib_auth_pam_client.h \
+                      lib_auth_pam_client.c auth_mapping.c groups.c
 auth_pam_la_CPPFLAGS = $(plugin_CPPFLAGS)
 auth_pam_la_LDFLAGS = $(plugin_LDFLAGS) $(AUTH_PAM_LIBS)
 
-auth_pam_compat_la_SOURCES = auth_pam_common.c auth_pam_compat.c lib_auth_pam_client.h lib_auth_pam_client.c auth_mapping.c
+auth_pam_compat_la_SOURCES = auth_pam_common.c auth_pam_compat.c \
+                             lib_auth_pam_client.h lib_auth_pam_client.c \
+                             auth_mapping.c groups.c
 auth_pam_compat_la_CPPFLAGS = $(plugin_CPPFLAGS)
 auth_pam_compat_la_LDFLAGS = $(plugin_LDFLAGS) $(AUTH_PAM_LIBS)
 

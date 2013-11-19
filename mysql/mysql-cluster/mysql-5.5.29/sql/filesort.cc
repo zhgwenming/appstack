@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /**
@@ -1221,12 +1221,13 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
   QUEUE queue;
   qsort2_cmp cmp;
   void *first_cmp_arg;
-  volatile THD::killed_state *killed= &current_thd->killed;
+  THD * const thd = current_thd;
+  volatile THD::killed_state *killed= &thd->killed;
   THD::killed_state not_killable;
   DBUG_ENTER("merge_buffers");
 
-  status_var_increment(current_thd->status_var.filesort_merge_passes);
-  current_thd->query_plan_fsort_passes++;
+  status_var_increment(thd->status_var.filesort_merge_passes);
+  thd->query_plan_fsort_passes++;
   if (param->not_killable)
   {
     killed= &not_killable;

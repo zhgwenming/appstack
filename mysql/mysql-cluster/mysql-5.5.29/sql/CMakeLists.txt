@@ -36,7 +36,7 @@ ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED 1)
 
-ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER) 
+ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER -DHAVE_POOL_OF_THREADS)
 IF(SSL_DEFINES)
  ADD_DEFINITIONS(${SSL_DEFINES})
 ENDIF()
@@ -95,8 +95,15 @@ SET (SQL_SOURCE
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
                sql_reload.cc
 	       ${WSREP_SOURCES}
+               threadpool_common.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE})
+
+IF(WIN32)
+  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
+ELSE()
+  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_unix.cc)
+ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)
@@ -280,15 +287,9 @@ ADD_CUSTOM_TARGET(distclean
 
 IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
-# We need to create empty directories (data/test) the installation.  
-# This does not work with current CPack due to http://www.cmake.org/Bug/view.php?id=8767
-# Avoid completely empty directories and install dummy file instead.
-# Use a file extension so that it will be deleted in case someone does
-#   'drop database test'
-# See deletable_extentions.
-SET(DUMMY_FILE ${CMAKE_CURRENT_BINARY_DIR}/dummy.bak ) 
-FILE(WRITE ${DUMMY_FILE} "")
-INSTALL(FILES ${DUMMY_FILE} DESTINATION data/test COMPONENT DataFiles)
+# Copy db.opt into data/test/
+SET(DBOPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/db.opt ) 
+INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
 
 # Install initial database on windows
 IF(NOT CMAKE_CROSSCOMPILING)

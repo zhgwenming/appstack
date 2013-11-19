@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 #ifndef SQL_CLASS_INCLUDED
@@ -48,9 +48,12 @@
 #include "wsrep_mysqld.h"
 struct wsrep_thd_shadow {
   ulonglong            options;
+  uint                 server_status;
   enum wsrep_exec_mode wsrep_exec_mode;
   Vio                  *vio;
   ulong                tx_isolation;
+  char                 *db;
+  size_t               db_length;
 };
 #endif
 class Reprepare_observer;
@@ -89,14 +92,14 @@ enum enum_slow_query_log_rate_type {
   SLOG_RT_SESSION, SLOG_RT_QUERY
 };
 #define QPLAN_NONE            0
-#define QPLAN_QC              1 << 0
-#define QPLAN_QC_NO           1 << 1
-#define QPLAN_FULL_SCAN       1 << 2
-#define QPLAN_FULL_JOIN       1 << 3
-#define QPLAN_TMP_TABLE       1 << 4
-#define QPLAN_TMP_DISK        1 << 5
-#define QPLAN_FILESORT        1 << 6
-#define QPLAN_FILESORT_DISK   1 << 7
+#define QPLAN_QC_NO           (1 << 0)
+#define QPLAN_FULL_SCAN       (1 << 1)
+#define QPLAN_FULL_JOIN       (1 << 2)
+#define QPLAN_TMP_TABLE       (1 << 3)
+#define QPLAN_TMP_DISK        (1 << 4)
+#define QPLAN_FILESORT        (1 << 5)
+#define QPLAN_FILESORT_DISK   (1 << 6)
+#define QPLAN_QC              (1 << 7)
 enum enum_log_slow_filter {
   SLOG_F_QC_NO, SLOG_F_FULL_SCAN, SLOG_F_FULL_JOIN,
   SLOG_F_TMP_TABLE, SLOG_F_TMP_DISK, SLOG_F_FILESORT,
@@ -431,6 +434,7 @@ extern const LEX_STRING Diag_condition_item_names[];
 
 #include "sql_lex.h"				/* Must be here */
 
+extern LEX_CSTRING sql_statement_names[(uint) SQLCOM_END + 1];
 class Delayed_insert;
 class select_result;
 class Time_zone;
@@ -575,6 +579,8 @@ typedef struct system_variables
   double long_query_time_double;
 
   my_bool expand_fast_index_creation;
+  my_bool pseudo_slave_mode;
+
 } SV;
 
 
@@ -937,9 +943,6 @@ struct st_savepoint {
   /** State of metadata locks before this savepoint was set. */
   MDL_savepoint        mdl_savepoint;
 };
-#ifdef WITH_WSREP
-void wsrep_cleanup_transaction(THD *thd); // THD.transactions.cleanup calls it
-#endif
 
 enum xa_states {XA_NOTR=0, XA_ACTIVE, XA_IDLE, XA_PREPARED, XA_ROLLBACK_ONLY};
 extern const char *xa_state_names[];
@@ -968,6 +971,11 @@ void xid_cache_delete(XID_STATE *xid_state);
 */
 
 class Security_context {
+private:
+
+String host;
+String ip;
+String external_user;
 public:
   Security_context() {}                       /* Remove gcc warning */
   /*
@@ -977,13 +985,11 @@ public:
     priv_user - The user privilege we are using. May be "" for anonymous user.
     ip - client IP
   */
-  char   *host, *user, *ip;
+  char   *user;
   char   priv_user[USERNAME_LENGTH];
   char   proxy_user[USERNAME_LENGTH + MAX_HOSTNAME + 5];
   /* The host privilege we are using */
   char   priv_host[MAX_HOSTNAME];
-  /* The external user (if available) */
-  char   *external_user;
   /* points to host if host is available, otherwise points to ip */
   const char *host_or_ip;
   ulong master_access;                 /* Global privileges from mysql.user */
@@ -998,7 +1004,13 @@ public:
   }
   
   bool set_user(char *user_arg);
-
+  String *get_host();
+  String *get_ip();
+  String *get_external_user();
+  void set_host(const char *p);
+  void set_ip(const char *p);
+  void set_external_user(const char *p);
+  void set_host(const char *str, size_t len);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool
   change_security_context(THD *thd,
@@ -1584,6 +1596,7 @@ public:
   Query_cache_tls query_cache_tls;
 #endif
   NET	  net;				// client connection descriptor
+  scheduler_functions *scheduler;       // Scheduler for this connection
   Protocol *protocol;			// Current protocol
   Protocol_text   protocol_text;	// Normal protocol
   Protocol_binary protocol_binary;	// Binary protocol
@@ -1689,18 +1702,6 @@ public:
 
   /*** Following variables used in slow_extended.patch ***/
   /*
-    Variable write_to_slow_log:
-     1) initialized in
-       * sql_connect.cc (log_slow_rate_limit support)
-       * slave.cc       (log_slow_slave_statements support)
-     2) The variable is initialized on the thread startup and remains
-        constant afterwards.  This will change when 
-        LP #712396 ("log_slow_slave_statements not work on replication 
-        threads without RESTART") is implemented.
-     3) An implementation of LP #688646 ("Make query sampling possible by query") should use it.
-  */
-  bool       write_to_slow_log;
-  /*
     Variable bytes_send_old saves value of thd->status_var.bytes_sent
     before query execution.
   */
@@ -1755,8 +1756,23 @@ public:
   /* <> 0 if we are inside of trigger or stored function. */
   uint in_sub_stmt;
 
+  /* Do not set socket timeouts for wait_timeout (used with threadpool) */
+  bool skip_wait_timeout;
+
+  /**
+    Used by fill_status() to avoid acquiring LOCK_status mutex twice
+    when this function is called recursively (e.g. queries 
+    that contains SELECT on I_S.GLOBAL_STATUS with subquery on the 
+    same I_S table).
+    Incremented each time fill_status() function is entered and 
+    decremented each time before it returns from the function.
+  */
+  uint fill_status_recursion_level;
+
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
+
+  bool order_deterministic;
 
 #ifndef MYSQL_CLIENT
   int binlog_setup_trx_data();
@@ -1867,11 +1883,7 @@ public:
     */
     CHANGED_TABLE_LIST* changed_tables;
     MEM_ROOT mem_root; // Transaction-life memory allocation pool
-#ifdef WITH_WSREP 
-    void cleanup(THD *thd)
-#else
     void cleanup()
-#endif
     {
       changed_tables= 0;
       savepoints= 0;
@@ -1884,11 +1896,6 @@ public:
       if (!xid_state.rm_error)
         xid_state.xid.null();
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
-#ifdef WITH_WSREP
-      // Todo: convert into a plugin method
-      // wsrep's post-commit. LOCAL_COMMIT designates wsrep's commit was ok
-      if (WSREP(thd)) wsrep_cleanup_transaction(thd);
-#endif  /* WITH_WSREP */
     }
     my_bool is_active()
     {
@@ -2121,6 +2128,7 @@ public:
   }
 
   ha_rows    cuted_fields;
+  uint8      failed_com_change_user;
 
   /*
     number of rows we actually sent to the client, including "synthetic"
@@ -2239,6 +2247,8 @@ public:
   char	     scramble[SCRAMBLE_LENGTH+1];
 
   bool       slave_thread, one_shot_set;
+  bool       extra_port;                        /* If extra connection */
+
   bool	     no_errors;
   uchar      password;
   /**
@@ -2402,7 +2412,6 @@ public:
   Relay_log_info*           wsrep_rli;
   bool                      wsrep_converted_lock_session;
   wsrep_trx_handle_t        wsrep_trx_handle;
-  bool                      wsrep_seqno_changed;
 #ifdef WSREP_PROC_INFO
   char                      wsrep_info[128]; /* string for dynamic proc info */
 #endif /* WSREP_PROC_INFO */
@@ -2415,6 +2424,9 @@ public:
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
+  const char*               wsrep_TOI_pre_query; /* a query to apply before 
+						    the actual TOI query */
+  size_t                    wsrep_TOI_pre_query_len;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.
@@ -2480,6 +2492,7 @@ public:
   {
     mysql_mutex_lock(&LOCK_thd_data);
     active_vio = vio;
+    vio_set_thread_id(vio, pthread_self());
     mysql_mutex_unlock(&LOCK_thd_data);
   }
   inline void clear_active_vio()
@@ -2903,6 +2916,12 @@ public:
   */
   bool set_db(const char *new_db, size_t new_db_len)
   {
+    /*
+      Acquiring mutex LOCK_thd_data as we either free the memory allocated
+      for the database and reallocating the memory for the new db or memcpy
+      the new_db to the db.
+    */
+    mysql_mutex_lock(&LOCK_thd_data);
     /* Do not reallocate memory if current chunk is big enough. */
     if (db && new_db && db_length >= new_db_len)
       memcpy(db, new_db, new_db_len+1);
@@ -2915,6 +2934,7 @@ public:
         db= NULL;
     }
     db_length= db ? new_db_len : 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
     return new_db && !db;
   }
 
@@ -2950,7 +2970,7 @@ public:
     *p_db_length= db_length;
     return FALSE;
   }
-  thd_scheduler scheduler;
+  thd_scheduler event_scheduler;
 
   /* Returns string as 'IP:port' for the client-side
      of the connnection represented
@@ -3859,7 +3879,6 @@ public:
 
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
-  Item_func_set_user_var **set_var_items;
 public:
   List<my_var> var_list;
   select_dumpvar()  { var_list.empty(); row_count= 0;}
@@ -3979,10 +3998,17 @@ inline bool add_order_to_list(THD *thd, Item *item, bool asc)
   return thd->lex->current_select->add_order_to_list(thd, item, asc);
 }
 
+inline bool add_gorder_to_list(THD *thd, Item *item, bool asc)
+{
+  return thd->lex->current_select->add_gorder_to_list(thd, item, asc);
+}
+
 inline bool add_group_to_list(THD *thd, Item *item, bool asc)
 {
   return thd->lex->current_select->add_group_to_list(thd, item, asc);
 }
+
+extern pthread_attr_t *get_connection_attrib(void);
 
 #endif /* MYSQL_SERVER */
 

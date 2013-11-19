@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -52,6 +52,7 @@ Created 12/27/1996 Heikki Tuuri
 #include "eval0eval.h"
 #include "buf0lru.h"
 #ifdef WITH_WSREP
+#include "ha_prototypes.h"
 extern my_bool wsrep_debug;
 #endif
 
@@ -174,13 +175,47 @@ func_exit:
 }
 
 #ifdef WITH_WSREP
-ulint wsrep_append_foreign_key(trx_t *trx,  
-			       dict_foreign_t*	foreign,
-			       const rec_t*	clust_rec,
-			       dict_index_t*	clust_index,
-			       ibool		referenced,
-			       ibool            shared);
+static
+ibool
+wsrep_row_upd_index_is_foreign(
+/*========================*/
+	dict_index_t*	index,	/*!< in: index */
+	trx_t*		trx)	/*!< in: transaction */
+{
+	dict_table_t*	table		= index->table;
+	dict_foreign_t*	foreign;
+	ibool		froze_data_dict	= FALSE;
+	ibool		is_referenced	= FALSE;
 
+	if (!UT_LIST_GET_FIRST(table->foreign_list)) {
+
+		return(FALSE);
+	}
+
+	if (trx->dict_operation_lock_mode == 0) {
+		row_mysql_freeze_data_dictionary(trx);
+		froze_data_dict = TRUE;
+	}
+
+	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+
+	while (foreign) {
+		if (foreign->foreign_index == index) {
+
+			is_referenced = TRUE;
+			goto func_exit;
+		}
+
+		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
+	}
+
+func_exit:
+	if (froze_data_dict) {
+		row_mysql_unfreeze_data_dictionary(trx);
+	}
+
+	return(is_referenced);
+}
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -254,7 +289,8 @@ row_upd_check_references_constraints(
 
 			if (foreign->foreign_table == NULL) {
 				dict_table_get(foreign->foreign_table_name_lookup,
-					       FALSE);
+					       FALSE,
+					       DICT_ERR_IGNORE_NONE);
 			}
 
 			if (foreign->foreign_table) {
@@ -334,6 +370,10 @@ wsrep_row_upd_check_foreign_constraints(
 	}
 
 	trx = thr_get_trx(thr);
+	if (wsrep_thd_is_brute_force(trx->mysql_thd)) {
+
+		return(DB_SUCCESS);
+	}
 
 	rec = btr_pcur_get_rec(pcur);
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -369,7 +409,7 @@ wsrep_row_upd_check_foreign_constraints(
 
 			if (foreign->referenced_table == NULL) {
 				dict_table_get(foreign->referenced_table_name_lookup,
-					       FALSE);
+					       FALSE, DICT_ERR_IGNORE_NONE);
 			}
 
 			if (foreign->referenced_table) {
@@ -1734,7 +1774,8 @@ row_upd_sec_index_entry(
 	}
 
 	search_result = row_search_index_entry(index, entry,
-					       trx->fake_changes ? BTR_SEARCH_LEAF : mode,
+					       UNIV_UNLIKELY(trx->fake_changes)
+					       ? BTR_SEARCH_LEAF : mode,
 					       &pcur, &mtr);
 
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
@@ -1776,6 +1817,9 @@ row_upd_sec_index_entry(
 		if (!rec_get_deleted_flag(
 			rec, dict_table_is_comp(index->table))) {
 
+#ifdef WITH_WSREP
+			que_node_t *parent = que_node_get_parent(node);
+#endif /* WITH_WSREP */
 			err = btr_cur_del_mark_set_sec_rec(
 				0, btr_cur, TRUE, thr, &mtr);
 
@@ -1794,19 +1838,34 @@ row_upd_sec_index_entry(
 					index, offsets, thr, &mtr);
 			}
 #ifdef WITH_WSREP
-			if (err == DB_SUCCESS && !referenced) {
+			if (err == DB_SUCCESS && !referenced                         &&
+			    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
+			      ((upd_node_t*)parent)->cascade_node == node)           &&
+			    wsrep_row_upd_index_is_foreign(index, trx)
+			) {
 				ulint*	offsets =
 					rec_get_offsets(
 							rec, index, NULL, ULINT_UNDEFINED,
 							&heap);
-				uint werr = wsrep_row_upd_check_foreign_constraints(
+				err = wsrep_row_upd_check_foreign_constraints(
 					node, &pcur, index->table,
 					index, offsets, thr, &mtr);
-
-				if (wsrep_debug && werr != DB_SUCCESS)
+				switch (err) {
+				case DB_SUCCESS:
+				case DB_NO_REFERENCED_ROW:
+					err = DB_SUCCESS;
+					break;
+				case DB_DEADLOCK:
+					if (wsrep_debug)
+						fprintf (stderr, 
+							 "WSREP: sec index FK check fail for deadlock");
+					break;
+				default:
 					fprintf (stderr, 
-						 "WSREP: FK check fail: %u", 
-						 werr);
+						 "WSREP: referenced FK check fail: %lu", 
+						 err);
+					break;
+				}
 			}
 #endif /* WITH_WSREP */
 		}
@@ -1974,6 +2033,9 @@ row_upd_clust_rec_by_insert(
 	rec_t*		rec;
 	ulint*		offsets			= NULL;
 
+#ifdef WITH_WSREP
+	que_node_t *parent = que_node_get_parent(node);
+#endif /* WITH_WSREP */
 	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
@@ -1998,7 +2060,7 @@ row_upd_clust_rec_by_insert(
 		the previous invocation of this function. Mark the
 		off-page columns in the entry inherited. */
 
-		if (!(trx->fake_changes)) {
+		if (UNIV_LIKELY(!trx->fake_changes)) {
 		change_ownership = row_upd_clust_rec_by_insert_inherit(
 			NULL, NULL, entry, node->update);
 		ut_a(change_ownership);
@@ -2032,7 +2094,8 @@ err_exit:
 		delete-marked old record, mark them disowned by the
 		old record and owned by the new entry. */
 
-		if (rec_offs_any_extern(offsets) && !(trx->fake_changes)) {
+		if (rec_offs_any_extern(offsets)
+		    && UNIV_LIKELY(!(trx->fake_changes))) {
 			change_ownership = row_upd_clust_rec_by_insert_inherit(
 				rec, offsets, entry, node->update);
 
@@ -2053,13 +2116,31 @@ err_exit:
 			}
 		}
 #ifdef WITH_WSREP
-		if (!referenced) {
-			uint werr = wsrep_row_upd_check_foreign_constraints(
+		if (!referenced                                              &&
+		    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
+		      ((upd_node_t*)parent)->cascade_node == node)           &&
+		    wsrep_row_upd_index_is_foreign(index, trx)
+		) {
+			err = wsrep_row_upd_check_foreign_constraints(
 				node, pcur, table, index, offsets, thr, mtr);
-			if (wsrep_debug && werr != DB_SUCCESS)
+			switch (err) {
+			case DB_SUCCESS:
+			case DB_NO_REFERENCED_ROW:
+				err = DB_SUCCESS;
+				break;
+			case DB_DEADLOCK:
+				if (wsrep_debug) fprintf (stderr, 
+					"WSREP: insert FK check fail for deadlock");
+				break;
+			default:
 				fprintf (stderr, 
-					 "WSREP: FK check fail: %u", 
-					 werr);
+					"WSREP: referenced FK check fail: %lu", 
+					 err);
+				break;
+			}
+			if (err != DB_SUCCESS) {
+				goto err_exit;
+			}
 		}
 #endif /* WITH_WSREP */
 	}
@@ -2172,9 +2253,10 @@ row_upd_clust_rec(
 	the same transaction do not modify the record in the meantime.
 	Therefore we can assert that the restoration of the cursor succeeds. */
 
-	ut_a(btr_pcur_restore_position(thr_get_trx(thr)->fake_changes
-				       ? BTR_SEARCH_TREE : BTR_MODIFY_TREE,
-				       pcur, mtr));
+	ut_a(btr_pcur_restore_position(
+		(UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)
+		 ? BTR_SEARCH_TREE : BTR_MODIFY_TREE),
+		pcur, mtr));
 
 	ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
 				    dict_table_is_comp(index->table)));
@@ -2185,7 +2267,8 @@ row_upd_clust_rec(
 		 node->cmpl_info, thr, mtr);
 
 	/* skip store extern for fake_changes */
-	if (err == DB_SUCCESS && big_rec && !(thr_get_trx(thr)->fake_changes)) {
+	if (err == DB_SUCCESS && big_rec
+	    && UNIV_LIKELY(!(thr_get_trx(thr)->fake_changes))) {
 		ulint	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_t*	rec;
 		rec_offs_init(offsets_);
@@ -2271,6 +2354,7 @@ row_upd_del_mark_clust_rec(
 	ulint		err;
 #ifdef WITH_WSREP
 	rec_t*		rec;
+	que_node_t *parent = que_node_get_parent(node);
 #endif /* WITH_WSREP */
 
 	ut_ad(node);
@@ -2306,11 +2390,29 @@ row_upd_del_mark_clust_rec(
 			node, pcur, index->table, index, offsets, thr, mtr);
 	}
 #ifdef WITH_WSREP
-	if (err == DB_SUCCESS && !referenced) {
-		uint werr = wsrep_row_upd_check_foreign_constraints(
+	if (err == DB_SUCCESS && !referenced                         &&
+	    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
+	      ((upd_node_t*)parent)->cascade_node == node)           &&
+	    thr_get_trx(thr)                                         &&
+	    wsrep_row_upd_index_is_foreign(index, thr_get_trx(thr))
+	) {
+		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
-		if (wsrep_debug && werr != DB_SUCCESS)
-			fprintf (stderr,  "WSREP: FK check fail: %u",  werr);
+		switch (err) {
+		case DB_SUCCESS:
+		case DB_NO_REFERENCED_ROW:
+			err = DB_SUCCESS;
+			break;
+		case DB_DEADLOCK:
+			if (wsrep_debug) fprintf (stderr, 
+				"WSREP: clust rec FK check fail for deadlock");
+			break;
+		default:
+			fprintf (stderr, 
+				"WSREP: clust rec referenced FK check fail: %lu", 
+				 err);
+			break;
+		}
 	}
 #endif /* WITH_WSREP */
 
@@ -2364,8 +2466,10 @@ row_upd_clust_step(
 
 	ut_a(pcur->rel_pos == BTR_PCUR_ON);
 
-	success = btr_pcur_restore_position(thr_get_trx(thr)->fake_changes ? BTR_SEARCH_LEAF : BTR_MODIFY_LEAF,
-					    pcur, mtr);
+	success = btr_pcur_restore_position(
+		(UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)
+		 ? BTR_SEARCH_LEAF : BTR_MODIFY_LEAF),
+		pcur, mtr);
 
 	if (!success) {
 		err = DB_RECORD_NOT_FOUND;

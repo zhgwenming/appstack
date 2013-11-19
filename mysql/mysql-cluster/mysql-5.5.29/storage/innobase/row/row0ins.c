@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1077,19 +1077,21 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
+#ifdef WITH_WSREP
+	err = wsrep_append_foreign_key(
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec, 
+				       clust_index,
+				       FALSE, FALSE);
+	if (err != DB_SUCCESS) {
+		fprintf(stderr, 
+			"WSREP: foreign key append failed: %lu\n", err);
+	} else
+#endif
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
-#ifdef WITH_WSREP
-	if (err == DB_SUCCESS) {
-		err = wsrep_append_foreign_key(
-			thr_get_trx(thr),
-			foreign,
-			clust_rec, 
-			clust_index,
-			FALSE, FALSE);
-	}
-#endif /* WITH_WSREP */
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {
 		fprintf(stderr,
 			"InnoDB: error: table %s has the counter 0"
@@ -1364,11 +1366,11 @@ run_again:
 		const rec_t*		rec = btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block = btr_pcur_get_block(&pcur);
 
-		if (srv_pass_corrupt_table && !block) {
+		SRV_CORRUPT_TABLE_CHECK(block,
+		{
 			err = DB_CORRUPTION;
-			break;
-		}
-		ut_a(block);
+			goto exit_loop;
+		});
 
 		if (page_rec_is_infimum(rec)) {
 
@@ -1499,6 +1501,7 @@ run_again:
 		}
 	} while (btr_pcur_move_to_next(&pcur, &mtr));
 
+exit_loop:
 	if (check_ref) {
 		row_ins_foreign_report_add_err(
 			trx, foreign, btr_pcur_get_rec(&pcur), entry);
@@ -1536,7 +1539,7 @@ exit_func:
 		mem_heap_free(heap);
 	}
 
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		err = DB_SUCCESS;
 	}
 
@@ -1573,7 +1576,8 @@ row_ins_check_foreign_constraints(
 
 			if (foreign->referenced_table == NULL) {
 				dict_table_get(foreign->referenced_table_name_lookup,
-					       FALSE);
+					       FALSE,
+					       DICT_ERR_IGNORE_NONE);
 			}
 
 			if (0 == trx->dict_operation_lock_mode) {
@@ -1737,6 +1741,7 @@ row_ins_scan_sec_index_for_duplicate(
 	do {
 		const rec_t*		rec	= btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block	= btr_pcur_get_block(&pcur);
+		ulint			lock_type;
 
 		if (page_rec_is_infimum(rec)) {
 
@@ -1745,6 +1750,16 @@ row_ins_scan_sec_index_for_duplicate(
 
 		offsets = rec_get_offsets(rec, index, offsets,
 					  ULINT_UNDEFINED, &heap);
+
+		/* If the transaction isolation level is no stronger than
+		READ COMMITTED, then avoid gap locks. */
+		if (!page_rec_is_supremum(rec)
+		    && thr_get_trx(thr)->isolation_level
+					<= TRX_ISO_READ_COMMITTED) {
+			lock_type = LOCK_REC_NOT_GAP;
+		} else {
+			lock_type = LOCK_ORDINARY;
+		}
 
 #ifdef WITH_WSREP
 		/* slave applier must not get duplicate error */
@@ -1761,13 +1776,11 @@ row_ins_scan_sec_index_for_duplicate(
 			INSERT ON DUPLICATE KEY UPDATE). */
 
 			err = row_ins_set_exclusive_rec_lock(
-				LOCK_ORDINARY, block,
-				rec, index, offsets, thr);
+				lock_type, block, rec, index, offsets, thr);
 		} else {
 
 			err = row_ins_set_shared_rec_lock(
-				LOCK_ORDINARY, block,
-				rec, index, offsets, thr);
+				lock_type, block, rec, index, offsets, thr);
 		}
 
 		switch (err) {
@@ -2129,11 +2142,11 @@ row_ins_index_entry_low(
 			transaction. Let us now reposition the cursor and
 			continue the insertion. */
 
-			btr_cur_search_to_nth_level(index, 0, entry,
-						    PAGE_CUR_LE,
-						    thr_get_trx(thr)->fake_changes ? BTR_SEARCH_LEAF : (mode | BTR_INSERT),
-						    &cursor, 0,
-						    __FILE__, __LINE__, &mtr);
+			btr_cur_search_to_nth_level(
+				index, 0, entry, PAGE_CUR_LE,
+				(UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)
+				 ? BTR_SEARCH_LEAF : (mode | BTR_INSERT)),
+				&cursor, 0, __FILE__, __LINE__, &mtr);
 		}
 	}
 
@@ -2158,6 +2171,11 @@ row_ins_index_entry_low(
 
 			if (big_rec) {
 				ut_a(err == DB_SUCCESS);
+				if (UNIV_UNLIKELY(thr_get_trx(thr)->
+						  fake_changes)) {
+					goto stored_big_rec;
+				}
+
 				/* Write out the externally stored
 				columns while still x-latching
 				index->lock and block->lock. Allocate
@@ -2251,7 +2269,7 @@ function_exit:
 		rec_t*	rec;
 		ulint*	offsets;
 
-		if (thr_get_trx(thr)->fake_changes) {
+		if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 			/* skip store extern */
 			if (modify) {
 				dtuple_big_rec_free(big_rec);
@@ -2335,7 +2353,10 @@ row_ins_index_entry(
 	err = row_ins_index_entry_low(BTR_MODIFY_LEAF, index, entry,
 				      n_ext, thr);
 	if (err != DB_FAIL) {
-
+		if (index == dict_table_get_first_index(index->table)
+		    && thr_get_trx(thr)->mysql_thd != 0) {
+			DEBUG_SYNC_C("row_ins_clust_index_entry_leaf_after");
+		}
 		return(err);
 	}
 

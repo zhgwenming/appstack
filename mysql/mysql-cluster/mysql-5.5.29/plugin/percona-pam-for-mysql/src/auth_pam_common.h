@@ -14,7 +14,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 */
 
 /**
@@ -31,7 +31,11 @@ can compile against unconfigured MySQL source tree.  */
 
 #include <security/pam_appl.h>
 #include <security/pam_modules.h>
+#if HAVE_SECURITY_PAM_MISC_H
 #include <security/pam_misc.h>
+#elif HAVE_SECURITY_OPENPAM_H
+#include <security/openpam.h>
+#endif
 
 #include <mysql/plugin.h>
 #include <mysql/plugin_auth.h>

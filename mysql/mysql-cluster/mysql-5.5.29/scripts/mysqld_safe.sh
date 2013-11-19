@@ -27,6 +27,8 @@ syslog_tag=
 user='@MYSQLD_USER@'
 pid_file=
 err_log=
+wsrep_data_home_dir=""
+grastate_loc=""
 
 syslog_tag_mysqld=mysqld
 syslog_tag_mysqld_safe=mysqld_safe
@@ -209,29 +211,61 @@ wsrep_pick_url() {
 
 # Run mysqld with --wsrep-recover and parse recovered position from log.
 # Position will be stored in wsrep_start_position_opt global.
-wsrep_recovery() {
+wsrep_start_position_opt=""
+wsrep_recover_position() {
   local mysqld_cmd="$@"
-  wr_logfile=$(mktemp)
-  [ "$EUID" = "0" ] && chown $user $wr_logfile
+  local ret=0
+  local uuid=""
+  local seqno=0
+
+  uuid=$(grep 'uuid:' $grastate_loc | cut -d: -f2 | tr -d ' ')
+  seqno=$(grep 'seqno:' $grastate_loc | cut -d: -f2 | tr -d ' ')
+
+  # If sequence number is not equal to -1, wsrep-recover co-ordinates aren't used.
+  # lp:1112724
+  # So, directly pass whatever is obtained from grastate.dat
+  if [ $seqno -ne -1 ];then 
+    log_notice "Skipping wsrep-recover for $uuid:$seqno pair"
+    log_notice "Assigning $uuid:$seqno to wsrep_start_position"
+    wsrep_start_position_opt="--wsrep_start_position=$uuid:$seqno"
+    return $ret
+  fi
+
+  local euid=$(id -u)
+
+  local wr_logfile=$(mktemp $DATADIR/wsrep_recovery.XXXXXX)
+
+  [ "$euid" = "0" ] && chown $user $wr_logfile
   chmod 600 $wr_logfile
-  log_notice "WSREP: Running position recovery with --log_error=$wr_logfile"
-  $mysqld_cmd --log_error=$wr_logfile --wsrep-recover
-  rp=$(grep "WSREP: Recovered position:" $wr_logfile)
+
+  local wr_pidfile="$DATADIR/"`@HOSTNAME@`"-recover.pid"
+
+  local wr_options="--log_error='$wr_logfile' --pid-file='$wr_pidfile'"
+
+  log_notice "WSREP: Running position recovery with $wr_options"
+
+  eval_log_error "$mysqld_cmd --wsrep_recover $wr_options"
+
+  local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
-    skipped=$(grep WSREP $wr_logfile | grep "skipping position recovery")
+    local skipped="$(grep WSREP $wr_logfile | grep 'skipping position recovery')"
     if [ -z "$skipped" ]; then
-      log_error "WSREP: Failed to recover position: " \
-          `cat $wr_logfile`;
+      log_error "WSREP: Failed to recover position: 
+'`cat $wr_logfile`'"
+      ret=1
     else
       log_notice "WSREP: Position recovery skipped"
     fi
   else
-    start_pos=$(echo $rp | sed 's/.*WSREP\:\ Recovered\ position://' \
-        | sed 's/^[ \t]*//')
-    wsrep_start_position_opt="--wsrep_start_position=$start_pos"
+    local start_pos="$(echo $rp | sed 's/.*WSREP\:\ Recovered\ position://' \
+        | sed 's/^[ \t]*//')"
     log_notice "WSREP: Recovered position $start_pos"
+    wsrep_start_position_opt="--wsrep_start_position=$start_pos"
   fi
-  rm $wr_logfile
+
+  [ $ret -eq 0 ] && rm $wr_logfile
+
+  return $ret
 }
 
 parse_arguments() {
@@ -290,14 +324,15 @@ parse_arguments() {
       --syslog-tag=*) syslog_tag="$val" ;;
       --timezone=*) TZ="$val"; export TZ; ;;
       --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
+      --wsrep-data-home-dir=*) wsrep_data_home_dir="$val"; ;;
       --flush-caches) flush_caches=1 ;;
       --numa-interleave) numa_interleave=1 ;;
       --wsrep[-_]provider=*)
         if test -n "$val" && test "$val" != "none"
         then
-    	  wsrep_restart=1
-    	fi
-	;;
+          wsrep_restart=1
+        fi
+        ;;
       --help) usage ;;
 
       *)
@@ -589,7 +624,6 @@ else
 fi
 plugin_dir="${plugin_dir}${PLUGIN_VARIANT}"
 
-
 # Determine what logging facility to use
 
 # Ensure that 'logger' exists, if it's requested
@@ -613,6 +647,7 @@ then
 
     # mysqld does not add ".err" to "--log-error=foo."; it considers a
     # trailing "." as an extension
+    
     if expr "$err_log" : '.*\.[^/]*$' > /dev/null
     then
         :
@@ -640,7 +675,7 @@ then
   log_notice "Logging to '$err_log'."
   logging=file
 
-  if [ ! -e "$err_log" ]; then                  # if error log already exists,
+  if [ ! -f "$err_log" ]; then                  # if error log already exists,
     touch "$err_log"                            # we just append. otherwise,
     chmod "$fmode" "$err_log"                   # fix the permissions here!
   fi
@@ -909,27 +944,48 @@ max_fast_restarts=5
 # flag whether a usable sleep command exists
 have_sleep=1
 
+
 # maximum number of wsrep restarts
 max_wsrep_restarts=0
+
+if [ $wsrep_data_home_dir ];then 
+    grastate_loc="$wsrep_data_home_dir/grastate.dat"
+else 
+    grastate_loc="${DATADIR}/grastate.dat"
+fi
 
 while true
 do
   rm -f $safe_mysql_unix_port "$pid_file"	# Some extra safety
 
-  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
-
   start_time=`date +%M%S`
+  
+  # This file is checked for empty directory because 
+  # a) Not having this file means the wsrep-start-position is useless - lp:1112724
+  # b) Otherwise I have to check if directory is empty sans a few files like 
+  # error log and others, #a is simpler.
+  if [ -e $grastate_loc ];then
+    # this sets wsrep_start_position_opt
+    wsrep_recover_position "$cmd"
+  else 
+    log_notice "Skipping wsrep-recover for empty datadir: ${DATADIR}"
+    log_notice "Assigning 00000000-0000-0000-0000-000000000000:-1 to wsrep_start_position"
+    wsrep_start_position_opt="--wsrep_start_position='00000000-0000-0000-0000-000000000000:-1'"
+  fi
+
+
+  [ $? -ne 0 ] && exit 1 #
+
+  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
 
   if [ -z "$url" ]
   then
-    wsrep_recovery "$cmd"
     eval_log_error "$cmd $wsrep_start_position_opt $nohup_redir"
   else
-    wsrep_recovery "$cmd"
     eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url $nohup_redir"
   fi
 
-  if [ $want_syslog -eq 0 -a ! -e "$err_log" ]; then
+  if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then
     touch "$err_log"                    # hypothetical: log was renamed but not
     chown $user "$err_log"              # flushed yet. we'd recreate it with
     chmod "$fmode" "$err_log"           # wrong owner next time we log, so set

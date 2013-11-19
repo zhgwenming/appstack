@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
 /* Basic functions needed by many modules */
@@ -319,12 +319,9 @@ uint create_table_def_key(THD *thd, char *key,
                           const TABLE_LIST *table_list,
                           bool tmp_table)
 {
-  char *db_end= strnmov(key, table_list->db, MAX_DBKEY_LENGTH - 2);
-  *db_end++= '\0';
-  char *table_end= strnmov(db_end, table_list->table_name,
-                           key + MAX_DBKEY_LENGTH - 1 - db_end);
-  *table_end++= '\0';
-  uint key_length= (uint) (table_end-key);
+  uint key_length= create_table_def_key(key, table_list->db,
+                                        table_list->table_name);
+
   if (tmp_table)
   {
     int4store(key + key_length, thd->server_id);
@@ -822,13 +819,10 @@ void release_table_share(TABLE_SHARE *share)
 TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
 {
   char key[NAME_LEN*2+2];
-  TABLE_LIST table_list;
   uint key_length;
   mysql_mutex_assert_owner(&LOCK_open);
 
-  table_list.db= (char*) db;
-  table_list.table_name= (char*) table_name;
-  key_length= create_table_def_key((THD*) 0, key, &table_list, 0);
+  key_length= create_table_def_key(key, db, table_name);
   return (TABLE_SHARE*) my_hash_search(&table_def_cache,
                                        (uchar*) key, key_length);
 }  
@@ -1596,11 +1590,13 @@ bool close_thread_table(THD *thd, TABLE **table_ptr)
   table->mdl_ticket= NULL;
 
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  if(table->file)
+
+  if(unlikely(opt_userstat && table->file))
   {
     table->file->update_global_table_stats();
     table->file->update_global_index_stats();
   }
+
   *table_ptr=table->next;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 
@@ -2239,8 +2235,12 @@ void close_temporary(TABLE *table, bool free_share, bool delete_table)
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  table->file->update_global_table_stats();
-  table->file->update_global_index_stats();
+  if (unlikely(opt_userstat))
+  {
+    table->file->update_global_table_stats();
+    table->file->update_global_index_stats();
+  }
+
   free_io_cache(table);
   closefrm(table, 0);
   if (delete_table)
@@ -2367,10 +2367,11 @@ void drop_open_table(THD *thd, TABLE *table, const char *db_name,
     Check that table exists in table definition cache, on disk
     or in some storage engine.
 
-    @param       thd     Thread context
-    @param       table   Table list element
-    @param[out]  exists  Out parameter which is set to TRUE if table
-                         exists and to FALSE otherwise.
+    @param       thd        Thread context
+    @param       table      Table list element
+    @param       fast_check Check only if share or .frm file exists 
+    @param[out]  exists     Out parameter which is set to TRUE if table
+                            exists and to FALSE otherwise.
 
     @note This function acquires LOCK_open internally.
 
@@ -2382,7 +2383,8 @@ void drop_open_table(THD *thd, TABLE *table, const char *db_name,
     @retval  FALSE  No error. 'exists' out parameter set accordingly.
 */
 
-bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists)
+bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool fast_check,
+                           bool *exists)
 {
   char path[FN_REFLEN + 1];
   TABLE_SHARE *share;
@@ -2390,7 +2392,8 @@ bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists)
 
   *exists= TRUE;
 
-  DBUG_ASSERT(thd->mdl_context.
+  DBUG_ASSERT(fast_check ||
+              thd->mdl_context.
               is_lock_owner(MDL_key::TABLE, table->db,
                             table->table_name, MDL_SHARED));
 
@@ -2406,6 +2409,12 @@ bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists)
 
   if (!access(path, F_OK))
     goto end;
+
+  if (fast_check)
+  {
+    *exists= FALSE;
+    goto end;
+  }
 
   /* .FRM file doesn't exist. Check if some engine can provide it. */
   if (ha_check_if_table_exists(thd, table->db, table->table_name, exists))
@@ -2956,7 +2965,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   {
     bool exists;
 
-    if (check_if_table_exists(thd, table_list, &exists))
+    if (check_if_table_exists(thd, table_list, 0, &exists))
       DBUG_RETURN(TRUE);
 
     if (!exists)
@@ -3195,7 +3204,7 @@ err_unlock:
 TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name)
 {
   char	key[MAX_DBKEY_LENGTH];
-  uint key_length=(uint) (strmov(strmov(key,db)+1,table_name)-key)+1;
+  uint key_length= create_table_def_key(key, db, table_name);
 
   for (TABLE *table= list; table ; table=table->next)
   {
@@ -3986,7 +3995,8 @@ end_unlock:
 /** Open_table_context */
 
 Open_table_context::Open_table_context(THD *thd, uint flags)
-  :m_failed_table(NULL),
+  :m_thd(thd),
+   m_failed_table(NULL),
    m_start_of_statement_svp(thd->mdl_context.mdl_savepoint()),
    m_timeout(flags & MYSQL_LOCK_IGNORE_TIMEOUT ?
              LONG_TIMEOUT : thd->variables.lock_wait_timeout),
@@ -4063,6 +4073,7 @@ request_backoff_action(enum_open_table_action action_arg,
   if (action_arg != OT_REOPEN_TABLES && m_has_locks)
   {
     my_error(ER_LOCK_DEADLOCK, MYF(0));
+    mark_transaction_to_rollback(m_thd, true);
     return TRUE;
   }
   /*
@@ -4072,7 +4083,7 @@ request_backoff_action(enum_open_table_action action_arg,
   if (table)
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR);
-    m_failed_table= (TABLE_LIST*) current_thd->alloc(sizeof(TABLE_LIST));
+    m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
     if (m_failed_table == NULL)
       return TRUE;
     m_failed_table->init_one_table(table->db, table->db_length,
@@ -4089,8 +4100,6 @@ request_backoff_action(enum_open_table_action action_arg,
 /**
    Recover from failed attempt of open table by performing requested action.
 
-   @param  thd     Thread context
-
    @pre This function should be called only with "action" != OT_NO_ACTION
         and after having called @sa close_tables_for_reopen().
 
@@ -4100,7 +4109,7 @@ request_backoff_action(enum_open_table_action action_arg,
 
 bool
 Open_table_context::
-recover_from_failed_open(THD *thd)
+recover_from_failed_open()
 {
   bool result= FALSE;
   /* Execute the action. */
@@ -4112,33 +4121,33 @@ recover_from_failed_open(THD *thd)
       break;
     case OT_DISCOVER:
       {
-        if ((result= lock_table_names(thd, m_failed_table, NULL,
+        if ((result= lock_table_names(m_thd, m_failed_table, NULL,
                                       get_timeout(),
                                       MYSQL_OPEN_SKIP_TEMPORARY)))
           break;
 
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
+        tdc_remove_table(m_thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
-        ha_create_table_from_engine(thd, m_failed_table->db,
+        ha_create_table_from_engine(m_thd, m_failed_table->db,
                                     m_failed_table->table_name);
 
-        thd->warning_info->clear_warning_info(thd->query_id);
-        thd->clear_error();                 // Clear error message
-        thd->mdl_context.release_transactional_locks();
+        m_thd->warning_info->clear_warning_info(m_thd->query_id);
+        m_thd->clear_error();                 // Clear error message
+        m_thd->mdl_context.release_transactional_locks();
         break;
       }
     case OT_REPAIR:
       {
-        if ((result= lock_table_names(thd, m_failed_table, NULL,
+        if ((result= lock_table_names(m_thd, m_failed_table, NULL,
                                       get_timeout(),
                                       MYSQL_OPEN_SKIP_TEMPORARY)))
           break;
 
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
+        tdc_remove_table(m_thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
 
-        result= auto_repair_table(thd, m_failed_table);
-        thd->mdl_context.release_transactional_locks();
+        result= auto_repair_table(m_thd, m_failed_table);
+        m_thd->mdl_context.release_transactional_locks();
         break;
       }
     default:
@@ -4662,7 +4671,18 @@ extern "C" uchar *schema_set_get_key(const uchar *record, size_t *length,
                            open, see open_table() description for details.
 
   @retval FALSE  Success.
-  @retval TRUE   Failure (e.g. connection was killed)
+  @retval TRUE   Failure (e.g. connection was killed) or table existed
+	         for a CREATE TABLE.
+
+  @notes
+  In case of CREATE TABLE we avoid a wait for tables that are in use
+  by first trying to do a meta data lock with timeout == 0.  If we get a
+  timeout we will check if table exists (it should) and retry with
+  normal timeout if it didn't exists.
+  Note that for CREATE TABLE IF EXISTS we only generate a warning
+  but still return TRUE (to abort the calling open_table() function).
+  On must check THD->is_error() if one wants to distinguish between warning
+  and error.
 */
 
 bool
@@ -4674,6 +4694,10 @@ lock_table_names(THD *thd,
   TABLE_LIST *table;
   MDL_request global_request;
   Hash_set<TABLE_LIST, schema_set_get_key> schema_set;
+  ulong org_lock_wait_timeout= lock_wait_timeout;
+  /* Check if we are using CREATE TABLE ... IF NOT EXISTS */
+  bool create_table;
+  Dummy_error_handler error_handler;
 
   DBUG_ASSERT(!thd->locked_tables_mode);
 
@@ -4694,8 +4718,14 @@ lock_table_names(THD *thd,
     }
   }
 
-  if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) &&
-      ! mdl_requests.is_empty())
+  if (mdl_requests.is_empty())
+    return FALSE;
+
+  /* Check if CREATE TABLE IF NOT EXISTS was used */
+  create_table= (tables_start && tables_start->open_strategy ==
+                 TABLE_LIST::OPEN_IF_EXISTS);
+
+  if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
     /*
       Scoped locks: Take intention exclusive locks on all involved
@@ -4723,12 +4753,58 @@ lock_table_names(THD *thd,
     global_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
                         MDL_STATEMENT);
     mdl_requests.push_front(&global_request);
+
+    if (create_table)
+      lock_wait_timeout= 0;                     // Don't wait for timeout
   }
 
-  if (thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout))
-    return TRUE;
+  for (;;)
+  {
+    bool exists= TRUE;
+    bool res;
 
-  return FALSE;
+    if (create_table)
+      thd->push_internal_handler(&error_handler);  // Avoid warnings & errors
+    res= thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout);
+    if (create_table)
+      thd->pop_internal_handler();
+    if (!res)
+      return FALSE;                             // Got locks
+
+    if (!create_table)
+      return TRUE;                              // Return original error
+
+    /*
+      We come here in the case of lock timeout when executing
+      CREATE TABLE IF NOT EXISTS.
+      Verify that table really exists (it should as we got a lock conflict)
+    */
+    if (check_if_table_exists(thd, tables_start, 1, &exists))
+      return TRUE;                              // Should never happen
+    if (exists)
+    {
+      if (thd->lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
+      {
+        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                            ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                            tables_start->table_name);
+      }
+      else
+        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), tables_start->table_name);
+      return TRUE;
+    }
+    /* purecov: begin inspected */
+    /*
+      We got error from acquire_locks but table didn't exists.
+      In theory this should never happen, except maybe in
+      CREATE or DROP DATABASE scenario.
+      We play safe and restart the original acquire_locks with the
+      original timeout
+    */
+    create_table= 0;
+    lock_wait_timeout= org_lock_wait_timeout;
+    /* purecov: end */
+  }
 }
 
 
@@ -4971,7 +5047,7 @@ restart:
             TABLE_LIST element. Altough currently this assumption is valid
             it may change in future.
           */
-          if (ot_ctx.recover_from_failed_open(thd))
+          if (ot_ctx.recover_from_failed_open())
             goto err;
 
           error= FALSE;
@@ -5024,7 +5100,7 @@ restart:
           {
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp());
-            if (ot_ctx.recover_from_failed_open(thd))
+            if (ot_ctx.recover_from_failed_open())
               goto err;
 
             error= FALSE;
@@ -5485,7 +5561,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
     */
     thd->mdl_context.rollback_to_savepoint(ot_ctx.start_of_statement_svp());
     table_list->mdl_request.ticket= 0;
-    if (ot_ctx.recover_from_failed_open(thd))
+    if (ot_ctx.recover_from_failed_open())
       break;
   }
 
@@ -6069,17 +6145,27 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
 }
 
 
-bool rm_temporary_table(handlerton *base, char *path)
+/**
+  Delete a temporary table.
+
+  @param base  Handlerton for table to be deleted.
+  @param path  Path to the table to be deleted (i.e. path
+               to its .frm without an extension).
+
+  @retval false - success.
+  @retval true  - failure.
+*/
+
+bool rm_temporary_table(handlerton *base, const char *path)
 {
   bool error=0;
   handler *file;
-  char *ext;
+  char frm_path[FN_REFLEN + 1];
   DBUG_ENTER("rm_temporary_table");
 
-  strmov(ext= strend(path), reg_ext);
-  if (mysql_file_delete(key_file_frm, path, MYF(0)))
+  strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
+  if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
     error=1; /* purecov: inspected */
-  *ext= 0;				// remove extension
   file= get_new_handler((TABLE_SHARE*) 0, current_thd->mem_root, base);
   if (file && file->ha_delete_table(path))
   {
@@ -7958,7 +8044,8 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
   thd->mark_used_columns= mark_used_columns;
   DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
   if (allow_sum_func)
-    thd->lex->allow_sum_func|= 1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func|=
+      (nesting_map)1 << thd->lex->current_select->nest_level;
   thd->where= THD::DEFAULT_WHERE;
   save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
   thd->lex->current_select->is_item_list_lookup= 0;
@@ -8940,7 +9027,11 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
     in_use->killed= THD::KILL_CONNECTION;
     mysql_mutex_lock(&in_use->mysys_var->mutex);
     if (in_use->mysys_var->current_cond)
+    {
+      mysql_mutex_lock(in_use->mysys_var->current_mutex);
       mysql_cond_broadcast(in_use->mysys_var->current_cond);
+      mysql_mutex_unlock(in_use->mysys_var->current_mutex);
+    }
     mysql_mutex_unlock(&in_use->mysys_var->mutex);
     signalled= TRUE;
   }
@@ -9026,11 +9117,15 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
     mysql_mutex_assert_owner(&LOCK_open);
   }
 
+#ifdef WITH_WSREP
+  /* if thd was BF aborted, exclusive locks were canceled */
+#else
   DBUG_ASSERT(remove_type == TDC_RT_REMOVE_UNUSED ||
               thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                              MDL_EXCLUSIVE));
+#endif /* WITH_WSREP */
 
-  key_length=(uint) (strmov(strmov(key,db)+1,table_name)-key)+1;
+  key_length= create_table_def_key(key, db, table_name);
 
   if ((share= (TABLE_SHARE*) my_hash_search(&table_def_cache,(uchar*) key,
                                             key_length)))
@@ -9143,12 +9238,14 @@ open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
 {
   LEX_STRING pathstr;
   File_parser *parser;
-  char path[FN_REFLEN];
+  char path[FN_REFLEN+1];
   DBUG_ENTER("open_new_frm");
 
   /* Create path with extension */
-  pathstr.length= (uint) (strxmov(path, share->normalized_path.str, reg_ext,
-                                  NullS)- path);
+  pathstr.length= (uint) (strxnmov(path, sizeof(path) - 1,
+                                   share->normalized_path.str,
+                                   reg_ext,
+                                   NullS) - path);
   pathstr.str=    path;
 
   if ((parser= sql_parse_prepare(&pathstr, mem_root, 1)))
@@ -9212,6 +9309,467 @@ has_write_table_with_auto_increment(TABLE_LIST *tables)
   }
 
   return 0;
+}
+
+static bool is_cond_equal(const COND *cond)
+{
+  return (cond->type() == Item::FUNC_ITEM &&
+          (((Item_func*)cond)->functype() == Item_func::EQ_FUNC ||
+           ((Item_func*)cond)->functype() == Item_func::EQUAL_FUNC));
+}
+
+static bool is_cond_mult_equal(const COND *cond)
+{
+  return (cond->type() == Item::FUNC_ITEM &&
+          (((Item_func*)cond)->functype() == Item_func::MULT_EQUAL_FUNC));
+}
+
+/*
+  And-or graph truth propagation algorithm is used to calculate if the
+  statement is ordered or not.
+
+  Nodes:
+    Join_node - And node, this is the root, successors are a list of
+              Const_ordered_table_node.
+    Const_ordered_table_node - Or node, have two Table_node as successors,
+              one for ordered table, and the other for constant table.
+    Table_node - Or node, have a list of Key_node and one All_columns_node
+              as successors.
+    Key_node - And node, successors are a list of Column_node that corresponding
+              to the fields of the key.
+    All_columns_node - And node, successors are a list of Column_node of all
+              fields of the table.
+    Column_node - Or node, represent a field of the table, it will take a
+              Table_node as a successor, which means if a table is true
+              (const or ordered), the all its columns are const or ordered.
+              Successors to other column nodes will be added mutually if
+              there is an equation to that field in the condition. The
+              column nodes for fields that are in the ORDER BY or are
+              equal to constants are added to the init_nodes of the Join_node,
+              which is used as the initial true values of the propagation.
+ */
+
+/* 
+   Abstract base class for and-or node.
+*/
+class Node :public Sql_alloc {
+public:
+  Node() :todo(0) {}
+  virtual ~Node() {}
+  virtual void add_successor(Node* node)=0;
+  /* Number of successors need to be true to make this node true. */
+  uint todo;
+  /* List of nodes that this node is a successor */
+  List<Node> predecessors;
+};
+
+/*
+  Or node will be true if any of its successors is true.
+ */
+class Or_node :public Node {
+public:
+  Or_node() :Node() {}
+  virtual void add_successor(Node* node)
+  {
+    todo= 1;
+    node->predecessors.push_back(this);
+  }
+};
+
+/*
+  And node can only be true if all its successors are true.
+ */
+class And_node :public Node {
+public:
+  And_node() :Node() {}
+  virtual void add_successor(Node* node)
+  {
+    todo++;
+    node->predecessors.push_back(this);
+  }
+};
+
+typedef Or_node Column_node;
+typedef And_node Key_node;
+typedef And_node All_columns_node;
+
+class Table_node :public Or_node {
+public:
+  Table_node(const TABLE* table_arg);
+  Column_node* get_column_node(const Field* field) const;
+  Column_node* create_column_node(const Field* field);
+  All_columns_node* create_all_columns_node();
+  Key_node* create_key_node(const KEY* key_info);
+private:
+  const TABLE* table;
+  Column_node** columns;
+};
+
+Table_node::Table_node(const TABLE* table_arg)
+  :table(table_arg),
+   columns((Column_node**)sql_alloc(sizeof(Column_node*) * table->s->fields))
+{
+  memset(columns, 0, sizeof(Column_node*) * table->s->fields);
+  
+  if (table->s->primary_key == MAX_KEY && !table->s->uniques)
+  {
+    add_successor(create_all_columns_node());
+    return;
+  }
+  uint key;
+  for (key=0; key < table->s->keys; key++)
+  {
+    if ((table->s->key_info[key].flags &
+         (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
+      add_successor(create_key_node(&table->s->key_info[key]));
+  }
+}
+
+inline Column_node* Table_node::get_column_node(const Field* field) const
+{
+  return columns[field->field_index];
+}
+
+inline Column_node* Table_node::create_column_node(const Field* field)
+{
+  if (!get_column_node(field))
+  {
+    Column_node* column= new Column_node;
+    columns[field->field_index]= column;
+    /*
+      If the table is ORDERED or CONST, then all the columns are
+      ORDERED or CONST, so add the table as an successor of the column
+      node (Or_node).
+    */
+    column->add_successor(this);
+  }
+  return get_column_node(field);
+}
+
+All_columns_node* Table_node::create_all_columns_node()
+{
+  All_columns_node* node= new All_columns_node;
+  uint i= 0;
+  for (i=0; i<table->s->fields; i++)
+  {
+    Column_node* column= create_column_node(table->field[i]);
+    node->add_successor(column);
+  }
+  return node;
+}
+
+Key_node* Table_node::create_key_node(const KEY *key_info)
+{
+  Key_node* node= new Key_node;
+  uint key_parts= key_info->key_parts;
+  uint i;
+  for (i=0; i<key_parts; i++)
+  {
+    KEY_PART_INFO *key_part= &key_info->key_part[i];
+    Field *field= table->field[key_part->fieldnr - 1];
+    node->add_successor(create_column_node(field));
+  }
+  return node;
+}
+
+class Const_ordered_table_node :public Or_node {
+public:
+  Const_ordered_table_node(const TABLE* table_arg);
+  const TABLE* get_table() const { return table; }
+  Column_node* get_ordered_column_node(const Field* field) const;
+  Column_node* get_const_column_node(const Field* field) const;
+
+private:
+  const TABLE* table;
+  Table_node* ordered_table_node;
+  Table_node* const_table_node;
+};
+
+Const_ordered_table_node::Const_ordered_table_node(const TABLE* table_arg)
+  :table(table_arg),
+   ordered_table_node(new Table_node(table)),
+   const_table_node(new Table_node(table))
+{
+  add_successor(ordered_table_node);
+  add_successor(const_table_node);
+}
+
+inline Column_node*
+Const_ordered_table_node::get_ordered_column_node(const Field* field) const
+{
+  return ordered_table_node->create_column_node(field);
+}
+
+inline Column_node*
+Const_ordered_table_node::get_const_column_node(const Field* field) const
+{
+  return const_table_node->create_column_node(field);
+}
+
+class Join_node :public And_node {
+public:
+  Join_node(List<TABLE_LIST>* join_list, COND* cond, const ORDER* order);
+  Join_node(const TABLE_LIST* table, COND* cond, const ORDER* order);
+  bool is_ordered() const;
+private:
+  void add_join_list(List<TABLE_LIST>* join_list);
+  Const_ordered_table_node* add_table(const TABLE* table);
+  Const_ordered_table_node* get_const_ordered_table_node(const TABLE* table);
+  Column_node* get_ordered_column_node(const Field* field);
+  Column_node* get_const_column_node(const Field* field);
+  void add_ordered_columns(const ORDER* order);
+  void add_const_equi_columns(COND* cond);
+  void add_const_column(const Field* field);
+  void add_equi_column(const Field* left, const Field* right);
+  bool field_belongs_to_tables(const Field* field);
+  List<Const_ordered_table_node> tables;
+  List<Node> init_nodes;
+  ulong max_sort_length;
+};
+
+inline void Join_node::add_join_list(List<TABLE_LIST>* join_list)
+{
+  List_iterator<TABLE_LIST> it(*join_list);
+  TABLE_LIST *table= join_list->head();
+  COND* on_expr= table->on_expr;
+  while((table= it++))
+    if (table->nested_join)
+      add_join_list(&table->nested_join->join_list);
+    else
+      add_table(table->table);
+  add_const_equi_columns(on_expr);
+}
+
+inline Const_ordered_table_node* Join_node::add_table(const TABLE* table)
+{
+  Const_ordered_table_node* tableNode= new Const_ordered_table_node(table);
+  add_successor(tableNode);
+  tables.push_back(tableNode);
+  return tableNode;
+}
+
+inline Join_node::Join_node(List<TABLE_LIST>* join_list,
+                            COND* cond, const ORDER* order)
+{
+  DBUG_ASSERT(!join_list->is_empty());
+  max_sort_length= current_thd->variables.max_sort_length;
+  add_join_list(join_list);
+  add_ordered_columns(order);
+  add_const_equi_columns(cond);
+}
+
+inline Join_node::Join_node(const TABLE_LIST* table,
+                            COND* cond, const ORDER* order)
+{
+  max_sort_length= current_thd->variables.max_sort_length;
+  add_table(table->table);
+  add_ordered_columns(order);
+  add_const_equi_columns(cond);
+}
+
+inline Const_ordered_table_node* Join_node::get_const_ordered_table_node(const TABLE* table)
+{
+  List_iterator<Const_ordered_table_node> it(tables);
+  Const_ordered_table_node* node;
+  while ((node= it++))
+  {
+    if (node->get_table() == table)
+      return node;
+  }
+  DBUG_ASSERT(0);
+  return add_table(table);
+}
+
+inline bool Join_node::field_belongs_to_tables(const Field* field)
+{
+  List_iterator<Const_ordered_table_node> it(tables);
+  Const_ordered_table_node* node;
+  while ((node= it++))
+  {
+    if (node->get_table() == field->table)
+      return true;
+  }
+  return false;
+}
+
+inline Column_node* Join_node::get_ordered_column_node(const Field* field)
+{
+  return get_const_ordered_table_node(field->table)->get_ordered_column_node(field);
+}
+
+inline Column_node* Join_node::get_const_column_node(const Field* field)
+{
+  return get_const_ordered_table_node(field->table)->get_const_column_node(field);
+}
+
+inline void Join_node::add_const_column(const Field* field)
+{
+  Column_node* column= get_const_column_node(field);
+  init_nodes.push_back(column);
+}
+
+void Join_node::add_equi_column(const Field* left, const Field* right)
+{
+  Column_node* left_column= get_const_column_node(left);
+  Column_node* right_column= get_const_column_node(right);
+  left_column->add_successor(right_column);
+  right_column->add_successor(left_column);
+
+  left_column= get_ordered_column_node(left);
+  right_column= get_ordered_column_node(right);
+  left_column->add_successor(right_column);
+  right_column->add_successor(left_column);
+}
+
+void Join_node::add_const_equi_columns(COND* cond)
+{
+  if (!cond)
+    return;
+  if (is_cond_or(cond))
+    return;
+  if (is_cond_and(cond))
+  {
+    List<Item> *args= ((Item_cond*) cond)->argument_list();
+    List_iterator<COND> it(*args);
+    COND *c;
+    while ((c= it++))
+      add_const_equi_columns(c);
+    return;
+  }
+  if (is_cond_equal(cond))
+  {
+    uint i;
+    Field *first_field= NULL;
+    Field *second_field= NULL;
+    Item **args= ((Item_func*)cond)->arguments();
+    uint arg_count= ((Item_func*)cond)->argument_count();
+    bool const_value= false;
+
+    DBUG_ASSERT(arg_count == 2);
+
+    bool variable_field= false;
+    for (i=0; i<arg_count; i++)
+    {
+      if (args[i]->real_item()->type() == Item::FIELD_ITEM &&
+          (variable_field= field_belongs_to_tables(((Item_field*)args[i]->real_item())->field)))
+      {
+        if (!first_field)
+          first_field= ((Item_field*)args[i]->real_item())->field;
+        else
+          second_field= ((Item_field*)args[i]->real_item())->field;
+      }
+      else if (args[i]->real_item()->basic_const_item() ||
+               !variable_field)
+      {
+        const_value = true;
+      }
+    }
+    if (first_field && const_value)
+      add_const_column(first_field);
+    else if (second_field)
+      add_equi_column(first_field, second_field);
+    return;
+  }
+  if (is_cond_mult_equal(cond))
+  {
+    bool has_const= ((Item_equal*)cond)->get_const();
+    Item_equal_iterator it(*((Item_equal*)cond));
+    Item_field *item;
+    if (has_const)
+    {
+      while ((item= it++))
+        add_const_column(item->field);
+    }
+    else
+    {
+      Item_field *first_item= it++;
+      while ((item= it++))
+        add_equi_column(first_item->field, item->field);
+    }
+  }
+  return;
+}
+
+void Join_node::add_ordered_columns(const ORDER* order)
+{
+  for (; order; order=order->next)
+  {
+    if ((*order->item)->real_item()->type() == Item::FIELD_ITEM)
+    {
+      Field *field=((Item_field*) (*order->item)->real_item())->field;
+      /*
+        If the field length is larger than the max_sort_length, then
+        ORDER BY the field will not be guaranteed to be deterministic.
+       */
+      if (field->field_length > max_sort_length)
+        continue;
+      Column_node* column= get_ordered_column_node(field);
+      init_nodes.push_back(column);
+    }
+  }
+}
+
+bool Join_node::is_ordered() const
+{
+  List<Node> nodes(init_nodes);
+  List_iterator<Node> it(nodes);
+  Node *node;
+
+  while ((node= it++))
+  {
+    node->todo--;
+    if (node->todo == 0)
+    {
+      if (node == this)
+        return true;
+      List_iterator<Node> pit(node->predecessors);
+      Node *pnode;
+      while ((pnode= pit++))
+      {
+        if (pnode->todo)
+          nodes.push_back(pnode);
+      }
+    }
+  }
+  return false;
+}
+
+/*
+  Test if the result order is deterministic for a JOIN table list.
+
+  @retval false not deterministic
+  @retval true deterministic
+ */
+bool is_order_deterministic(List<TABLE_LIST>* join_list,
+                            COND* cond, ORDER* order)
+{
+  /*
+    join_list->is_empty() means this is a UNION with a global LIMIT,
+    always mark such statements as non-deterministic, although it
+    might be deterministic for some cases (for example, UNION DISTINCT
+    with ORDER BY a unique key of both side of the UNION).
+  */
+  if (join_list->is_empty())
+    return false;
+
+  Join_node root(join_list, cond, order);
+  return root.is_ordered();
+}
+
+/*
+  Test if the result order is deterministic for a single table.
+
+  @retval false not deterministic
+  @retval true deterministic
+ */
+bool is_order_deterministic(TABLE_LIST *table,
+                            COND *cond, ORDER *order)
+{
+  if (order == NULL && cond == NULL)
+    return false;
+
+  Join_node root(table, cond, order);
+  return root.is_ordered();
 }
 
 /*

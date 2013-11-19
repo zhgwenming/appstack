@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -96,6 +96,11 @@ UNIV_INTERN ulint	btr_cur_n_non_sea_old	= 0;
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 UNIV_INTERN ulint	btr_cur_n_sea_old	= 0;
+
+#ifdef UNIV_DEBUG
+/* Flag to limit optimistic insert records */
+UNIV_INTERN uint	btr_cur_limit_optimistic_insert_debug = 0;
+#endif /* UNIV_DEBUG */
 
 /** In the optimistic insert, if the insert does not fit, but this much space
 can be released by page reorganize, then it is reorganized */
@@ -253,10 +258,8 @@ btr_cur_latch_leaves(
 		get_block = btr_block_get(
 			space, zip_size, page_no, mode, cursor->index, mtr);
 
-		if (srv_pass_corrupt_table && !get_block) {
-			return;
-		}
-		ut_a(get_block);
+		SRV_CORRUPT_TABLE_CHECK(get_block, return;);
+
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(get_block->frame) == page_is_comp(page));
 #endif /* UNIV_BTR_DEBUG */
@@ -278,10 +281,8 @@ btr_cur_latch_leaves(
 				space, zip_size, left_page_no,
 				sibling_mode, cursor->index, mtr);
 
-			if (srv_pass_corrupt_table && !get_block) {
-				return;
-			}
-			ut_a(get_block);
+			SRV_CORRUPT_TABLE_CHECK(get_block, return;);
+
 #ifdef UNIV_BTR_DEBUG
 			ut_a(page_is_comp(get_block->frame)
 			     == page_is_comp(page));
@@ -304,10 +305,8 @@ btr_cur_latch_leaves(
 			space, zip_size, page_no,
 			mode, cursor->index, mtr);
 
-		if (srv_pass_corrupt_table && !get_block) {
-			return;
-		}
-		ut_a(get_block);
+		SRV_CORRUPT_TABLE_CHECK(get_block, return;);
+
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(get_block->frame) == page_is_comp(page));
 #endif /* UNIV_BTR_DEBUG */
@@ -320,10 +319,8 @@ btr_cur_latch_leaves(
 				space, zip_size, right_page_no,
 				sibling_mode, cursor->index, mtr);
 
-			if (srv_pass_corrupt_table && !get_block) {
-				return;
-			}
-			ut_a(get_block);
+			SRV_CORRUPT_TABLE_CHECK(get_block, return;);
+
 #ifdef UNIV_BTR_DEBUG
 			ut_a(page_is_comp(get_block->frame)
 			     == page_is_comp(page));
@@ -352,10 +349,8 @@ btr_cur_latch_leaves(
 				left_page_no, mode, cursor->index, mtr);
 			cursor->left_block = get_block;
 
-			if (srv_pass_corrupt_table && !get_block) {
-				return;
-			}
-			ut_a(get_block);
+			SRV_CORRUPT_TABLE_CHECK(get_block, return;);
+
 #ifdef UNIV_BTR_DEBUG
 			ut_a(page_is_comp(get_block->frame)
 			     == page_is_comp(page));
@@ -368,10 +363,8 @@ btr_cur_latch_leaves(
 		get_block = btr_block_get(
 			space, zip_size, page_no, mode, cursor->index, mtr);
 
-		if (srv_pass_corrupt_table && !get_block) {
-			return;
-		}
-		ut_a(get_block);
+		SRV_CORRUPT_TABLE_CHECK(get_block, return;);
+
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(get_block->frame) == page_is_comp(page));
 #endif /* UNIV_BTR_DEBUG */
@@ -527,7 +520,8 @@ btr_cur_search_to_nth_level(
 #ifdef UNIV_SEARCH_PERF_STAT
 	info->n_searches++;
 #endif
-	if (rw_lock_get_writer(btr_search_get_latch(cursor->index->id)) == RW_LOCK_NOT_LOCKED
+	if (rw_lock_get_writer(btr_search_get_latch(cursor->index)) ==
+	    RW_LOCK_NOT_LOCKED
 	    && latch_mode <= BTR_MODIFY_LEAF
 	    && info->last_hash_succ
 	    && !estimate
@@ -563,7 +557,7 @@ btr_cur_search_to_nth_level(
 
 	if (has_search_latch) {
 		/* Release possible search latch to obey latching order */
-		rw_lock_s_unlock(btr_search_get_latch(cursor->index->id));
+		rw_lock_s_unlock(btr_search_get_latch(cursor->index));
 	}
 
 	/* Store the position of the tree latch we push to mtr so that we
@@ -647,18 +641,19 @@ retry_page_get:
 		file, line, mtr);
 
 	if (block == NULL) {
-		if (srv_pass_corrupt_table
-		    && buf_mode != BUF_GET_IF_IN_POOL
-		    && buf_mode != BUF_GET_IF_IN_POOL_OR_WATCH) {
-			page_cursor->block = 0;
-			page_cursor->rec = 0;
-			if (estimate) {
-				cursor->path_arr->nth_rec = ULINT_UNDEFINED;
-			}
-			goto func_exit;
-		}
-		ut_a(buf_mode == BUF_GET_IF_IN_POOL
-		     || buf_mode == BUF_GET_IF_IN_POOL_OR_WATCH);
+		SRV_CORRUPT_TABLE_CHECK(buf_mode == BUF_GET_IF_IN_POOL ||
+					buf_mode == BUF_GET_IF_IN_POOL_OR_WATCH,
+			{
+				page_cursor->block = 0;
+				page_cursor->rec = 0;
+				if (estimate) {
+
+					cursor->path_arr->nth_rec =
+						ULINT_UNDEFINED;
+				}
+
+				goto func_exit;
+			});
 
 		/* This must be a search to perform an insert/delete
 		mark/ delete; try using the insert/delete buffer */
@@ -734,15 +729,18 @@ retry_page_get:
 	block->check_index_page_at_flush = TRUE;
 	page = buf_block_get_frame(block);
 
-	if (srv_pass_corrupt_table && !page) {
+	SRV_CORRUPT_TABLE_CHECK(page,
+	{
 		page_cursor->block = 0;
 		page_cursor->rec = 0;
+
 		if (estimate) {
+
 			cursor->path_arr->nth_rec = ULINT_UNDEFINED;
 		}
+
 		goto func_exit;
-	}
-	ut_a(page);
+	});
 
 	if (rw_latch != RW_NO_LATCH) {
 #ifdef UNIV_ZIP_DEBUG
@@ -874,7 +872,7 @@ func_exit:
 
 	if (has_search_latch) {
 
-		rw_lock_s_lock(btr_search_get_latch(cursor->index->id));
+		rw_lock_s_lock(btr_search_get_latch(cursor->index));
 	}
 }
 
@@ -938,15 +936,19 @@ btr_cur_open_at_index_side_func(
 					 file, line, mtr);
 		page = buf_block_get_frame(block);
 
-		if (srv_pass_corrupt_table && !page) {
+		SRV_CORRUPT_TABLE_CHECK(page,
+		{
 			page_cursor->block = 0;
 			page_cursor->rec = 0;
+
 			if (estimate) {
-				cursor->path_arr->nth_rec = ULINT_UNDEFINED;
+
+				cursor->path_arr->nth_rec =
+					ULINT_UNDEFINED;
 			}
-			break;
-		}
-		ut_a(page);
+			/* Can't use break with the macro */
+			goto exit_loop;
+		});
 
 		ut_ad(index->id == btr_page_get_index_id(page));
 
@@ -1016,6 +1018,7 @@ btr_cur_open_at_index_side_func(
 		page_no = btr_node_ptr_get_child_page_no(node_ptr, offsets);
 	}
 
+exit_loop:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
@@ -1069,12 +1072,13 @@ btr_cur_open_at_rnd_pos_func(
 					 file, line, mtr);
 		page = buf_block_get_frame(block);
 
-		if (srv_pass_corrupt_table && !page) {
+		SRV_CORRUPT_TABLE_CHECK(page,
+		{
 			page_cursor->block = 0;
 			page_cursor->rec = 0;
-			break;
-		}
-		ut_a(page);
+
+			goto exit_loop;
+		});
 
 		ut_ad(index->id == btr_page_get_index_id(page));
 
@@ -1107,6 +1111,7 @@ btr_cur_open_at_rnd_pos_func(
 		page_no = btr_node_ptr_get_child_page_no(node_ptr, offsets);
 	}
 
+exit_loop:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
@@ -1185,7 +1190,7 @@ btr_cur_ins_lock_and_undo(
 	rec_t*		rec;
 	roll_ptr_t	roll_ptr;
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
 		/* skip LOCK, UNDO */
 		return(DB_SUCCESS);
 	}
@@ -1295,10 +1300,7 @@ btr_cur_optimistic_insert(
 
 	block = btr_cur_get_block(cursor);
 
-	if (srv_pass_corrupt_table && !block) {
-		return(DB_CORRUPTION);
-	}
-	ut_a(block);
+	SRV_CORRUPT_TABLE_CHECK(block, return(DB_CORRUPTION););
 
 	page = buf_block_get_frame(block);
 	index = cursor->index;
@@ -1348,27 +1350,13 @@ btr_cur_optimistic_insert(
 		Subtract one byte for the encoded heap_no in the
 		modification log. */
 		ulint	free_space_zip = page_zip_empty_size(
-			cursor->index->n_fields, zip_size) - 1;
+			cursor->index->n_fields, zip_size);
 		ulint	n_uniq = dict_index_get_n_unique_in_tree(index);
 
 		ut_ad(dict_table_is_comp(index->table));
 
-		/* There should be enough room for two node pointer
-		records on an empty non-leaf page.  This prevents
-		infinite page splits. */
-
-		if (UNIV_LIKELY(entry->n_fields >= n_uniq)
-		    && UNIV_UNLIKELY(REC_NODE_PTR_SIZE
-				     + rec_get_converted_size_comp_prefix(
-					     index, entry->fields, n_uniq,
-					     NULL)
-				     /* On a compressed page, there is
-				     a two-byte entry in the dense
-				     page directory for every record.
-				     But there is no record header. */
-				     - (REC_N_NEW_EXTRA_BYTES - 2)
-				     > free_space_zip / 2)) {
-
+		if (free_space_zip == 0) {
+too_big:
 			if (big_rec_vec) {
 				dtuple_convert_back_big_rec(
 					index, entry, big_rec_vec);
@@ -1376,7 +1364,31 @@ btr_cur_optimistic_insert(
 
 			return(DB_TOO_BIG_RECORD);
 		}
+
+		/* Subtract one byte for the encoded heap_no in the
+		modification log. */
+		free_space_zip--;
+
+		/* There should be enough room for two node pointer
+		records on an empty non-leaf page.  This prevents
+		infinite page splits. */
+
+		if (entry->n_fields >= n_uniq
+		    && (REC_NODE_PTR_SIZE
+			+ rec_get_converted_size_comp_prefix(
+				index, entry->fields, n_uniq, NULL)
+			/* On a compressed page, there is
+			a two-byte entry in the dense
+			page directory for every record.
+			But there is no record header. */
+			- (REC_N_NEW_EXTRA_BYTES - 2)
+			> free_space_zip / 2)) {
+			goto too_big;
+		}
 	}
+
+	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page),
+				      goto fail);
 
 	/* If there have been many consecutive inserts, and we are on the leaf
 	level, check if we have to split the page to reserve enough free space
@@ -1416,7 +1428,7 @@ fail_err:
 		goto fail_err;
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
 		/* skip CHANGE, LOG */
 		*big_rec = big_rec_vec;
 		return(err); /* == DB_SUCCESS */
@@ -1630,7 +1642,7 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
 		/* skip CHANGE, LOG */
 		if (n_extents > 0) {
 			fil_space_release_free_extents(index->space,
@@ -1696,7 +1708,7 @@ btr_cur_upd_lock_and_undo(
 
 	ut_ad(cursor && update && thr && roll_ptr);
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr_get_trx(thr)->fake_changes)) {
 		/* skip LOCK, UNDO */
 		return(DB_SUCCESS);
 	}
@@ -1903,7 +1915,7 @@ btr_cur_update_alloc_zip(
 		return(FALSE);
 	}
 
-	if (trx && trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx && trx->fake_changes)) {
 	    /* Don't call page_zip_compress_write_log_no_data as that has
 	    assert which would fail. Assume there won't be a compression
 	    failure. */
@@ -2010,7 +2022,7 @@ btr_cur_update_in_place(
 		return(err);
 	}
 
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		/* skip CHANGE, LOG */
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
@@ -2045,13 +2057,13 @@ btr_cur_update_in_place(
 			btr_search_update_hash_on_delete(cursor);
 		}
 
-		rw_lock_x_lock(btr_search_get_latch(cursor->index->id));
+		rw_lock_x_lock(btr_search_get_latch(cursor->index));
 	}
 
 	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
 
 	if (is_hashed) {
-		rw_lock_x_unlock(btr_search_get_latch(cursor->index->id));
+		rw_lock_x_unlock(btr_search_get_latch(cursor->index));
 	}
 
 	if (page_zip && !dict_index_is_clust(index)
@@ -2245,7 +2257,7 @@ any_extern:
 		goto err_exit;
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
 		/* skip CHANGE, LOG */
 		goto err_exit; /* == DB_SUCCESS */
 	}
@@ -2483,7 +2495,7 @@ btr_cur_pessimistic_update(
 	itself.  Thus the following call is safe. */
 	row_upd_index_replace_new_col_vals_index_pos(new_entry, index, update,
 						     FALSE, *heap);
-	if (!(flags & BTR_KEEP_SYS_FLAG) && !trx->fake_changes) {
+	if (!(flags & BTR_KEEP_SYS_FLAG) && UNIV_LIKELY(!trx->fake_changes)) {
 		row_upd_index_entry_sys_field(new_entry, index, DATA_ROLL_PTR,
 					      roll_ptr);
 		row_upd_index_entry_sys_field(new_entry, index, DATA_TRX_ID,
@@ -2541,7 +2553,7 @@ make_external:
 		ut_ad(flags & BTR_KEEP_POS_FLAG);
 	}
 
-	if (trx->fake_changes) {
+	if (UNIV_UNLIKELY(trx->fake_changes)) {
 		/* skip CHANGE, LOG */
 		err = DB_SUCCESS;
 		goto return_after_reservations;
@@ -2877,7 +2889,7 @@ btr_cur_del_mark_set_clust_rec(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!rec_get_deleted_flag(rec, rec_offs_comp(offsets)));
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
 		/* skip LOCK, UNDO, CHANGE, LOG */
 		return(DB_SUCCESS);
 	}
@@ -3016,7 +3028,7 @@ btr_cur_del_mark_set_sec_rec(
 	rec_t*		rec;
 	ulint		err;
 
-	if (thr && thr_get_trx(thr)->fake_changes) {
+	if (UNIV_UNLIKELY(thr && thr_get_trx(thr)->fake_changes)) {
 		/* skip LOCK, CHANGE, LOG */
 		return(DB_SUCCESS);
 	}
@@ -3141,10 +3153,7 @@ btr_cur_optimistic_delete(
 
 	block = btr_cur_get_block(cursor);
 
-	if (srv_pass_corrupt_table && !block) {
-		return(DB_CORRUPTION);
-	}
-	ut_a(block);
+	SRV_CORRUPT_TABLE_CHECK(block, return(DB_CORRUPTION););
 
 	ut_ad(page_is_leaf(buf_block_get_frame(block)));
 
@@ -3860,10 +3869,7 @@ btr_estimate_number_of_different_key_vals(
 
 		page = btr_cur_get_page(&cursor);
 
-		if (srv_pass_corrupt_table && !page) {
-			break;
-		}
-		ut_a(page);
+		SRV_CORRUPT_TABLE_CHECK(page, goto exit_loop;);
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
 
@@ -3949,6 +3955,7 @@ btr_estimate_number_of_different_key_vals(
 		mtr_commit(&mtr);
 	}
 
+exit_loop:
 	/* If we saw k borders between different key values on
 	n_sample_pages leaf pages, we can estimate how many
 	there will be in index->stat_n_leaf_pages */
@@ -4779,6 +4786,10 @@ next_zip_page:
 				}
 			}
 		}
+
+		DBUG_EXECUTE_IF("btr_store_big_rec_extern",
+				error = DB_OUT_OF_FILE_SPACE;
+				goto func_exit;);
 	}
 
 func_exit:
@@ -4811,9 +4822,11 @@ func_exit:
 
 		field_ref = btr_rec_get_field_ref(rec, offsets, i);
 
-		/* The pointer must not be zero. */
+		/* The pointer must not be zero if the operation
+		succeeded. */
 		ut_a(0 != memcmp(field_ref, field_ref_zero,
-				 BTR_EXTERN_FIELD_REF_SIZE));
+				 BTR_EXTERN_FIELD_REF_SIZE)
+		     || error != DB_SUCCESS);
 		/* The column must not be disowned by this record. */
 		ut_a(!(field_ref[BTR_EXTERN_LEN] & BTR_EXTERN_OWNER_FLAG));
 	}
@@ -4909,10 +4922,10 @@ btr_free_externally_stored_field(
 
 	if (UNIV_UNLIKELY(!memcmp(field_ref, field_ref_zero,
 				  BTR_EXTERN_FIELD_REF_SIZE))) {
-		/* In the rollback of uncommitted transactions, we may
-		encounter a clustered index record whose BLOBs have
-		not been written.  There is nothing to free then. */
-		ut_a(rb_ctx == RB_RECOVERY || rb_ctx == RB_RECOVERY_PURGE_REC);
+		/* In the rollback, we may encounter a clustered index
+		record with some unwritten off-page columns. There is
+		nothing to free then. */
+		ut_a(rb_ctx != RB_NONE);
 		return;
 	}
 

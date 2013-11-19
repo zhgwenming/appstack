@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 #include <mysqld.h>
 #include <sql_class.h>
@@ -48,7 +48,9 @@ ulong   wsrep_forced_binlog_format     = BINLOG_FORMAT_UNSPEC;
 my_bool wsrep_recovery                 = 0; // recovery
 my_bool wsrep_replicate_myisam         = 0; // enable myisam replication
 my_bool wsrep_log_conflicts            = 0; // 
-ulong  wsrep_mysql_replication_bundle  = 0;
+ulong   wsrep_mysql_replication_bundle = 0;
+my_bool wsrep_load_data_splitting      = 1; // commit load data every 10K intervals
+my_bool wsrep_desync                   = 0; // desynchronize the node from the cluster
 
 /*
  * End configuration options
@@ -409,7 +411,6 @@ static void wsrep_init_position()
   }
 }
 
-
 int wsrep_init()
 {
   int rcode= -1;
@@ -651,6 +652,8 @@ void wsrep_stop_replication(THD *thd)
 }
 
 
+extern my_bool wsrep_new_cluster;
+
 bool wsrep_start_replication()
 {
   wsrep_status_t rcode;
@@ -674,11 +677,19 @@ bool wsrep_start_replication()
     return true;
   }
 
+  /* Note 'bootstrap' address is not officially supported in wsrep API #23 
+     but it can be back ported from #24 provider to get sneak preview of
+     bootstrap command 
+  */
+  const char* cluster_address =
+    wsrep_new_cluster ? "bootstrap" : wsrep_cluster_address;
+  wsrep_new_cluster= FALSE;
+
   WSREP_INFO("Start replication");
 
   if ((rcode = wsrep->connect(wsrep,
                               wsrep_cluster_name,
-                              wsrep_cluster_address,
+                              cluster_address,
                               wsrep_sst_donor)))
   {
     if (-ESOCKTNOSUPPORT == rcode)
@@ -703,7 +714,7 @@ bool wsrep_start_replication()
     uint64_t caps = wsrep->capabilities (wsrep);
 
     wsrep_incremental_data_collection =
-        (caps & WSREP_CAP_WRITE_SET_INCREMENTS);
+        !!(caps & WSREP_CAP_WRITE_SET_INCREMENTS);
 
     char* opts= wsrep->options_get(wsrep);
     if (opts)
@@ -974,10 +985,23 @@ int wsrep_to_buf_helper(
   if (open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                        65536, MYF(MY_WME)))
     return 1;
-  Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
+
   int ret(0);
+  /* if there is prepare query, add event for it */
+  if (thd->wsrep_TOI_pre_query)
+  {
+    Query_log_event ev(thd, thd->wsrep_TOI_pre_query, 
+		       thd->wsrep_TOI_pre_query_len, 
+		       FALSE, FALSE, FALSE, 0);
+    if (ev.write(&tmp_io_cache)) ret= 1;
+  }
+
+  /* append the actual query */
+  Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
   if (ev.write(&tmp_io_cache)) ret= 1;
+
   if (!ret && wsrep_write_cache(&tmp_io_cache, buf, buf_len)) ret= 1;
+
   close_cached_file(&tmp_io_cache);
   return ret;
 }
@@ -1088,6 +1112,8 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   }
 
   wsrep_key_arr_t key_arr= {0, 0};
+  if (WSREP(thd))
+      thd_proc_info(thd, "Preparing for TO isolation");
   if (!buf_err                                                    &&
       wsrep_prepare_keys_for_isolation(thd, db_, table_, table_list, &key_arr)&&
       WSREP_OK == (ret = wsrep->to_execute_start(wsrep, thd->thread_id,
@@ -1120,14 +1146,14 @@ static void wsrep_TOI_end(THD *thd) {
   wsrep_status_t ret;
   wsrep_to_isolation--;
   WSREP_DEBUG("TO END: %lld, %d : %s", (long long)thd->wsrep_trx_seqno,
-              thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void")
-    if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
+              thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void");
+  if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
       WSREP_DEBUG("TO END: %lld", (long long)thd->wsrep_trx_seqno);
-    }
-    else {
-      WSREP_WARN("TO isolation end failed for: %d, sql: %s",
-                 ret, (thd->query()) ? thd->query() : "void");
-    }
+  }
+  else {
+    WSREP_WARN("TO isolation end failed for: %d, sql: %s",
+               ret, (thd->query()) ? thd->query() : "void");
+  }
 }
 
 static int wsrep_RSU_begin(THD *thd, char *db_, char *table_) 
@@ -1198,14 +1224,20 @@ static void wsrep_RSU_end(THD *thd)
     return;
   }
   thd->variables.wsrep_on = 1;
-  return;
 }
 
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list)
 {
+
+  /*
+    No isolation for applier or replaying threads.
+   */
+  if (thd->wsrep_exec_mode == REPL_RECV) return 0;
+
   int ret= 0;
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
   if (thd->wsrep_conflict_state == MUST_ABORT) 
   {
     WSREP_INFO("thread: %lu, %s has been aborted due to multi-master conflict", 
@@ -1214,6 +1246,9 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
     return WSREP_TRX_FAIL;
   }
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
+  DBUG_ASSERT(thd->wsrep_trx_seqno == WSREP_SEQNO_UNDEFINED);
 
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
@@ -1230,19 +1265,27 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
     if (!ret)
     {
       thd->wsrep_exec_mode= TOTAL_ORDER;
+      /* It makes sense to set auto_increment_* to defaults in TOI operations */
+      if (wsrep_auto_increment_control)
+      {
+        thd->variables.auto_increment_offset = 1;
+        thd->variables.auto_increment_increment = 1;
+      }
     }
   }
   return ret;
 }
 
-void wsrep_to_isolation_end(THD *thd) {
-  if (thd->wsrep_exec_mode==TOTAL_ORDER)
+void wsrep_to_isolation_end(THD *thd)
+{
+  if (thd->wsrep_exec_mode == TOTAL_ORDER)
   {
     switch(wsrep_OSU_method_options)
     {
-    case WSREP_OSU_TOI: return wsrep_TOI_end(thd);
-    case WSREP_OSU_RSU: return wsrep_RSU_end(thd);
+    case WSREP_OSU_TOI: wsrep_TOI_end(thd); break;
+    case WSREP_OSU_RSU: wsrep_RSU_end(thd); break;
     }
+    wsrep_cleanup_transaction(thd);
   }
 }
 

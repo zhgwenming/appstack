@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 */
 
 /* mysqldump.c  - Dump a tables contents and format to an ASCII file
@@ -91,14 +91,6 @@ typedef enum {
   KEY_TYPE_NON_UNIQUE
 } key_type_t;
 
-/* general_log or slow_log tables under mysql database */
-static inline my_bool general_log_or_slow_log_tables(const char *db, 
-                                                     const char *table)
-{
-  return (strcmp(db, "mysql") == 0) &&
-         ((strcmp(table, "general_log") == 0) ||
-          (strcmp(table, "slow_log") == 0));
-}
 
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
                              const char *option_value);
@@ -2277,7 +2269,6 @@ static uint dump_routines_for_db(char *db)
   const char *routine_type[]= {"FUNCTION", "PROCEDURE"};
   char       db_name_buff[NAME_LEN*2+3], name_buff[NAME_LEN*2+3];
   char       *routine_name;
-  char       *query_str;
   int        i;
   FILE       *sql_file= md_result_file;
   MYSQL_RES  *routine_res, *routine_list_res;
@@ -2371,17 +2362,6 @@ static uint dump_routines_for_db(char *db)
               fprintf(sql_file, "/*!50003 DROP %s IF EXISTS %s */;\n",
                       routine_type[i], routine_name);
 
-            query_str= cover_definer_clause(row[2], strlen(row[2]),
-                                            C_STRING_WITH_LEN("50020"),
-                                            C_STRING_WITH_LEN("50003"),
-                                            C_STRING_WITH_LEN(" FUNCTION"));
-
-            if (!query_str)
-              query_str= cover_definer_clause(row[2], strlen(row[2]),
-                                              C_STRING_WITH_LEN("50020"),
-                                              C_STRING_WITH_LEN("50003"),
-                                              C_STRING_WITH_LEN(" PROCEDURE"));
-
             if (mysql_num_fields(routine_res) >= 6)
             {
               if (switch_db_collation(sql_file, db_name_buff, ";",
@@ -2419,9 +2399,9 @@ static uint dump_routines_for_db(char *db)
 
             fprintf(sql_file,
                     "DELIMITER ;;\n"
-                    "/*!50003 %s */;;\n"
+                    "%s ;;\n"
                     "DELIMITER ;\n",
-                    (const char *) (query_str != NULL ? query_str : row[2]));
+                    (const char *) row[2]);
 
             restore_sql_mode(sql_file, ";");
 
@@ -2436,7 +2416,6 @@ static uint dump_routines_for_db(char *db)
               }
             }
 
-            my_free(query_str);
           }
         } /* end of routine printing */
         mysql_free_result(routine_res);
@@ -2460,6 +2439,57 @@ static uint dump_routines_for_db(char *db)
   DBUG_RETURN(0);
 }
 
+/* general_log or slow_log tables under mysql database */
+static inline my_bool general_log_or_slow_log_tables(const char *db,
+                                                     const char *table)
+{
+  return (!my_strcasecmp(charset_info, db, "mysql")) &&
+          (!my_strcasecmp(charset_info, table, "general_log") ||
+           !my_strcasecmp(charset_info, table, "slow_log"));
+}
+
+/*
+  Find the first occurrence of a quoted identifier in a given string. Returns
+  the pointer to the opening quote, and stores the pointer to the closing quote
+  to the memory location pointed to by the 'end' argument,
+
+  If no quoted identifiers are found, returns NULL (and the value pointed to by
+  'end' is undefined in this case).
+*/
+
+static const char *parse_quoted_identifier(const char *str,
+                                            const char **end)
+{
+  const char *from;
+  const char *to;
+
+  if (!(from= strchr(str, '`')))
+    return NULL;
+
+  to= from;
+
+  while ((to= strchr(to + 1, '`'))) {
+    /*
+      Double backticks represent a backtick in identifier, rather than a quote
+      character.
+    */
+    if (to[1] == '`')
+    {
+      to++;
+      continue;
+    }
+
+    break;
+  }
+
+  if (to <= from + 1)
+    return NULL;                                /* Empty identifier */
+
+  *end= to;
+
+  return from;
+}
+
 /*
   Parse the specified key definition string and check if the key contains an
   AUTO_INCREMENT column as the first key part. We only check for the first key
@@ -2471,32 +2501,22 @@ static my_bool contains_autoinc_column(const char *autoinc_column,
                                        const char *keydef,
                                        key_type_t type)
 {
-  char *from, *to;
+  const char *from, *to;
   uint idnum;
 
   DBUG_ASSERT(type != KEY_TYPE_NONE);
 
-  if (autoinc_column == NULL || !(from= strchr(keydef, '`')))
+  if (autoinc_column == NULL)
     return FALSE;
 
-  to= from;
   idnum= 0;
 
-  while ((to= strchr(to + 1, '`')))
+  /*
+    There is only 1 iteration of the following loop for type == KEY_TYPE_PRIMARY
+    and 2 iterations for type == KEY_TYPE_UNIQUE / KEY_TYPE_NON_UNIQUE.
+  */
+  while ((from= parse_quoted_identifier(keydef, &to)))
   {
-    /*
-      Double backticks represent a backtick in identifier, rather than a quote
-      character.
-    */
-    if (to[1] == '`')
-    {
-      to++;
-      continue;
-    }
-
-    if (to <= from + 1)
-      break;                                    /* Broken key definition */
-
     idnum++;
 
     /*
@@ -2511,16 +2531,51 @@ static my_bool contains_autoinc_column(const char *autoinc_column,
       Check only the first (for PRIMARY KEY) or the second (for secondary keys)
       quoted identifier.
     */
-    if ((idnum == 1 + test(type != KEY_TYPE_PRIMARY)) ||
-        !(from= strchr(to + 1, '`')))
+    if ((idnum == 1 + test(type != KEY_TYPE_PRIMARY)))
       break;
 
-    to= from;
+    keydef= to + 1;
   }
 
   return FALSE;
 }
 
+
+/*
+  Find a node in the skipped keys list whose name matches a quoted
+  identifier specified as 'id_from' and 'id_to' arguments.
+*/
+
+static LIST *find_matching_skipped_key(const char *id_from,
+                                       const char *id_to)
+{
+  LIST *list;
+  size_t id_len;
+
+  id_len= id_to - id_from + 1;
+  DBUG_ASSERT(id_len > 2);
+
+  for (list= skipped_keys_list; list; list= list_rest(list))
+  {
+    const char *keydef;
+    const char *keyname_from;
+    const char *keyname_to;
+    size_t keyname_len;
+
+    keydef= list->data;
+
+    if ((keyname_from= parse_quoted_identifier(keydef, &keyname_to)))
+    {
+      keyname_len= keyname_to - keyname_from + 1;
+
+      if (id_len == keyname_len &&
+          !strncmp(keyname_from, id_from, id_len))
+        return list;
+    }
+  }
+
+  return NULL;
+}
 
 /*
   Remove secondary/foreign key definitions from a given SHOW CREATE TABLE string
@@ -2549,6 +2604,9 @@ static void skip_secondary_keys(char *create_str, my_bool has_pk)
   char *autoinc_column= NULL;
   my_bool has_autoinc= FALSE;
   key_type_t type;
+  const char *constr_from;
+  const char *constr_to;
+  LIST *keydef_node;
 
   strend= create_str + strlen(create_str);
 
@@ -2568,7 +2626,37 @@ static void skip_secondary_keys(char *create_str, my_bool has_pk)
     c= *tmp;
     *tmp= '\0'; /* so strstr() only processes the current line */
 
-    if (!strncmp(ptr, "UNIQUE KEY ", sizeof("UNIQUE KEY ") - 1))
+    if (!strncmp(ptr, "CONSTRAINT ", sizeof("CONSTRAINT ") - 1) &&
+        (constr_from= parse_quoted_identifier(ptr, &constr_to)) &&
+        (keydef_node= find_matching_skipped_key(constr_from, constr_to)))
+    {
+      char *keydef;
+      size_t keydef_len;
+
+      /*
+        There's a skipped key with the same name as the constraint name.  Let's
+        put it back before the current constraint definition and remove from the
+        skipped keys list.
+      */
+      keydef= keydef_node->data;
+      keydef_len= strlen(keydef) + 5;           /* ", \n  " */
+
+      memmove(orig_ptr + keydef_len, orig_ptr, strend - orig_ptr + 1);
+      memcpy(ptr, keydef, keydef_len - 5);
+      memcpy(ptr + keydef_len - 5, ", \n  ", 5);
+
+      skipped_keys_list= list_delete(skipped_keys_list, keydef_node);
+      my_free(keydef);
+      my_free(keydef_node);
+
+      strend+= keydef_len;
+      orig_ptr+= keydef_len;
+      ptr+= keydef_len;
+      tmp+= keydef_len;
+
+      type= KEY_TYPE_NONE;
+    }
+    else if (!strncmp(ptr, "UNIQUE KEY ", sizeof("UNIQUE KEY ") - 1))
       type= KEY_TYPE_UNIQUE;
     else if (!strncmp(ptr, "KEY ", sizeof("KEY ") - 1))
       type= KEY_TYPE_NON_UNIQUE;
@@ -2781,7 +2869,7 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   verbose_msg("-- Retrieving table structure for table %s...\n", table);
 
   len= my_snprintf(query_buff, sizeof(query_buff),
-                   "SET OPTION SQL_QUOTE_SHOW_CREATE=%d",
+                   "SET SQL_QUOTE_SHOW_CREATE=%d",
                    (opt_quoted || opt_keywords));
   if (!create_options)
     strmov(query_buff+len,
@@ -3629,6 +3717,38 @@ static char *alloc_query_str(ulong size)
 
 
 /*
+  Dump delayed secondary index definitions when --innodb-optimize-keys is used.
+*/
+
+static void dump_skipped_keys(const char *table)
+{
+  uint keys;
+
+  if (!skipped_keys_list)
+    return;
+
+  verbose_msg("-- Dumping delayed secondary index definitions for table %s\n",
+              table);
+
+  skipped_keys_list= list_reverse(skipped_keys_list);
+  fprintf(md_result_file, "ALTER TABLE %s ", table);
+  for (keys= list_length(skipped_keys_list); keys > 0; keys--)
+  {
+    LIST *node= skipped_keys_list;
+    char *def= node->data;
+
+    fprintf(md_result_file, "ADD %s%s", def, (keys > 1) ? ", " : ";\n");
+
+    skipped_keys_list= list_delete(skipped_keys_list, node);
+    my_free(def);
+    my_free(node);
+  }
+
+  DBUG_ASSERT(skipped_keys_list == NULL);
+}
+
+
+/*
 
  SYNOPSIS
   dump_table()
@@ -3671,9 +3791,14 @@ static void dump_table(char *table, char *db)
   if (strcmp(table_type, "VIEW") == 0)
     DBUG_VOID_RETURN;
 
+  result_table= quote_name(table,table_buff, 1);
+  opt_quoted_table= quote_name(table, table_buff2, 0);
+
   /* Check --no-data flag */
   if (opt_no_data)
   {
+    dump_skipped_keys(opt_quoted_table);
+
     verbose_msg("-- Skipping dump data for table '%s', --no-data was used\n",
                 table);
     DBUG_VOID_RETURN;
@@ -3708,12 +3833,10 @@ static void dump_table(char *table, char *db)
   if (!opt_events && !my_strcasecmp(&my_charset_latin1, db, "mysql") &&
       !my_strcasecmp(&my_charset_latin1, table, "event"))
   {
-    verbose_msg("-- Skipping data table mysql.event, --skip-events was used\n");
+    fprintf(stderr, "-- Warning: Skipping the data of table mysql.event."
+            " Specify the --events option explicitly.\n");
     DBUG_VOID_RETURN;
   }
-
-  result_table= quote_name(table,table_buff, 1);
-  opt_quoted_table= quote_name(table, table_buff2, 0);
 
   verbose_msg("-- Sending SELECT query...\n");
 
@@ -4113,26 +4236,7 @@ static void dump_table(char *table, char *db)
       goto err;
     }
 
-    /* Perform delayed secondary index creation for --innodb-optimize-keys */
-    if (skipped_keys_list)
-    {
-      uint keys;
-      skipped_keys_list= list_reverse(skipped_keys_list);
-      fprintf(md_result_file, "ALTER TABLE %s ", opt_quoted_table);
-      for (keys= list_length(skipped_keys_list); keys > 0; keys--)
-      {
-        LIST *node= skipped_keys_list;
-        char *def= node->data;
-
-        fprintf(md_result_file, "ADD %s%s", def, (keys > 1) ? ", " : ";\n");
-
-        skipped_keys_list= list_delete(skipped_keys_list, node);
-        my_free(def);
-        my_free(node);
-      }
-
-      DBUG_ASSERT(skipped_keys_list == NULL);
-    }
+    dump_skipped_keys(opt_quoted_table);
 
     /* Moved enable keys to before unlock per bug 15977 */
     if (opt_disable_keys)
@@ -4630,7 +4734,8 @@ static int dump_all_tables_in_db(char *database)
   char table_buff[NAME_LEN*2+3];
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
-  int using_mysql_db= my_strcasecmp(&my_charset_latin1, database, "mysql");
+  my_bool general_log_table_exists= 0, slow_log_table_exists=0;
+  int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
 
   afterdot= strmov(hash_key, database);
@@ -4641,22 +4746,6 @@ static int dump_all_tables_in_db(char *database)
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", database, NullS);
 
-  if (strcmp(database, "mysql") == 0)
-  {
-    char table_type[NAME_LEN];
-    char ignore_flag;
-    uint num_fields;
-    num_fields= get_table_structure((char *) "general_log", 
-                                    database, table_type, &ignore_flag);
-    if (num_fields == 0)
-      verbose_msg("-- Warning: get_table_structure() failed with some internal "
-                  "error for 'general_log' table\n");
-    num_fields= get_table_structure((char *) "slow_log", 
-                                    database, table_type, &ignore_flag);
-    if (num_fields == 0)
-      verbose_msg("-- Warning: get_table_structure() failed with some internal "
-                  "error for 'slow_log' table\n");
-  }
   if (lock_tables)
   {
     DYNAMIC_STRING query;
@@ -4702,6 +4791,26 @@ static int dump_all_tables_in_db(char *database)
         }
       }
     }
+    else
+    {
+      /*
+        If general_log and slow_log exists in the 'mysql' database,
+         we should dump the table structure. But we cannot
+         call get_table_structure() here as 'LOCK TABLES' query got executed
+         above on the session and that 'LOCK TABLES' query does not contain
+         'general_log' and 'slow_log' tables. (you cannot acquire lock
+         on log tables). Hence mark the existence of these log tables here and
+         after 'UNLOCK TABLES' query is executed on the session, get the table
+         structure from server and dump it in the file.
+      */
+      if (using_mysql_db)
+      {
+        if (!my_strcasecmp(charset_info, table, "general_log"))
+          general_log_table_exists= 1;
+        else if (!my_strcasecmp(charset_info, table, "slow_log"))
+          slow_log_table_exists= 1;
+      }
+    }
   }
   if (opt_events && mysql_get_server_version(mysql) >= 50106)
   {
@@ -4720,7 +4829,26 @@ static int dump_all_tables_in_db(char *database)
   }
   if (lock_tables)
     (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
-  if (flush_privileges && using_mysql_db == 0)
+  if (using_mysql_db)
+  {
+    char table_type[NAME_LEN];
+    char ignore_flag;
+    if (general_log_table_exists)
+    {
+      if (!get_table_structure((char *) "general_log",
+                               database, table_type, &ignore_flag) )
+        verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                    "error for 'general_log' table\n");
+    }
+    if (slow_log_table_exists)
+    {
+      if (!get_table_structure((char *) "slow_log",
+                               database, table_type, &ignore_flag) )
+        verbose_msg("-- Warning: get_table_structure() failed with some internal "
+                    "error for 'slow_log' table\n");
+    }
+  }
+  if (flush_privileges && using_mysql_db)
   {
     fprintf(md_result_file,"\n--\n-- Flush Grant Tables \n--\n");
     fprintf(md_result_file,"\n/*! FLUSH PRIVILEGES */;\n");
@@ -5544,7 +5672,7 @@ static my_bool get_view_structure(char *table, char* db)
   verbose_msg("-- Retrieving view structure for table %s...\n", table);
 
 #ifdef NOT_REALLY_USED_YET
-  sprintf(insert_pat,"SET OPTION SQL_QUOTE_SHOW_CREATE=%d",
+  sprintf(insert_pat, "SET SQL_QUOTE_SHOW_CREATE=%d",
           (opt_quoted || opt_keywords));
 #endif
 

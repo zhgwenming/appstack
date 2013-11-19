@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -392,7 +392,8 @@ handler *get_ha_partition(partition_info *part_info)
   }
   else
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), static_cast<int>(sizeof(ha_partition)));
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+             static_cast<int>(sizeof(ha_partition)));
   }
   DBUG_RETURN(((handler*) partition));
 }
@@ -1182,6 +1183,18 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
   {
     if (ha_info->is_trx_read_write())
       ++rw_ha_count;
+    else
+    {
+      /*
+        If we have any fake changes handlertons, they will not be marked as
+        read-write, potentially skipping 2PC and causing the fake transaction
+        to be binlogged.  Force using 2PC in this case by bumping rw_ha_count
+        for each fake changes handlerton.
+       */
+      handlerton *ht= ha_info->ht();
+      if (unlikely(ht->is_fake_change && ht->is_fake_change(ht, thd)))
+        ++rw_ha_count;
+    }
 
     if (! all)
     {
@@ -1280,11 +1293,7 @@ int ha_commit_trans(THD *thd, bool all)
   {
     /* Free resources and perform other cleanup even for 'empty' transactions. */
     if (is_real_trans)
-#ifdef WITH_WSREP
-    	thd->transaction.cleanup(thd);
-#else
     	thd->transaction.cleanup();
-#endif /* WITH_WSREP */
     DBUG_RETURN(0);
   }
   else
@@ -1359,7 +1368,14 @@ int ha_commit_trans(THD *thd, bool all)
           transaction is read-only. This allows for simpler
           implementation in engines that are always read-only.
         */
-        if (! hi->is_trx_read_write())
+        /*
+          But do call two-phase commit if the handlerton has fake changes
+          enabled even if it's not marked as read-write.  This will ensure that
+          the fake changes handlerton prepare will fail, preventing binlogging
+          and committing the transaction in other engines.
+        */
+        if (! hi->is_trx_read_write()
+            && likely(!(ht->is_fake_change && ht->is_fake_change(ht, thd))))
           continue;
         /*
           Sic: we know that prepare() is not NULL since otherwise
@@ -1388,27 +1404,6 @@ int ha_commit_trans(THD *thd, bool all)
 #endif
 	}
         status_var_increment(thd->status_var.ha_prepare_count);
-        if (err)
-	{
-#ifdef WITH_WSREP
-          if (WSREP(thd) && ht->db_type== DB_TYPE_WSREP)
-          {
-	    error= 1;
-	    /* avoid sending error, if we need to replay */
-            if (thd->wsrep_conflict_state!= MUST_REPLAY)
-            {
-              my_error(ER_LOCK_DEADLOCK, MYF(0), err);
-            }
-          }
-          else
-          {
-            /* not wsrep hton, bail to native mysql behavior */
-#endif
-          my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-#ifdef WITH_WSREP
-          }
-#endif
-	}
 
         if (err)
           goto err;
@@ -1550,11 +1545,7 @@ commit_one_phase_low(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
-#ifdef WITH_WSREP
-      thd->transaction.cleanup(thd);
-#else
       thd->transaction.cleanup();
-#endif /* WITH_WSREP */
 #ifdef WITH_WSREP
   if (WSREP(thd)) thd_proc_info(thd, tmp_info);
 #endif /* WITH_WSREP */
@@ -1626,17 +1617,20 @@ int ha_rollback_trans(THD *thd, bool all)
     }
     trans->ha_list= 0;
     trans->no_2pc=0;
-    if (is_real_trans && thd->transaction_rollback_request &&
-        thd->transaction.xid_state.xa_state != XA_NOTR)
-      thd->transaction.xid_state.rm_error= thd->stmt_da->sql_errno();
   }
+
+  /*
+    Thanks to possibility of MDL deadlock rollback request can come even if
+    transaction hasn't been started in any transactional storage engine.
+  */
+  if (is_real_trans && thd->transaction_rollback_request &&
+      thd->transaction.xid_state.xa_state != XA_NOTR)
+    thd->transaction.xid_state.rm_error= thd->stmt_da->sql_errno();
+
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
-#ifdef WITH_WSREP
-      thd->transaction.cleanup(thd);
-#else
       thd->transaction.cleanup();
-#endif /* WITH_WSREP */
+
   thd->diff_rollback_trans++;
   if (all)
     thd->transaction_rollback_request= FALSE;
@@ -2436,8 +2430,13 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       dup_ref=ref+ALIGN_SIZE(ref_length);
     cached_table_flags= table_flags();
   }
-  rows_read= rows_changed= 0;
-  memset(index_rows_read, 0, sizeof(index_rows_read));
+
+  if (unlikely(opt_userstat))
+  {
+    rows_read= rows_changed= 0;
+    memset(index_rows_read, 0, sizeof(index_rows_read));
+  }
+
   DBUG_RETURN(error);
 }
 
@@ -3500,6 +3499,9 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   }
   if ((error= check(thd, check_opt)))
     return error;
+  /* Skip updating frm version if not main handler. */
+  if (table->file != this)
+    return error;
   return update_frm_version(table);
 }
 
@@ -3954,12 +3956,6 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
 // Updates the global table stats with the TABLE this handler represents.
 void handler::update_global_table_stats()
 {
-  if (!opt_userstat)
-  {
-    rows_read= rows_changed= 0;
-    return;
-  }
-
   if (!rows_read && !rows_changed)
     return;  // Nothing to update.
   // table_cache_key is db_name + '\0' + table_name + '\0'.
@@ -4003,7 +3999,7 @@ void handler::update_global_table_stats()
   table_stats->rows_changed+=           rows_changed;
   table_stats->rows_changed_x_indexes+=
     rows_changed * (table->s->keys ? table->s->keys : 1);
-  current_thd->diff_total_read_rows+=   rows_read;
+  ha_thd()->diff_total_read_rows+=   rows_read;
   rows_read= rows_changed=              0;
 end:
   mysql_mutex_unlock(&LOCK_global_table_stats);
@@ -4015,15 +4011,6 @@ void handler::update_global_index_stats()
   // table_cache_key is db_name + '\0' + table_name + '\0'.
   if (!table->s || !table->s->table_cache_key.str || !table->s->table_name.str)
     return;
-
-  if (!opt_userstat)
-  {
-    for (uint x= 0; x < table->s->keys; ++x)
-    {
-      index_rows_read[x]= 0;
-    }
-    return;
-  }
 
   for (uint x = 0; x < table->s->keys; ++x)
   {
@@ -5218,6 +5205,42 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   return result;
 }
 
+static my_bool flush_changed_page_bitmaps_handlerton(THD *unused1,
+                                                     plugin_ref plugin,
+                                                     void *unused2)
+{
+  handlerton *hton= plugin_data(plugin, handlerton *);
+
+  if (hton->flush_changed_page_bitmaps == NULL)
+    return FALSE;
+
+  return hton->flush_changed_page_bitmaps();
+}
+
+bool ha_flush_changed_page_bitmaps()
+{
+  return plugin_foreach(NULL, flush_changed_page_bitmaps_handlerton,
+                        MYSQL_STORAGE_ENGINE_PLUGIN, NULL);
+}
+
+static my_bool purge_changed_page_bitmaps_handlerton(THD *unused1,
+                                                     plugin_ref plugin,
+                                                     void *lsn)
+{
+  handlerton *hton= plugin_data(plugin, handlerton *);
+
+  if (hton->purge_changed_page_bitmaps == NULL)
+    return FALSE;
+
+  return hton->purge_changed_page_bitmaps(*(ulonglong *)lsn);
+}
+
+bool ha_purge_changed_page_bitmaps(ulonglong lsn)
+{
+  return plugin_foreach(NULL, purge_changed_page_bitmaps_handlerton,
+                        MYSQL_STORAGE_ENGINE_PLUGIN, &lsn);
+}
+
 /*
   Function to check if the conditions for row-based binlogging is
   correct for the table.
@@ -5478,6 +5501,8 @@ int handler::ha_write_row(uchar *buf)
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC(ha_thd(), "start_ha_write_row");
+  DBUG_EXECUTE_IF("inject_error_ha_write_row",
+                  DBUG_RETURN(HA_ERR_INTERNAL_ERROR); );
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -5505,6 +5530,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
     (and the old record is in record[1]).
    */
   DBUG_ASSERT(new_data == table->record[0]);
+  DBUG_ASSERT(old_data == table->record[1]);
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -5522,6 +5548,13 @@ int handler::ha_delete_row(const uchar *buf)
 {
   int error;
   Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
+  /*
+    Normally table->record[0] is used, but sometimes table->record[1] is used.
+  */
+  DBUG_ASSERT(buf == table->record[0] ||
+              buf == table->record[1]);
+  DBUG_EXECUTE_IF("inject_error_ha_delete_row",
+                  return HA_ERR_INTERNAL_ERROR; );
 
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -231,7 +231,7 @@ bool foreign_key_prefix(Key *a, Key *b)
 */
 void *thd_get_scheduler_data(THD *thd)
 {
-  return thd->scheduler.data;
+  return thd->event_scheduler.data;
 }
 
 /**
@@ -242,7 +242,7 @@ void *thd_get_scheduler_data(THD *thd)
 */
 void thd_set_scheduler_data(THD *thd, void *data)
 {
-  thd->scheduler.data= data;
+  thd->event_scheduler.data= data;
 }
 
 /**
@@ -254,7 +254,7 @@ void thd_set_scheduler_data(THD *thd, void *data)
 */
 PSI_thread *thd_get_psi(THD *thd)
 {
-  return thd->scheduler.m_psi;
+  return thd->event_scheduler.m_psi;
 }
 
 /**
@@ -277,7 +277,7 @@ ulong thd_get_net_wait_timeout(THD* thd)
 */
 void thd_set_psi(THD *thd, PSI_thread *psi)
 {
-  thd->scheduler.m_psi= psi;
+  thd->event_scheduler.m_psi= psi;
 }
 
 /**
@@ -469,6 +469,18 @@ void thd_set_mysys_var(THD *thd, st_my_thread_var *mysys_var)
 my_socket thd_get_fd(THD *thd)
 {
   return thd->net.vio->sd;
+}
+
+/**
+  Set thread specific environment required for thd cleanup in thread pool.
+
+  @param thd            THD object
+
+  @retval               1 if thread-specific enviroment could be set else 0
+*/
+int thd_store_globals(THD* thd)
+{
+  return thd->store_globals();
 }
 
 /**
@@ -697,7 +709,7 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
                            unsigned int max_query_len)
 {
   String str(buffer, length, &my_charset_latin1);
-  const Security_context *sctx= &thd->main_security_ctx;
+  Security_context *sctx= &thd->main_security_ctx;
   char header[256];
   int len;
   /*
@@ -717,16 +729,16 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
   str.length(0);
   str.append(header, len);
 
-  if (sctx->host)
+  if (sctx->get_host()->length())
   {
     str.append(' ');
-    str.append(sctx->host);
+    str.append(sctx->get_host()->ptr());
   }
 
-  if (sctx->ip)
+  if (sctx->get_ip()->length())
   {
     str.append(' ');
-    str.append(sctx->ip);
+    str.append(sctx->get_ip()->ptr());
   }
 
   if (sctx->user)
@@ -849,7 +861,7 @@ extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
     (!thd) ? "void" :
     (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
     (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
-    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   :
+    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   : 
     (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
 }
 
@@ -886,6 +898,16 @@ extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
     (thd->wsrep_conflict_state == CERT_FAILURE)     ? "cert failure" : "void";
 }
 
+extern "C" const char *wsrep_consistency_check_str(THD *thd)
+{
+  return 
+    (!thd) ? "void" :
+    (thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING) \
+                                    ? "Consistency check running"  :
+    (thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED) \
+                                    ? "Consistency check declared" : "None";
+}
+
 extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd)
 {
   return &thd->wsrep_trx_handle;
@@ -913,7 +935,7 @@ extern "C" my_thread_id wsrep_thd_thread_id(THD *thd)
 }
 extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
 {
-  return (thd) ? thd->wsrep_trx_seqno : -1;
+  return (thd) ? thd->wsrep_trx_seqno : WSREP_SEQNO_UNDEFINED;
 }
 extern "C" query_id_t wsrep_thd_query_id(THD *thd) 
 {
@@ -1010,6 +1032,8 @@ THD::THD()
               /* statement id */ 0),
    rli_fake(0), rli_slave(NULL),
    user_time(0), in_sub_stmt(0),
+   fill_status_recursion_level(0),
+   order_deterministic(false),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
    table_map_for_update(0),
@@ -1018,6 +1042,7 @@ THD::THD()
    first_successful_insert_id_in_prev_stmt_for_binlog(0),
    first_successful_insert_id_in_cur_stmt(0),
    stmt_depends_on_first_successful_insert_id_in_prev_stmt(FALSE),
+   failed_com_change_user(0),
    examined_row_count(0),
    warning_info(&main_warning_info),
    stmt_da(&main_da),
@@ -1034,6 +1059,7 @@ THD::THD()
    wsrep_applier(is_applier),
    wsrep_applier_closing(FALSE),
    wsrep_client_thread(0),
+   wsrep_trx_seqno(WSREP_SEQNO_UNDEFINED),
 #endif
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
@@ -1052,6 +1078,11 @@ THD::THD()
   init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0);
   stmt_arena= this;
   thread_stack= 0;
+  scheduler= thread_scheduler;                 // Will be fixed later
+  event_scheduler.data= 0;
+  event_scheduler.m_psi= 0;
+  skip_wait_timeout= false;
+  extra_port= 0;
   catalog= (char*)"std"; // the only catalog we have for now
   main_security_ctx.init();
   security_ctx= &main_security_ctx;
@@ -1099,8 +1130,8 @@ THD::THD()
 #endif
 #ifndef EMBEDDED_LIBRARY
   mysql_audit_init_thd(this);
-  net.vio=0;
 #endif
+  net.vio=0;
   client_capabilities= 0;                       // minimalistic client
   ull=0;
   system_thread= NON_SYSTEM_THREAD;
@@ -1133,14 +1164,14 @@ THD::THD()
   //wsrep_retry_autocommit= ::wsrep_retry_autocommit;
   wsrep_retry_counter     = 0;
   wsrep_PA_safe           = true;
-  wsrep_seqno_changed     = false;
   wsrep_retry_query       = NULL;
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
-
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1407,10 +1438,16 @@ MYSQL_ERROR* THD::raise_condition(uint sql_errno,
 
   query_cache_abort(&query_cache_tls);
 
-  /* When simulating OOM, skip writing to error log to avoid mtr errors */
-  DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_RETURN(NULL););
-
-  cond= warning_info->push_warning(this, sql_errno, sqlstate, level, msg);
+  /* 
+     Avoid pushing a condition for fatal out of memory errors as this will 
+     require memory allocation and therefore might fail. Non fatal out of 
+     memory errors can occur if raised by SIGNAL/RESIGNAL statement.
+  */
+  if (!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
+                           sql_errno == ER_OUTOFMEMORY)))
+  {
+    cond= warning_info->push_warning(this, sql_errno, sqlstate, level, msg);
+  }
   DBUG_RETURN(cond);
 }
 
@@ -1499,15 +1536,15 @@ void THD::init(void)
   wsrep_conflict_state= NO_CONFLICT;
   wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
-  wsrep_trx_seqno= 0;
   wsrep_converted_lock_session= false;
   //wsrep_retry_autocommit= ::wsrep_retry_autocommit;
   wsrep_retry_counter= 0;
   wsrep_rli= NULL;
   wsrep_PA_safe= true;
-  wsrep_seqno_changed= false;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
 #endif
 
   if (variables.sql_log_bin)
@@ -1557,8 +1594,6 @@ void THD::reset_diff_stats(void)
 // Updates 'diff' stats of a THD.
 void THD::update_stats(bool ran_command)
 {
-  if (opt_userstat)
-  {
   diff_total_busy_time+=            busy_time;
   diff_total_cpu_time+=             cpu_time;
   diff_total_bytes_received+=       bytes_received;
@@ -1603,7 +1638,7 @@ void THD::update_stats(bool ran_command)
   /* reset counters to zero to avoid double-counting since values
      are already store in diff_total_*.
   */
-  }
+
   busy_time=            0;
   cpu_time=             0;
   bytes_received=       0;
@@ -1733,7 +1768,6 @@ THD::~THD()
   DBUG_ENTER("~THD()");
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
-  mysys_var=0;					// Safety (shouldn't be needed)
   mysql_mutex_unlock(&LOCK_thd_data);
   add_to_status(&global_status_var, &status_var);
 
@@ -1872,33 +1906,8 @@ void THD::awake(THD::killed_state state_to_set)
 #ifdef SIGNAL_WITH_VIO_CLOSE
     if (this != current_thd)
     {
-      /*
-        Before sending a signal, let's close the socket of the thread
-        that is being killed ("this", which is not the current thread).
-        This is to make sure it does not block if the signal is lost.
-        This needs to be done only on platforms where signals are not
-        a reliable interruption mechanism.
-
-        Note that the downside of this mechanism is that we could close
-        the connection while "this" target thread is in the middle of
-        sending a result to the application, thus violating the client-
-        server protocol.
-
-        On the other hand, without closing the socket we have a race
-        condition. If "this" target thread passes the check of
-        thd->killed, and then the current thread runs through
-        THD::awake(), sets the 'killed' flag and completes the
-        signaling, and then the target thread runs into read(), it will
-        block on the socket. As a result of the discussions around
-        Bug#37780, it has been decided that we accept the race
-        condition. A second KILL awakes the target from read().
-
-        If we are killing ourselves, we know that we are not blocked.
-        We also know that we will check thd->killed before we go for
-        reading the next statement.
-      */
-
-      close_active_vio();
+      if(active_vio)
+        vio_shutdown(active_vio, SHUT_RDWR);
     }
 #endif
 
@@ -1907,7 +1916,7 @@ void THD::awake(THD::killed_state state_to_set)
 
     /* Send an event to the scheduler that a thread should be killed. */
     if (!slave_thread)
-      MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (this));
+      MYSQL_CALLBACK(scheduler, post_kill_notification, (this));
   }
 
   /* Broadcast a condition to kick the target if it is waiting on it. */
@@ -2017,7 +2026,7 @@ bool THD::store_globals()
   */
   mysys_var->id= thread_id;
   real_id= pthread_self();                      // For debugging
-
+  vio_set_thread_id(net.vio, real_id);
   /*
     We have to call thr_lock_info_init() again here as THD may have been
     created in another thread
@@ -2080,6 +2089,19 @@ void THD::cleanup_after_query()
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     auto_inc_intervals_in_cur_stmt_for_binlog.empty();
     rand_used= 0;
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Clean possible unused INSERT_ID events by current statement.
+      is_update_query() is needed to ignore SET statements:
+        Statements that don't update anything directly and don't
+        used stored functions. This is mostly necessary to ignore
+        statements in binlog between SET INSERT_ID and DML statement
+        which is intended to consume its event (there can be other
+        SET statements between them).
+    */
+    if ((rli_slave || rli_fake) && is_update_query(lex->sql_command))
+      auto_inc_intervals_forced.empty();
+#endif
   }
   if (first_successful_insert_id_in_cur_stmt > 0)
   {
@@ -2097,13 +2119,6 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= FALSE;
-#ifdef WITH_WSREP
-      if (TOTAL_ORDER == wsrep_exec_mode)
-      {
-	wsrep_exec_mode = LOCAL_STATE;
-      }
-      //wsrep_trx_seqno = 0;
-#endif  /* WITH_WSREP */
   /* reset replication info structure */
   if (lex && lex->mi.repl_ignore_server_ids.buffer) 
   {
@@ -2319,7 +2334,7 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 				      key_length + 1);
   if (!new_table)
   {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL),
+    my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATALERROR),
              ALIGN_SIZE(sizeof(TABLE_LIST)) + key_length + 1);
     killed= KILL_CONNECTION;
     return 0;
@@ -2398,7 +2413,8 @@ char *THD::get_client_host_port(THD *client)
   Security_context *client_sctx= client->security_ctx;
   char *client_host= NULL;
 
-  if (client->peer_port && (client_sctx->host || client_sctx->ip) &&
+  if (client->peer_port && (client_sctx->get_host()->length()
+                            || client_sctx->get_ip()->length()) &&
       security_ctx->host_or_ip[0])
   {
     if ((client_host= (char *) this->alloc(LIST_PROCESS_HOST_LEN+1)))
@@ -2408,7 +2424,8 @@ char *THD::get_client_host_port(THD *client)
   else
     client_host= this->strdup(client_sctx->host_or_ip[0] ?
                               client_sctx->host_or_ip :
-                              client_sctx->host ? client_sctx->host : "");
+                              client_sctx->get_host()->length() ?
+                              client_sctx->get_host()->ptr() : "");
 
   return client_host;
 }
@@ -2417,7 +2434,8 @@ const char *get_client_host(THD *client)
 {
   return client->security_ctx->host_or_ip[0] ?
       client->security_ctx->host_or_ip :
-      client->security_ctx->host ? client->security_ctx->host : "";
+      client->security_ctx->get_host()->length() ?
+      client->security_ctx->get_host()->ptr() : "";
 }
 
 struct Item_change_record: public ilink
@@ -2719,7 +2737,10 @@ select_export::~select_export()
 static File create_file(THD *thd, char *path, sql_exchange *exchange,
 			IO_CACHE *cache)
 {
-  File file;
+  File file= -1;
+  bool new_file_created= false;
+  MY_STAT stat_arg;
+
   uint option= MY_UNPACK_FILENAME | MY_RELATIVE_PATH;
 
 #ifdef DONT_ALLOW_FULL_LOAD_DATA_PATHS
@@ -2742,25 +2763,43 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
     return -1;
   }
 
-  if (!access(path, F_OK))
+  if (my_stat(path, &stat_arg, MYF(0)))
   {
-    my_error(ER_FILE_EXISTS_ERROR, MYF(0), exchange->file_name);
-    return -1;
-  }
-  /* Create the file world readable */
-  if ((file= mysql_file_create(key_select_to_file,
-                               path, 0666, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
-    return file;
-#ifdef HAVE_FCHMOD
-  (void) fchmod(file, 0666);			// Because of umask()
-#else
-  (void) chmod(path, 0666);
+    /* Check if file is named pipe or unix socket */
+    if (MY_S_ISFIFO(stat_arg.st_mode))
+      file= mysql_file_open(key_select_to_file,
+                            path, O_WRONLY, MYF(MY_WME));
+#ifndef __WIN__
+    if (MY_S_ISSOCK(stat_arg.st_mode))
+      file= mysql_unix_socket_connect(key_select_to_file,
+                                      path, MYF(MY_WME));
 #endif
+    if (file < 0)
+    {
+      if (!(MY_S_ISFIFO(stat_arg.st_mode) || MY_S_ISSOCK(stat_arg.st_mode)))
+        my_error(ER_FILE_EXISTS_ERROR, MYF(0), exchange->file_name);
+      return -1;
+    }
+  }
+  else
+  {
+    /* Create the file world readable */
+    if ((file= mysql_file_create(key_select_to_file,
+                                 path, 0666, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
+      return file;
+    new_file_created= true;
+#ifdef HAVE_FCHMOD
+    (void) fchmod(file, 0666);      // Because of umask()
+#else
+    (void) chmod(path, 0666);
+#endif
+  }
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
     mysql_file_close(file, MYF(0));
-    /* Delete file on error, it was just created */
-    mysql_file_delete(key_select_to_file, path, MYF(0));
+    /* Delete file on error, if it was just created */
+    if (new_file_created)
+      mysql_file_delete(key_select_to_file, path, MYF(0));
     return -1;
   }
   return file;
@@ -2910,7 +2949,7 @@ bool select_export::send_data(List<Item> &items)
       set_if_smaller(estimated_bytes, UINT_MAX32);
       if (cvt_str.realloc((uint32) estimated_bytes))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), (uint32) estimated_bytes);
+        my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), (uint32) estimated_bytes);
         goto err;
       }
 
@@ -3326,40 +3365,12 @@ bool select_exists_subselect::send_data(List<Item> &items)
 int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
 {
   unit= u;
-  List_iterator_fast<my_var> var_li(var_list);
-  List_iterator_fast<Item> it(list);
-  Item *item;
-  my_var *mv;
-  Item_func_set_user_var **suv;
-  
+
   if (var_list.elements != list.elements)
   {
     my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
                ER(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
     return 1;
-  }
-
-  /*
-    Iterate over the destination variables and mark them as being
-    updated in this query.
-    We need to do this at JOIN::prepare time to ensure proper
-    const detection of Item_func_get_user_var that is determined
-    by the presence of Item_func_set_user_vars
-  */
-
-  suv= set_var_items= (Item_func_set_user_var **) 
-    sql_alloc(sizeof(Item_func_set_user_var *) * list.elements);
-
-  while ((mv= var_li++) && (item= it++))
-  {
-    if (!mv->local)
-    {
-      *suv= new Item_func_set_user_var(mv->s, item);
-      (*suv)->fix_fields(thd, 0);
-    }
-    else
-      *suv= NULL;
-    suv++;
   }
 
   return 0;
@@ -3678,33 +3689,41 @@ bool select_dumpvar::send_data(List<Item> &items)
   List_iterator<Item> it(items);
   Item *item;
   my_var *mv;
-  Item_func_set_user_var **suv;
   DBUG_ENTER("select_dumpvar::send_data");
 
   if (unit->offset_limit_cnt)
   {						// using limit offset,count
     unit->offset_limit_cnt--;
-    DBUG_RETURN(0);
+    DBUG_RETURN(false);
   }
   if (row_count++) 
   {
     my_message(ER_TOO_MANY_ROWS, ER(ER_TOO_MANY_ROWS), MYF(0));
-    DBUG_RETURN(1);
+    DBUG_RETURN(true);
   }
-  for (suv= set_var_items; ((mv= var_li++) && (item= it++)); suv++)
+  while ((mv= var_li++) && (item= it++))
   {
     if (mv->local)
     {
-      DBUG_ASSERT(!*suv);
       if (thd->spcont->set_variable(thd, mv->offset, &item))
-	    DBUG_RETURN(1);
+	    DBUG_RETURN(true);
     }
     else
     {
-      DBUG_ASSERT(*suv);
-      (*suv)->save_item_result(item);
-      if ((*suv)->update())
-        DBUG_RETURN (1);
+      /*
+        Create Item_func_set_user_vars with delayed non-constness. We
+        do this so that Item_get_user_var::const_item() will return
+        the same result during
+        Item_func_set_user_var::save_item_result() as they did during
+        optimization and execution.
+       */
+      Item_func_set_user_var *suv=
+        new Item_func_set_user_var(mv->s, item, true);
+      if (suv->fix_fields(thd, 0))
+        DBUG_RETURN(true);
+      suv->save_item_result(item);
+      if (suv->update())
+        DBUG_RETURN(true);
     }
   }
   DBUG_RETURN(thd->is_error());
@@ -3756,8 +3775,10 @@ void thd_increment_bytes_sent(ulong length)
 
 void thd_increment_bytes_received(ulong length)
 {
-  current_thd->status_var.bytes_received+= length;
-  current_thd->bytes_received+= length;
+  THD * const thd = current_thd;
+
+  thd->status_var.bytes_received+= length;
+  thd->bytes_received+= length;
 }
 
 
@@ -3775,7 +3796,10 @@ void THD::set_status_var_init()
 
 void Security_context::init()
 {
-  host= user= ip= external_user= 0;
+  user= 0;
+  ip.set("", 0, system_charset_info);
+  host.set("", 0, system_charset_info);
+  external_user.set("", 0, system_charset_info);
   host_or_ip= "connecting host";
   priv_user[0]= priv_host[0]= proxy_user[0]= '\0';
   master_access= 0;
@@ -3784,29 +3808,35 @@ void Security_context::init()
 #endif
 }
 
-
 void Security_context::destroy()
 {
-  // If not pointer to constant
-  if (host != my_localhost)
+  if (host.ptr() != my_localhost && host.length())
   {
-    my_free(host);
-    host= NULL;
+    char *c= (char *) host.ptr();
+    host.set("", 0, system_charset_info);
+    my_free(c);
   }
-  if (user != delayed_user)
+
+  if (user && user != delayed_user)
   {
     my_free(user);
     user= NULL;
   }
 
-  if (external_user)
+  if (external_user.length())
   {
-    my_free(external_user);
-    user= NULL;
+    char *c= (char *) external_user.ptr();
+    external_user.set("", 0, system_charset_info);
+    my_free(c);
   }
 
-  my_free(ip);
-  ip= NULL;
+  if (ip.length())
+  {
+    char *c= (char *) ip.ptr();
+    ip.set("", 0, system_charset_info);
+    my_free(c);
+  }
+
 }
 
 
@@ -3824,6 +3854,45 @@ bool Security_context::set_user(char *user_arg)
   my_free(user);
   user= my_strdup(user_arg, MYF(0));
   return user == 0;
+}
+
+String *Security_context::get_host()
+{
+  return (&host);
+}
+
+String *Security_context::get_ip()
+{
+  return (&ip);
+}
+
+String *Security_context::get_external_user()
+{
+  return (&external_user);
+}
+
+void Security_context::set_host(const char *str)
+{
+  uint len= str ? strlen(str) :  0;
+  host.set(str, len, system_charset_info);
+}
+
+void Security_context::set_ip(const char *str)
+{
+  uint len= str ? strlen(str) :  0;
+  ip.set(str, len, system_charset_info);
+}
+
+void Security_context::set_external_user(const char *str)
+{
+  uint len= str ? strlen(str) :  0;
+  external_user.set(str, len, system_charset_info);
+}
+
+void Security_context::set_host(const char * str, size_t len)
+{
+  host.set(str, len, system_charset_info);
+  host.c_ptr_quick();
 }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -3986,6 +4055,10 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd)
   return((unsigned long)thd->thread_id);
 }
 
+extern "C" enum_tx_isolation thd_get_trx_isolation(const MYSQL_THD thd)
+{
+	return thd->tx_isolation;
+}
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
 extern "C" struct charset_info_st *thd_charset(MYSQL_THD thd)
@@ -4062,6 +4135,7 @@ extern "C" void thd_pool_wait_end(MYSQL_THD thd);
   SYNOPSIS
   thd_wait_begin()
   thd                     Thread object
+                          Can be NULL, in this case current THD is used.
   wait_type               Type of wait
                           1 -- short wait (e.g. for mutex)
                           2 -- medium wait (e.g. for disk io)
@@ -4078,7 +4152,13 @@ extern "C" void thd_pool_wait_end(MYSQL_THD thd);
 */
 extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)
 {
-  MYSQL_CALLBACK(thread_scheduler, thd_wait_begin, (thd, wait_type));
+  if (!thd)
+  {
+    thd= current_thd;
+    if (unlikely(!thd))
+      return;
+  }
+  MYSQL_CALLBACK(thd->scheduler, thd_wait_begin, (thd, wait_type));
 }
 
 /**
@@ -4086,10 +4166,17 @@ extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)
   when they waking up from a sleep/stall.
 
   @param  thd   Thread handle
+  Can be NULL, in this case current THD is used.
 */
 extern "C" void thd_wait_end(MYSQL_THD thd)
 {
-  MYSQL_CALLBACK(thread_scheduler, thd_wait_end, (thd));
+  if (!thd)
+  {
+    thd= current_thd;
+    if (unlikely(!thd))
+      return;
+  }
+  MYSQL_CALLBACK(thd->scheduler, thd_wait_end, (thd));
 }
 #else
 extern "C" void thd_wait_begin(MYSQL_THD thd, int wait_type)
@@ -4356,11 +4443,6 @@ void THD::do_set_query_id(query_id_t new_query_id)
   }
 #endif /* DBUG_OFF */
   query_id= new_query_id;
-  if (opt_slow_query_log_rate_type == SLOG_RT_QUERY)
-  {
-    const ulong& limit= variables.log_slow_rate_limit;
-    write_to_slow_log= limit == 0 || (query_id % limit) == 0;
-  }
 }
 
 /** Assign a new value to thd->mysys_var.  */
@@ -4543,9 +4625,14 @@ bool xid_cache_insert(XID *xid, enum xa_states xa_state)
 bool xid_cache_insert(XID_STATE *xid_state)
 {
   mysql_mutex_lock(&LOCK_xid_cache);
-  DBUG_ASSERT(my_hash_search(&xid_cache, xid_state->xid.key(),
-                             xid_state->xid.key_length())==0);
-  my_bool res=my_hash_insert(&xid_cache, (uchar*)xid_state);
+  if (my_hash_search(&xid_cache, xid_state->xid.key(),
+      xid_state->xid.key_length()))
+  {
+    mysql_mutex_unlock(&LOCK_xid_cache);
+    my_error(ER_XAER_DUPID, MYF(0));
+    return true;
+  }
+  bool res= my_hash_insert(&xid_cache, (uchar*)xid_state);
   mysql_mutex_unlock(&LOCK_xid_cache);
   return res;
 }
@@ -4927,6 +5014,46 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     DBUG_PRINT("info", ("decision: logging in %s format",
                         is_current_stmt_binlog_format_row() ?
                         "ROW" : "STATEMENT"));
+
+    if (variables.binlog_format == BINLOG_FORMAT_ROW &&
+        (lex->sql_command == SQLCOM_UPDATE ||
+         lex->sql_command == SQLCOM_UPDATE_MULTI ||
+         lex->sql_command == SQLCOM_DELETE ||
+         lex->sql_command == SQLCOM_DELETE_MULTI))
+    {
+      String table_names;
+      /*
+        Generate a warning for UPDATE/DELETE statements that modify a
+        BLACKHOLE table, as row events are not logged in row format.
+      */
+      for (TABLE_LIST *table= tables; table; table= table->next_global)
+      {
+        if (table->placeholder())
+          continue;
+        if (table->table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB &&
+            table->lock_type >= TL_WRITE_ALLOW_WRITE)
+        {
+            table_names.append(table->table_name);
+            table_names.append(",");
+        }
+      }
+      if (!table_names.is_empty())
+      {
+        bool is_update= (lex->sql_command == SQLCOM_UPDATE ||
+                         lex->sql_command == SQLCOM_UPDATE_MULTI);
+        /*
+          Replace the last ',' with '.' for table_names
+        */
+        table_names.replace(table_names.length()-1, 1, ".", 1);
+        push_warning_printf(this, MYSQL_ERROR::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "Row events are not logged for %s statements "
+                            "that modify BLACKHOLE tables in row format. "
+                            "Table(s): '%-.192s'",
+                            is_update ? "UPDATE" : "DELETE",
+                            table_names.c_ptr());
+      }
+    }
   }
 #ifndef DBUG_OFF
   else
@@ -5533,6 +5660,32 @@ void THD::issue_unsafe_warnings()
               sizeof(binlog_unsafe_warning_flags) * CHAR_BIT);
 
   uint32 unsafe_type_flags= binlog_unsafe_warning_flags;
+
+  if ((unsafe_type_flags & (1U << LEX::BINLOG_STMT_UNSAFE_LIMIT)) != 0)
+  {
+    if ((lex->sql_command == SQLCOM_DELETE || lex->sql_command == SQLCOM_UPDATE) &&
+        lex->select_lex.select_limit)
+    {
+      ORDER *order= (ORDER *) ((lex->select_lex.order_list.elements) ?
+                               lex->select_lex.order_list.first : NULL);
+      if ((lex->select_lex.select_limit &&
+           lex->select_lex.select_limit->fixed &&
+           lex->select_lex.select_limit->val_int() == 0) ||
+          is_order_deterministic(lex->query_tables,
+                                   lex->select_lex.where, order))
+      {
+        unsafe_type_flags&= ~(1U << LEX::BINLOG_STMT_UNSAFE_LIMIT);
+      }
+    }
+    if ((lex->sql_command == SQLCOM_INSERT_SELECT ||
+         lex->sql_command == SQLCOM_REPLACE_SELECT) &&
+        order_deterministic)
+    {
+      unsafe_type_flags&= ~(1U << LEX::BINLOG_STMT_UNSAFE_LIMIT);
+    }
+
+  }
+
   /*
     For each unsafe_type, check if the statement is unsafe in this way
     and issue a warning.
@@ -5635,8 +5788,10 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   */
   if ((variables.option_bits & OPTION_BIN_LOG) &&
       spcont == NULL && !binlog_evt_union.do_union)
+  {
     issue_unsafe_warnings();
-
+    order_deterministic= true;
+  }
 
   switch (qtype) {
     /*

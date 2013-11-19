@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
 #include "my_global.h"
 #include <signal.h>
@@ -100,8 +100,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     "We will try our best to scrape up some info that will hopefully help\n"
     "diagnose the problem, but since we have already crashed, \n"
     "something is definitely wrong and this may fail.\n"
-    "Please help us make Percona Server better by reporting any\n"
-    "bugs at http://bugs.percona.com/\n\n");
+    "Please help us make Percona XtraDB Cluster better by reporting any\n"
+    "bugs at  https://bugs.launchpad.net/percona-xtradb-cluster\n\n");
 
   my_safe_printf_stderr("key_buffer_size=%lu\n",
                         (ulong) dflt_key_cache->key_cache_mem_size);
@@ -113,7 +113,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                         (ulong) max_used_connections);
 
   my_safe_printf_stderr("max_threads=%u\n",
-                        (uint) thread_scheduler->max_threads);
+                        (uint) thread_scheduler->max_threads +
+                        (uint) extra_max_connections);
 
   my_safe_printf_stderr("thread_count=%u\n", (uint) thread_count);
 
@@ -123,11 +124,11 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                         "key_buffer_size + "
                         "(read_buffer_size + sort_buffer_size)*max_threads = "
                         "%lu K  bytes of memory\n",
-                        ((ulong) dflt_key_cache->key_cache_mem_size +
+                        (ulong)(dflt_key_cache->key_cache_mem_size +
                          (global_system_variables.read_buff_size +
                           global_system_variables.sortbuff_size) *
-                         thread_scheduler->max_threads +
-                         max_connections * sizeof(THD)) / 1024);
+                         (thread_scheduler->max_threads + extra_max_connections) +
+                         (max_connections + extra_max_connections)* sizeof(THD)) / 1024);
 
   my_safe_printf_stderr("%s",
     "Hope that's ok; if not, decrease some variables in the equation.\n\n");
@@ -194,8 +195,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_safe_printf_stderr("Status: %s\n\n", kreason);
   }
   my_safe_printf_stderr("%s",
-    "You may download the Percona Server operations manual by visiting\n"
-    "http://www.percona.com/software/percona-server/. You may find information\n"
+    "You may download the Percona XtraDB Cluster operations manual by visiting\n"
+    "http://www.percona.com/software/percona-xtradb-cluster/. You may find information\n"
     "in the manual which will help you identify the cause of the crash.\n");
 
 #endif /* HAVE_STACKTRACE */

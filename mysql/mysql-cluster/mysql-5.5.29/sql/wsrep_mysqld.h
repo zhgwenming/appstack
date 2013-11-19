@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 #ifndef WSREP_MYSQLD_H
 #define WSREP_MYSQLD_H
@@ -33,7 +33,7 @@ class THD;
     LOCAL_STATE,
     REPL_RECV,
     TOTAL_ORDER,
-    LOCAL_COMMIT,
+    LOCAL_COMMIT
   };
   enum wsrep_query_state {
     QUERY_IDLE,
@@ -93,12 +93,17 @@ extern long        wsrep_max_protocol_version;
 extern long        wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern ulong       wsrep_OSU_method_options;
+extern ulong       wsrep_reject_queries_options;
+extern my_bool     wsrep_desync;
 extern my_bool     wsrep_recovery;
 extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
+extern ulong       wsrep_mysql_replication_bundle;
+extern my_bool     wsrep_load_data_splitting;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
+enum enum_wsrep_reject_types { WSREP_REJ_NONE, WSREP_REJ_ALL, WSREP_REJ_ALL_KILL };
 
 // MySQL status variables
 extern my_bool     wsrep_connected;
@@ -140,6 +145,8 @@ extern bool wsrep_provider_options_check     CHECK_ARGS;
 extern bool wsrep_provider_options_update    UPDATE_ARGS;
 extern void wsrep_provider_options_init      INIT_ARGS;
 
+extern bool wsrep_reject_queries_update    UPDATE_ARGS;
+
 extern bool wsrep_cluster_address_check      CHECK_ARGS;
 extern bool wsrep_cluster_address_update     UPDATE_ARGS;
 extern void wsrep_cluster_address_init       INIT_ARGS;
@@ -171,6 +178,9 @@ extern bool wsrep_sst_donor_update           UPDATE_ARGS;
 extern bool wsrep_slave_threads_check        CHECK_ARGS;
 extern bool wsrep_slave_threads_update       UPDATE_ARGS;
 
+extern bool wsrep_desync_check               CHECK_ARGS;
+extern bool wsrep_desync_update              UPDATE_ARGS;
+
 extern bool  wsrep_before_SE(); // initialize wsrep before storage
                                 // engines (true) or after (false)
 extern int   wsrep_init();
@@ -184,6 +194,7 @@ extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
 extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 extern "C" const char * wsrep_thd_exec_mode_str(THD *thd);
 extern "C" const char * wsrep_thd_conflict_state_str(THD *thd);
+extern "C" const char * wsrep_thd_consistency_check_str(THD *thd);
 extern "C" const char * wsrep_thd_query_state_str(THD *thd);
 extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd);
 
@@ -305,7 +316,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
 class Ha_trx_info;
 struct THD_TRANS;
 void wsrep_register_hton(THD* thd, bool all);
-
+void wsrep_post_commit(THD* thd, bool all);
 void wsrep_replication_process(THD *thd);
 void wsrep_rollback_process(THD *thd);
 void wsrep_brute_force_killer(THD *thd);
@@ -347,6 +358,7 @@ extern long      wsrep_max_ws_rows;
 extern int       wsrep_to_isolation;
 extern my_bool wsrep_certify_nonPK;
 extern mysql_mutex_t LOCK_wsrep_slave_threads;
+extern mysql_mutex_t LOCK_wsrep_desync;
 
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
@@ -361,12 +373,13 @@ extern PSI_cond_key  key_COND_wsrep_rollback;
 extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
 extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
+extern PSI_mutex_key key_LOCK_wsrep_desync;
 
 struct TABLE_LIST;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list);
 void wsrep_to_isolation_end(THD *thd);
-
+void wsrep_cleanup_transaction(THD *thd);
 void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow*);
 void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow*);
 int wsrep_to_buf_helper(

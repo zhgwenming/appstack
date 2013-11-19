@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 2007, 2013, Innobase Oy. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -32,7 +32,7 @@ Created July 18, 2007 Vasil Dimov
 #endif //MYSQL_SERVER
 
 #include <mysqld_error.h>
-#include <sql_acl.h>                            // PROCESS_ACL
+#include <sql_acl.h>
 
 #include <m_ctype.h>
 #include <hash.h>
@@ -46,22 +46,17 @@ Created July 18, 2007 Vasil Dimov
 extern "C" {
 #include "btr0pcur.h"	/* for file sys_tables related info. */
 #include "btr0types.h"
-#include "buf0buddy.h" /* for i_s_cmpmem */
-#include "buf0buf.h" /* for buf_pool and PAGE_ZIP_MIN_SIZE */
-#include "dict0load.h"	/* for file sys_tables related info. */
+#include "buf0buddy.h"
+#include "buf0buf.h"
+#include "ibuf0ibuf.h"
 #include "dict0mem.h"
 #include "dict0types.h"
-#include "ha_prototypes.h" /* for innobase_convert_name() */
-#include "srv0srv.h" /* for srv_track_changed_pages */
-#include "srv0start.h" /* for srv_was_started */
+#include "dict0boot.h"
+#include "ha_prototypes.h"
+#include "srv0start.h"
 #include "trx0i_s.h"
-#include "trx0trx.h" /* for TRX_QUE_STATE_STR_MAX_LEN */
-#include "trx0rseg.h" /* for trx_rseg_struct */
-#include "trx0undo.h" /* for trx_undo_struct */
-#include "trx0sys.h" /* for trx_sys */
-#include "dict0dict.h" /* for dict_sys */
-#include "buf0lru.h" /* for XTRA_LRU_[DUMP/RESTORE] */
-#include "btr0btr.h" /* for btr_page_get_index_id */
+#include "trx0rseg.h"
+#include "trx0undo.h"
 #include "log0online.h"
 #include "btr0btr.h"
 #include "page0zip.h"
@@ -78,8 +73,12 @@ struct buffer_page_desc_str_struct{
 
 typedef struct buffer_page_desc_str_struct	buf_page_desc_str_t;
 
-/** Any states greater than FIL_PAGE_TYPE_LAST would be treated as unknown. */
-#define	I_S_PAGE_TYPE_UNKNOWN		(FIL_PAGE_TYPE_LAST + 1)
+/** Change buffer B-tree page */
+#define	I_S_PAGE_TYPE_IBUF		(FIL_PAGE_TYPE_LAST + 1)
+
+/** Any states greater than I_S_PAGE_TYPE_IBUF would be treated as
+unknown. */
+#define	I_S_PAGE_TYPE_UNKNOWN		(I_S_PAGE_TYPE_IBUF + 1)
 
 /** We also define I_S_PAGE_TYPE_INDEX as the Index Page's position
 in i_s_page_type[] array */
@@ -100,6 +99,7 @@ static buf_page_desc_str_t	i_s_page_type[] = {
 	{"BLOB", FIL_PAGE_TYPE_BLOB},
 	{"COMPRESSED_BLOB", FIL_PAGE_TYPE_ZBLOB},
 	{"COMPRESSED_BLOB2", FIL_PAGE_TYPE_ZBLOB2},
+	{"IBUF_INDEX", I_S_PAGE_TYPE_IBUF},
 	{"UNKNOWN", I_S_PAGE_TYPE_UNKNOWN}
 };
 
@@ -168,7 +168,8 @@ do {									\
 	}								\
 } while (0)
 
-#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 && !defined __INTEL_COMPILER
+#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 && 	\
+	!defined __INTEL_COMPILER && !defined __clang__
 #define STRUCT_FLD(name, value)	name: value
 #else
 #define STRUCT_FLD(name, value)	value
@@ -517,6 +518,53 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#ifdef WITH_WSREP
+
+#define IDX_TRX_WSREP_SEQNO	22
+	{STRUCT_FLD(field_name,		"trx_wsrep_seqno"),
+	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+#define IDX_TRX_QUERY_STATE	23
+	{STRUCT_FLD(field_name,		"trx_query_state"),
+	 STRUCT_FLD(field_length,	TRX_I_S_TRX_WSREP_MAX_LEN),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+#define IDX_TRX_CONFLICT_STATE	24
+	{STRUCT_FLD(field_name,		"trx_conflict_state"),
+	 STRUCT_FLD(field_length,	TRX_I_S_TRX_WSREP_MAX_LEN),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+#define IDX_TRX_EXEC_MODE	25
+	{STRUCT_FLD(field_name,		"trx_exec_mode"),
+	 STRUCT_FLD(field_length,	TRX_I_S_TRX_WSREP_MAX_LEN),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
+#define IDX_TRX_CONSISTENCY_CHECK	26
+	{STRUCT_FLD(field_name,		"trx_consistency_check"),
+	 STRUCT_FLD(field_length,	TRX_I_S_TRX_WSREP_MAX_LEN),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	0),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#endif
 	END_OF_ST_FIELD_INFO
 };
 
@@ -662,6 +710,27 @@ fill_innodb_trx_from_cache(
 		/* trx_adaptive_hash_timeout */
 		OK(fields[IDX_TRX_ADAPTIVE_HASH_TIMEOUT]->store(
 			   (longlong) row->trx_search_latch_timeout, true));
+#ifdef WITH_WSREP
+		/* trx_wsrep_seqno */
+		OK(fields[IDX_TRX_WSREP_SEQNO]->store(
+			   (longlong) row->trx_wsrep_seqno, true));
+
+		/* trx_query_state */
+		OK(field_store_string(fields[IDX_TRX_QUERY_STATE],
+				      row->trx_query_state));
+
+		/* trx_conflict_state */
+		OK(field_store_string(fields[IDX_TRX_CONFLICT_STATE],
+				      row->trx_conflict_state));
+
+		/* trx_exec_mode */
+		OK(field_store_string(fields[IDX_TRX_EXEC_MODE],
+				      row->trx_exec_mode));
+
+		/* trx_consistency_check */
+		OK(field_store_string(fields[IDX_TRX_CONSISTENCY_CHECK],
+				      row->trx_consistency_check));
+#endif
 
 		OK(schema_table_store_record(thd, table));
 	}
@@ -2313,6 +2382,7 @@ i_s_innodb_buffer_stats_fill_table(
 	buf_pool_info_t*	pool_info;
 
 	DBUG_ENTER("i_s_innodb_buffer_fill_general");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* Only allow the PROCESS privilege holder to access the stats */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -2805,14 +2875,21 @@ i_s_innodb_set_page_type(
 	if (page_type == FIL_PAGE_INDEX) {
 		const page_t*	page = (const page_t*) frame;
 
+		page_info->index_id = btr_page_get_index_id(page);
+
 		/* FIL_PAGE_INDEX is a bit special, its value
 		is defined as 17855, so we cannot use FIL_PAGE_INDEX
 		to index into i_s_page_type[] array, its array index
 		in the i_s_page_type[] array is I_S_PAGE_TYPE_INDEX
-		(1) */
-		page_info->page_type = I_S_PAGE_TYPE_INDEX;
-
-		page_info->index_id = btr_page_get_index_id(page);
+		(1) for index pages or I_S_PAGE_TYPE_IBUF for
+		change buffer index pages */
+		if (page_info->index_id
+		    == static_cast<index_id_t>(DICT_IBUF_ID_MIN
+					       + IBUF_SPACE_ID)) {
+			page_info->page_type = I_S_PAGE_TYPE_IBUF;
+		} else {
+			page_info->page_type = I_S_PAGE_TYPE_INDEX;
+		}
 
 		page_info->data_size = (ulint)(page_header_get_field(
 			page, PAGE_HEAP_TOP) - (page_is_comp(page)
@@ -2821,7 +2898,7 @@ i_s_innodb_set_page_type(
 			- page_header_get_field(page, PAGE_GARBAGE));
 
 		page_info->num_recs = page_get_n_recs(page);
-	} else if (page_type >= I_S_PAGE_TYPE_UNKNOWN) {
+	} else if (page_type > FIL_PAGE_TYPE_LAST) {
 		/* Encountered an unknown page type */
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 	} else {
@@ -2893,6 +2970,16 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->freed_page_clock = bpage->freed_page_clock;
 
+		switch (buf_page_get_io_fix(bpage)) {
+		case BUF_IO_NONE:
+		case BUF_IO_WRITE:
+		case BUF_IO_PIN:
+			break;
+		case BUF_IO_READ:
+			page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
+			return;
+		}
+
 		if (page_info->page_state == BUF_BLOCK_FILE_PAGE) {
 			const buf_block_t*block;
 
@@ -2929,6 +3016,7 @@ i_s_innodb_fill_buffer_pool(
 	mem_heap_t*		heap;
 
 	DBUG_ENTER("i_s_innodb_fill_buffer_pool");
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	heap = mem_heap_create(10000);
 
@@ -2969,7 +3057,8 @@ i_s_innodb_fill_buffer_pool(
 				i_s_innodb_buffer_page_get_info(
 					&block->page, pool_id, block_id,
 					info_buffer + num_page);
-				mutex_exit(block_mutex);
+				if (block_mutex)
+					mutex_exit(block_mutex);
 				block_id++;
 				num_page++;
 			}
@@ -3495,7 +3584,6 @@ i_s_innodb_fill_buffer_lru(
 	mutex_t*		block_mutex;
 
 	DBUG_ENTER("i_s_innodb_fill_buffer_lru");
-
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* Obtain buf_pool mutex before allocate info_buffer, since
@@ -7471,6 +7559,7 @@ i_s_innodb_changed_pages_fill(
 	ib_uint64_t		output_rows_num = 0UL;
 	ib_uint64_t		max_lsn = IB_ULONGLONG_MAX;
 	ib_uint64_t		min_lsn = 0ULL;
+	int			ret = 0;
 
 	DBUG_ENTER("i_s_innodb_changed_pages_fill");
 
@@ -7482,22 +7571,19 @@ i_s_innodb_changed_pages_fill(
 
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	if (!srv_track_changed_pages) {
-		DBUG_RETURN(0);
-	}
-
 	if (cond) {
 		limit_lsn_range_from_condition(table, cond, &min_lsn,
 					       &max_lsn);
 	}
 
 	if (!log_online_bitmap_iterator_init(&i, min_lsn, max_lsn)) {
+		my_error(ER_CANT_FIND_SYSTEM_REC, MYF(0));
 		DBUG_RETURN(1);
 	}
 
 	while(log_online_bitmap_iterator_next(&i) &&
-	      (!srv_changed_pages_limit ||
-	       output_rows_num < srv_changed_pages_limit) &&
+	      (!srv_max_changed_pages ||
+	       output_rows_num < srv_max_changed_pages) &&
 	      /*
 		There is no need to compare both start LSN and end LSN fields
 		with maximum value. It's enough to compare only start LSN.
@@ -7555,14 +7641,20 @@ i_s_innodb_changed_pages_fill(
 		if (schema_table_store_record(thd, table))
 		{
 			log_online_bitmap_iterator_release(&i);
+			my_error(ER_CANT_FIND_SYSTEM_REC, MYF(0));
 			DBUG_RETURN(1);
 		}
 
 		++output_rows_num;
 	}
 
+	if (i.failed) {
+		my_error(ER_CANT_FIND_SYSTEM_REC, MYF(0));
+		ret = 1;
+	}
+
 	log_online_bitmap_iterator_release(&i);
-	DBUG_RETURN(0);
+	DBUG_RETURN(ret);
 }
 
 static

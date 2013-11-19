@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -23,6 +23,19 @@ The transaction
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
+/********************************************************************//**
+In XtraDB it is impossible for a transaction to own a search latch outside of
+InnoDB code, so there is nothing to release on demand.  We keep this function to
+simplify maintenance.*/
+UNIV_INLINE
+void
+trx_search_latch_release_if_reserved(
+/*=================================*/
+	trx_t*	   trx __attribute__((unused))) /*!< in: transaction */
+{
+	ut_ad(!trx->has_search_latch);
+}
+
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
 UNIV_INLINE
@@ -31,9 +44,9 @@ trx_start_if_not_started(
 /*=====================*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	ut_ad(trx->conc_state != TRX_COMMITTED_IN_MEMORY);
+	ut_ad(trx->state != TRX_COMMITTED_IN_MEMORY);
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 
 		trx_start(trx, ULINT_UNDEFINED);
 	}
@@ -48,9 +61,9 @@ trx_start_if_not_started_low(
 /*=========================*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	ut_ad(trx->conc_state != TRX_COMMITTED_IN_MEMORY);
+	ut_ad(trx->state != TRX_COMMITTED_IN_MEMORY);
 
-	if (trx->conc_state == TRX_NOT_STARTED) {
+	if (trx->state == TRX_NOT_STARTED) {
 
 		trx_start_low(trx, ULINT_UNDEFINED);
 	}

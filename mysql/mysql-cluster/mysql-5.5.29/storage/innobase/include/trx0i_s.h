@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -56,6 +56,10 @@ i_s_trx_row_t::trx_foreign_key_error */
 /** The maximum length of a string that can be stored in
 i_s_trx_row_t::trx_isolation_level */
 #define TRX_I_S_TRX_ISOLATION_LEVEL_MAX_LEN	16
+
+/** The maximum length of a string that can be stored in 
+ * i_s_trx_row_t::trx_query_state and other i_s_trx_row_t::trx* wsrep variables */
+#define TRX_I_S_TRX_WSREP_MAX_LEN	35
 
 /** Safely copy strings in to the INNODB_TRX table's
 string based columns */
@@ -173,6 +177,18 @@ struct i_s_trx_row_struct {
 	ulint		trx_search_latch_timeout;
 					/*!< search_latch_timeout in
 					trx_struct */
+#ifdef WITH_WSREP
+	const char*     trx_query_state;
+					/*!< Transaction query state*/
+	const char*     trx_conflict_state;
+	                                /*!< Transaction conflict state*/
+	const char*     trx_exec_mode;
+	                                /*!< Transaction exec mode*/
+	const char*	trx_consistency_check;
+					/*!< Transaction consistency check */
+	ulint		trx_wsrep_seqno;
+					/*!< Transaction wsrep sequence no */
+#endif
 };
 
 /** This structure represents INFORMATION_SCHEMA.innodb_lock_waits row */

@@ -38,6 +38,7 @@
 #include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
 
+
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 /*
   Without SSL the handshake consists of one packet. This packet
@@ -59,9 +60,6 @@
 #include "wsrep_mysqld.h"
 #endif
 
-// Increments connection count for user.
-static int increment_connection_count(THD* thd, bool use_lock);
-
 // Uses the THD to update the global stats by user name and client IP
 void update_global_user_stats(THD* thd, bool create_user, time_t now);
 
@@ -82,6 +80,10 @@ extern mysql_mutex_t LOCK_global_index_stats;
 */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+
+// Increments connection count for user.
+static int increment_connection_count(THD* thd, bool use_lock);
+
 static HASH hash_user_connections;
 
 int get_or_create_user_conn(THD *thd, const char *user,
@@ -476,8 +478,9 @@ static int increment_count_by_name(const char *name, const char *role_name,
                                                    (uchar*) name,
                                                    strlen(name))))
   {
-    if (acl_is_utility_user(thd->security_ctx->user, thd->security_ctx->host,
-                            thd->security_ctx->ip))
+    if (acl_is_utility_user(thd->security_ctx->user,
+                            thd->security_ctx->get_host()->ptr(),
+                            thd->security_ctx->get_ip()->ptr()))
       return 0;
 
     // First connection for this user or client
@@ -520,8 +523,9 @@ static int increment_count_by_id(my_thread_id id,
                                                        (uchar*) &id,
                                                        sizeof(my_thread_id))))
   {
-    if (acl_is_utility_user(thd->security_ctx->user, thd->security_ctx->host,
-        thd->security_ctx->ip))
+    if (acl_is_utility_user(thd->security_ctx->user,
+                            thd->security_ctx->get_host()->ptr(),
+                            thd->security_ctx->get_ip()->ptr()))
       return 0;
 
     // First connection for this user or client
@@ -565,11 +569,9 @@ static int increment_connection_count(THD* thd, bool use_lock)
   const char* client_string= get_client_host(thd);
   int return_value=          0;
 
-  if (!opt_userstat)
-    return return_value;
-
-  if (acl_is_utility_user(thd->security_ctx->user, thd->security_ctx->host,
-      thd->security_ctx->ip))
+  if (acl_is_utility_user(thd->security_ctx->user,
+                          thd->security_ctx->get_host()->ptr(),
+                          thd->security_ctx->get_ip()->ptr()))
     return return_value;
 
   if (use_lock)
@@ -665,8 +667,9 @@ void update_global_user_stats(THD* thd, bool create_user, time_t now)
     USER_STATS* user_stats;
     THREAD_STATS* thread_stats;
 
-    if (acl_is_utility_user(thd->security_ctx->user, thd->security_ctx->host,
-        thd->security_ctx->ip))
+    if (acl_is_utility_user(thd->security_ctx->user,
+                            thd->security_ctx->get_host()->ptr(),
+                            thd->security_ctx->get_ip()->ptr()))
       return;
 
     mysql_mutex_lock(&LOCK_global_user_client_stats);
@@ -1117,7 +1120,7 @@ static int check_connection(THD *thd)
   thd->set_active_vio(net->vio);
 #endif
 
-  if (!thd->main_security_ctx.host)         // If TCP/IP connection
+  if (!thd->main_security_ctx.get_host()->length())     // If TCP/IP connection
   {
     char ip[NI_MAXHOST];
 
@@ -1139,25 +1142,30 @@ static int check_connection(THD *thd)
                     };);
     /* END   : DEBUG */
 
-    if (!(thd->main_security_ctx.ip= my_strdup(ip,MYF(MY_WME))))
+    thd->main_security_ctx.set_ip(my_strdup(ip, MYF(MY_WME)));
+    if (!(thd->main_security_ctx.get_ip()->length()))
       return 1; /* The error is set by my_strdup(). */
-    thd->main_security_ctx.host_or_ip= thd->main_security_ctx.ip;
+    thd->main_security_ctx.host_or_ip= thd->main_security_ctx.get_ip()->ptr();
     if (!(specialflag & SPECIAL_NO_RESOLVE))
     {
-      if (ip_to_hostname(&net->vio->remote, thd->main_security_ctx.ip,
-                         &thd->main_security_ctx.host, &connect_errors))
+      char *host= (char *) thd->main_security_ctx.get_host()->ptr();
+      if (ip_to_hostname(&net->vio->remote,
+                         thd->main_security_ctx.get_ip()->ptr(),
+                         &host, &connect_errors))
       {
         my_error(ER_BAD_HOST_ERROR, MYF(0));
         return 1;
       }
-
+      thd->main_security_ctx.set_host(host);
       /* Cut very long hostnames to avoid possible overflows */
-      if (thd->main_security_ctx.host)
+      if (thd->main_security_ctx.get_host()->length())
       {
-        if (thd->main_security_ctx.host != my_localhost)
-          thd->main_security_ctx.host[min(strlen(thd->main_security_ctx.host),
-                                          HOSTNAME_LENGTH)]= 0;
-        thd->main_security_ctx.host_or_ip= thd->main_security_ctx.host;
+        if (thd->main_security_ctx.get_host()->ptr() != my_localhost)
+          thd->main_security_ctx.set_host(thd->main_security_ctx.get_host()->ptr(),
+                               min(thd->main_security_ctx.get_host()->length(),
+                               HOSTNAME_LENGTH));
+        thd->main_security_ctx.host_or_ip=
+                        thd->main_security_ctx.get_host()->ptr();
       }
       if (connect_errors > max_connect_errors)
       {
@@ -1166,11 +1174,14 @@ static int check_connection(THD *thd)
       }
     }
     DBUG_PRINT("info",("Host: %s  ip: %s",
-		       (thd->main_security_ctx.host ?
-                        thd->main_security_ctx.host : "unknown host"),
-		       (thd->main_security_ctx.ip ?
-                        thd->main_security_ctx.ip : "unknown ip")));
-    if (acl_check_host(thd->main_security_ctx.host, thd->main_security_ctx.ip))
+		       (thd->main_security_ctx.get_host()->length() ?
+                        thd->main_security_ctx.get_host()->ptr() : 
+                        "unknown host"),
+		       (thd->main_security_ctx.get_ip()->length() ?
+                        thd->main_security_ctx.get_ip()->ptr()
+                        : "unknown ip")));
+    if (acl_check_host(thd->main_security_ctx.get_host()->ptr(),
+                       thd->main_security_ctx.get_ip()->ptr()))
     {
       my_error(ER_HOST_NOT_PRIVILEGED, MYF(0),
                thd->main_security_ctx.host_or_ip);
@@ -1179,9 +1190,9 @@ static int check_connection(THD *thd)
   }
   else /* Hostname given means that the connection was on a socket */
   {
-    DBUG_PRINT("info",("Host: %s", thd->main_security_ctx.host));
-    thd->main_security_ctx.host_or_ip= thd->main_security_ctx.host;
-    thd->main_security_ctx.ip= 0;
+    DBUG_PRINT("info",("Host: %s", thd->main_security_ctx.get_host()->ptr()));
+    thd->main_security_ctx.host_or_ip= thd->main_security_ctx.get_host()->ptr();
+    thd->main_security_ctx.set_ip("");
     /* Reset sin_addr */
     bzero((char*) &net->vio->remote, sizeof(net->vio->remote));
   }
@@ -1217,7 +1228,7 @@ bool setup_connection_thread_globals(THD *thd)
     close_connection(thd, ER_OUT_OF_RESOURCES);
 #endif
     statistic_increment(aborted_connects,&LOCK_status);
-    MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
+    MYSQL_CALLBACK(thd->scheduler, end_thread, (thd, 0));
     return 1;                                   // Error
   }
   return 0;
@@ -1270,8 +1281,9 @@ bool login_connection(THD *thd)
   my_net_set_write_timeout(net, thd->variables.net_write_timeout);
 
   thd->reset_stats();
+
   // Updates global user connection stats.
-  if (increment_connection_count(thd, true))
+  if (opt_userstat && increment_connection_count(thd, true))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);
@@ -1435,14 +1447,6 @@ bool thd_prepare_connection(THD *thd)
   MYSQL_CONNECTION_START(thd->thread_id, &thd->security_ctx->priv_user[0],
                          (char *) thd->security_ctx->host_or_ip);
 
-  /*
-    If rate limiting of slow log writes is enabled, decide whether to log this 
-    new thread's queries or not. Uses extremely simple algorithm. :)
-  */
-  const ulong& limit= thd->variables.log_slow_rate_limit;
-  thd->write_to_slow_log= opt_slow_query_log_rate_type == SLOG_RT_SESSION &&
-                          (limit == 0 || (thd->thread_id % limit) == 0);
-
   prepare_new_connection_state(thd);
 #ifdef WITH_WSREP
   thd->wsrep_client_thread= 1;
@@ -1466,7 +1470,7 @@ void do_handle_one_connection(THD *thd_arg)
 
   thd->thr_create_utime= my_micro_time();
 
-  if (MYSQL_CALLBACK_ELSE(thread_scheduler, init_new_connection_thread, (), 0))
+  if (MYSQL_CALLBACK_ELSE(thd->scheduler, init_new_connection_thread, (), 0))
   {
 #ifdef WITH_WSREP
     close_connection(thd, ER_OUT_OF_RESOURCES, 1);
@@ -1474,7 +1478,7 @@ void do_handle_one_connection(THD *thd_arg)
     close_connection(thd, ER_OUT_OF_RESOURCES);
 #endif
     statistic_increment(aborted_connects,&LOCK_status);
-    MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
+    MYSQL_CALLBACK(thd->scheduler, end_thread, (thd, 0));
     return;
   }
 
@@ -1525,12 +1529,12 @@ void do_handle_one_connection(THD *thd_arg)
     end_connection(thd);
    
 #ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    thd->wsrep_query_state= QUERY_EXITING;
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-  }
+    if (WSREP(thd))
+    {
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        thd->wsrep_query_state= QUERY_EXITING;
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
 #endif
 end_thread:
 #ifdef WITH_WSREP
@@ -1538,10 +1542,14 @@ end_thread:
 #else
     close_connection(thd);
 #endif
-    thd->update_stats(false);
-    update_global_user_stats(thd, create_user, time(NULL));
 
-    if (MYSQL_CALLBACK_ELSE(thread_scheduler, end_thread, (thd, 1), 0))
+    if (unlikely(opt_userstat))
+    {
+      thd->update_stats(false);
+      update_global_user_stats(thd, create_user, time(NULL));
+    }
+
+    if (MYSQL_CALLBACK_ELSE(thd->scheduler, end_thread, (thd, 1), 0))
       return;                                 // Probably no-threads
 
     /*

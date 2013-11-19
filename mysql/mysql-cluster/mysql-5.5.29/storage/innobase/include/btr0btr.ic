@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -59,7 +59,7 @@ btr_block_get_func(
 	block = buf_page_get_gen(space, zip_size, page_no, mode,
 				 NULL, BUF_GET, file, line, mtr);
 
-	ut_a(srv_pass_corrupt_table || block);
+	SRV_CORRUPT_TABLE_CHECK(block, ; /* do nothing */);
 
 	if (block && mode != RW_NO_LATCH) {
 

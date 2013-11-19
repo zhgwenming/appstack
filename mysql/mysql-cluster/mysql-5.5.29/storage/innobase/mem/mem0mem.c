@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -353,7 +353,13 @@ mem_heap_create_block(
 		block = (mem_block_t*) buf_block->frame;
 	}
 
-	ut_ad(block);
+	if(!block) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			" InnoDB: Unable to allocate memory of size %lu.\n",
+			len);
+		ut_error;
+	}
 	block->buf_block = buf_block;
 	block->free_block = NULL;
 #else /* !UNIV_HOTBACKUP */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -221,7 +221,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       used_tables_cache|=     item->used_tables();
       not_null_tables_cache|= item->not_null_tables();
       const_item_cache&=      item->const_item();
-      with_subselect|=        item->with_subselect;
+      with_subselect|=        item->has_subquery();
     }
   }
   fix_length_and_dec();
@@ -4234,13 +4234,18 @@ bool Item_func_set_user_var::set_entry(THD *thd, bool create_if_not_exists)
     return TRUE;
   }
   entry_thread_id= thd->thread_id;
-  /* 
-     Remember the last query which updated it, this way a query can later know
-     if this variable is a constant item in the query (it is if update_query_id
-     is different from query_id).
-  */
+
 end:
-  entry->update_query_id= thd->query_id;
+  /*
+    Remember the last query which updated it, this way a query can later know
+    if this variable is a constant item in the query (it is if update_query_id
+    is different from query_id).
+
+    If this object has delayed setting of non-constness, we delay this
+    until Item_func_set-user_var::save_item_result()
+  */
+  if (!delayed_non_constness)
+    entry->update_query_id= thd->query_id;
   return FALSE;
 }
 
@@ -4628,6 +4633,13 @@ void Item_func_set_user_var::save_item_result(Item *item)
     DBUG_ASSERT(0);
     break;
   }
+  /*
+    Set the ID of the query that last updated this variable. This is
+    usually set by Item_func_set_user_var::set_entry(), but if this
+    item has delayed setting of non-constness, we must do it now.
+   */
+  if (delayed_non_constness)
+    entry->update_query_id= current_thd->query_id;
   DBUG_VOID_RETURN;
 }
 
@@ -5034,7 +5046,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     thd->lex= &lex_tmp;
     lex_start(thd);
     tmp_var_list.push_back(new set_var_user(new Item_func_set_user_var(name,
-                                                                       new Item_null())));
+                                                                       new Item_null(),
+                                                                       false)));
     /* Create the variable */
     if (sql_set_variables(thd, &tmp_var_list))
     {
@@ -5197,7 +5210,7 @@ bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
 bool Item_func_get_user_var::set_value(THD *thd,
                                        sp_rcontext * /*ctx*/, Item **it)
 {
-  Item_func_set_user_var *suv= new Item_func_set_user_var(get_name(), *it);
+  Item_func_set_user_var *suv= new Item_func_set_user_var(get_name(), *it, false);
   /*
     Item_func_set_user_var is not fixed after construction, call
     fix_fields().
@@ -5789,6 +5802,13 @@ void Item_func_match::init_search(bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
 
+  /*
+    We will skip execution if the item is not fixed
+    with fix_field
+  */
+  if (!fixed)
+    DBUG_VOID_RETURN;
+
   /* Check if init_search() has been called before */
   if (ft_handler)
   {
@@ -5918,6 +5938,13 @@ bool Item_func_match::fix_index()
   Item_field *item;
   uint ft_to_key[MAX_KEY], ft_cnt[MAX_KEY], fts=0, keynr;
   uint max_cnt=0, mkeys=0, i;
+
+  /*
+    We will skip execution if the item is not fixed
+    with fix_field
+  */
+  if (!fixed)
+    return false;
 
   if (key == NO_SUCH_KEY)
     return 0;

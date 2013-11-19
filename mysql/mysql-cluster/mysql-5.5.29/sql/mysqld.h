@@ -94,6 +94,7 @@ extern MY_BITMAP temp_pool;
 extern bool opt_large_files, server_id_supplied;
 extern bool opt_update_log, opt_bin_log, opt_error_log;
 extern my_bool opt_log, opt_slow_log;
+extern ulonglong slow_query_log_always_write_time;
 extern my_bool opt_backup_history_log;
 extern my_bool opt_backup_progress_log;
 extern my_bool opt_query_cache_strip_comments;
@@ -191,7 +192,10 @@ extern LEX_CSTRING reason_slave_blocked;
 extern ulong slave_trans_retries;
 extern uint  slave_net_timeout;
 extern uint max_user_connections;
+extern ulong extra_max_connections;
 extern ulonglong denied_connections;
+extern ulong thread_created;
+extern scheduler_functions *thread_scheduler, *extra_thread_scheduler;
 extern ulong what_to_log,flush_time;
 extern ulong max_prepared_stmt_count, prepared_stmt_count;
 extern ulong open_files_limit;
@@ -244,6 +248,7 @@ extern I_List<THD> threads;
 extern char err_shared_dir[];
 extern TYPELIB thread_handling_typelib;
 extern my_decimal decimal_zero;
+void init_sql_statement_names();
 
 extern ulonglong opt_log_warnings_suppress;
 
@@ -252,6 +257,9 @@ extern char* enforce_storage_engine;
 extern char* utility_user;
 extern char* utility_user_password;
 extern char* utility_user_schema_access;
+extern ulonglong utility_user_privileges;
+
+extern uint mysqld_extra_port;
 
 /*
   THR_MALLOC is a key which will be used to set/get MEM_ROOT** for a thread,
@@ -299,6 +307,7 @@ extern PSI_mutex_key key_LOCK_wakeup_ready, key_LOCK_group_commit_queue, key_LOC
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock;
+extern PSI_mutex_key key_LOCK_thread_created;
 
 #ifdef HAVE_MMAP
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -26,8 +26,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 
+51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 *****************************************************************************/
 
@@ -90,6 +90,9 @@ Created 2/16/1996 Heikki Tuuri
 # include "zlib.h" /* for ZLIB_VERSION */
 # include "buf0lru.h" /* for buf_LRU_file_restore() */
 
+#ifdef WITH_WSREP
+extern my_bool wsrep_recovery;
+#endif /* WITH_WSREP */
 /** Log sequence number immediately after startup */
 UNIV_INTERN ib_uint64_t	srv_start_lsn;
 /** Log sequence number at shutdown */
@@ -496,12 +499,6 @@ io_handler_thread(
 }
 #endif /* !UNIV_HOTBACKUP */
 
-#ifdef __WIN__
-#define SRV_PATH_SEPARATOR	'\\'
-#else
-#define SRV_PATH_SEPARATOR	'/'
-#endif
-
 /*********************************************************************//**
 Normalizes a directory path for Windows: converts slashes to backslashes. */
 UNIV_INTERN
@@ -823,6 +820,7 @@ open_or_create_data_files(
 		}
 
 		if (ret == FALSE) {
+			const char* check_msg;
 			/* We open the data file */
 
 			if (one_created) {
@@ -920,12 +918,19 @@ open_or_create_data_files(
 				return(DB_ERROR);
 			}
 skip_size_check:
-			fil_read_first_page(
+			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags,
 #ifdef UNIV_LOG_ARCHIVE
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
 				min_flushed_lsn, max_flushed_lsn);
+
+			if (check_msg) {
+				fprintf(stderr,
+					"InnoDB: Error: %s in data file %s\n",
+					check_msg, name);
+				return(DB_ERROR);
+			}
 
 			if (!one_opened
 			    && UNIV_PAGE_SIZE
@@ -1047,6 +1052,9 @@ skip_size_check:
 		}
 
 		if (ret == FALSE) {
+
+			const char* check_msg;
+
 			/* We open the data file */
 
 			files[i] = os_file_create(innodb_file_data_key,
@@ -1083,12 +1091,20 @@ skip_size_check:
 					(ulong) TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * 9);
 			}
 
-			fil_read_first_page(
+			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags,
 #ifdef UNIV_LOG_ARCHIVE
 				min_arch_log_no, max_arch_log_no,
 #endif /* UNIV_LOG_ARCHIVE */
 				min_flushed_lsn, max_flushed_lsn);
+
+			if (check_msg) {
+				fprintf(stderr,
+					"InnoDB: Error: %s in doublewrite "
+					"buffer file %s\n", check_msg, name);
+				return(DB_ERROR);
+			}
+
 			one_opened = TRUE;
 		} else {
 			/* We created the data file and now write it full of
@@ -1155,6 +1171,11 @@ void
 init_log_online(void)
 /*=================*/
 {
+	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
+		srv_track_changed_pages = FALSE;
+		return;
+	}
+
 	if (srv_track_changed_pages) {
 
 		log_online_read_init();
@@ -2050,6 +2071,10 @@ innobase_start_or_create_for_mysql(void)
 	os_thread_create(&srv_monitor_thread, NULL,
 			 thread_ids + 4 + SRV_MAX_N_IO_THREADS);
 
+#ifdef WITH_WSREP
+	/*  Don't start the LRU thread when recovery is on */
+	if (!wsrep_recovery) {
+#endif /* WITH_WSREP */
 	/* Create the thread which automaticaly dumps/restore buffer pool */
 	os_thread_create(&srv_LRU_dump_restore_thread, NULL,
 			 thread_ids + 5 + SRV_MAX_N_IO_THREADS);
@@ -2058,6 +2083,9 @@ innobase_start_or_create_for_mysql(void)
 	synchronously */
 	if (srv_auto_lru_dump && srv_blocking_lru_restore)
 		buf_LRU_file_restore();
+#ifdef WITH_WSREP
+	}
+#endif /* WITH_WSREP */
 
 	srv_is_being_started = FALSE;
 
