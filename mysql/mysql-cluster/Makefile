@@ -15,7 +15,7 @@ srpm: $(TARBALL) $(SPEC_FILE)
 	$(SCL_DEF)					\
 	-bs $(SPEC_FILE)
 
-$(TARBALL): mysql-5.5.29
+$(TARBALL): mysql-5.5.34
 	tar zcf $@ $^
 
 clean:
