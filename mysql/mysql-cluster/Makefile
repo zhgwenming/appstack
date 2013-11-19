@@ -1,5 +1,5 @@
 SPEC_FILE := mysql.spec
-TARBALL := mysql-5.5.29.tar.gz
+TARBALL := mysql-5.5.34.tar.gz
 SRCDIR ?= ./
 DESTDIR ?= ./
 

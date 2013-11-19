@@ -28,10 +28,11 @@
 %define mysql_server_vendor	%{pkgvendor}
 
 # based on 5.5.29-23.7.2.389.rhel6
-%define wsrep_version 909.23.7.2
-%define revision 389
+# 5.5.34-23.7.6.565
+%define wsrep_version 910.23.7.6
+%define revision 565
 
-%define mysql_version   5.5.29
+%define mysql_version   5.5.34
 %define redhatversion %(lsb_release -rs | awk -F. '{ print $1}')
 %define majorversion 29
 %define minorversion 4
