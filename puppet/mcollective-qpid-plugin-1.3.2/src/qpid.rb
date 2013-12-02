@@ -42,6 +42,8 @@ module MCollective
         ha_host_port = get_option("qpid.host.ha.port", nil)
         secure = (get_option("qpid.secure", "false") == "true")
         timeout = get_option("qpid.timeout", 5).to_i
+        username = get_option("qpid.username", "")
+        password = get_option("qpid.password", "")
         args = []
         Log.debug("SECURE SECURE SECURE") if secure
 
@@ -60,6 +62,8 @@ module MCollective
         args << "reconnect:true"
         args << "reconnect-timeout:#{timeout}" if timeout
         args << "heartbeat:1"
+        args << "username:#{username}" if username
+        args << "password:#{password}" if password
         qpid_options = "{#{args.join(', ')}}"
 
         @connection = nil

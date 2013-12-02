@@ -1,7 +1,7 @@
 Summary:       m-collective communication plugin for amqp enabled qpid broker
 Name:          mcollective-qpid-plugin
 Version:       1.3.2
-Release:       3%{?dist}
+Release:       900.3%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
 URL:           http://openshift.redhat.com
@@ -28,6 +28,9 @@ cp src/qpid.rb %{buildroot}/usr/libexec/mcollective/mcollective/connector/
 /usr/libexec/mcollective/mcollective/connector/qpid.rb
 
 %changelog
+* Mon Dec 02 2013 Albert Zhang <zhgwenming@gmail.com> - 1.3.2-900.3
+- to support qpid username/password
+
 * Mon Sep 30 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.3.2-3
 - Disabled building on ARM due to qpid-cpp (ruby-qpid-qmf) not building on arm.
 
