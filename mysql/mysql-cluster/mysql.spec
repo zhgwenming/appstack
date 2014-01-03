@@ -495,7 +495,8 @@ mkdir debug
         -DWITH_ZLIB=system \
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}" \
         -DSYSCONFDIR="%{?_scl_root}/etc" \
-        -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now"
+        -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now" \
+        -DWITH_PAM=ON
 
   echo BEGIN_DEBUG_CONFIG ; egrep '^#define' include/config.h ; echo END_DEBUG_CONFIG
   make %{?_smp_mflags} ${MAKE_JFLAG}
