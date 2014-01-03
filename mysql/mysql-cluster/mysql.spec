@@ -682,6 +682,7 @@ install -m 644 "%{malloc_lib_source}" \
 # Remove man pages we explicitly do not want to package, avoids 'unpackaged
 # files' warning.
 rm -f %{buildroot}%{_mandir}/man1/make_win_bin_dist.1*
+rm -rf %{buildroot}%{_datadir}/mysql/solaris
 
 # ldconfig for mysql libs
 mkdir -p %{buildroot}/etc/ld.so.conf.d
@@ -797,6 +798,7 @@ fi
 %doc %attr(644, root, man) %{_mandir}/man1/mysql_plugin.1*
 
 %attr(755, root, root) %{_bindir}/clustercheck
+%attr(755, root, root) %{_bindir}/pyclustercheck
 %attr(755, root, root) %{_bindir}/innochecksum
 %attr(755, root, root) %{_bindir}/myisam_ftdump
 %attr(755, root, root) %{_bindir}/myisamchk
@@ -824,6 +826,7 @@ fi
 %attr(755, root, root) %{_bindir}/wsrep_sst_common
 %attr(755, root, root) %{_bindir}/wsrep_sst_mysqldump
 %attr(755, root, root) %{_bindir}/wsrep_sst_xtrabackup
+%attr(755, root, root) %{_bindir}/wsrep_sst_xtrabackup-v2
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync_wan
 
@@ -1042,6 +1045,9 @@ fi
 # merging BK trees)
 ##############################################################################
 %changelog
+* Fri Jan 3 2014 Albert Zhang <zhgwenming@gmail.com>
+- Remove solaris post install script for building
+
 * Tue Aug 27 2013 Albert Zhang <zhgwenming@gmail.com>
 - SCL support
 
