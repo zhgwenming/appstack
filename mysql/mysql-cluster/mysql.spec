@@ -29,7 +29,7 @@
 
 # based on 5.5.29-23.7.2.389.rhel6
 # 5.5.34-23.7.6.565
-%define wsrep_version 910.23.7.6
+%define wsrep_version 911.23.7.6
 %define revision 565
 
 %define mysql_version   5.5.34
@@ -417,17 +417,6 @@ BuildUDF() {
     cd -
 }
 
-build_pam() {
-    cd plugin/percona-pam-for-mysql
-    bash -x ./autogen.sh
-    CXX="${UDF_CXX:-g++}"\
-        CXXFLAGS="$CXXFLAGS -I%{_builddir}/%{src_dir}/release/include" \
-        ./configure --includedir=%{_builddir}/%{src_dir}/%{src_dir}/include \
-        --libdir=%{_libdir}/mysql/plugin
-    make %{?_smp_mflags} all
-    cd -
-}
-
 # Optional package files
 touch optional-files-devel
 
@@ -516,7 +505,6 @@ mkdir debug
 mkdir release
 (
   cd release
-  #build_pam
   # XXX: MYSQL_UNIX_ADDR should be in cmake/* but mysql_version is included before
   # XXX: install_layout so we can't just set it based on INSTALL_LAYOUT=RPM
   ${CMAKE} ../%{src_dir} -DBUILD_CONFIG=mysql_release -DINSTALL_LAYOUT=RPM \
@@ -547,7 +535,8 @@ mkdir release
         -DWITH_ZLIB=system \
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}" \
         -DSYSCONFDIR="%{?_scl_root}/etc" \
-        -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now"
+        -DWITH_MYSQLD_LDFLAGS="-Wl,-z,relro,-z,now" \
+        -DWITH_PAM=ON
 
   echo BEGIN_NORMAL_CONFIG ; egrep '^#define' include/config.h ; echo END_NORMAL_CONFIG
   make %{?_smp_mflags} ${MAKE_JFLAG}
