@@ -29,7 +29,7 @@
 
 # based on 5.5.29-23.7.2.389.rhel6
 # 5.5.34-23.7.6.565
-%define wsrep_version 911.23.7.6
+%define wsrep_version 912.23.7.6
 %define revision 565
 
 %define mysql_version   5.5.34
