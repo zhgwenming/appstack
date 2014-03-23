@@ -1,6 +1,6 @@
 Name:           memcached
 Version:        1.4.4
-Release:        903.1%{?dist}
+Release:        904.1%{?dist}
 Epoch:          0
 Summary:        High Performance, Distributed Memory Object Cache
 
@@ -39,8 +39,8 @@ memcached binary include files.
 
 %build
 config/autorun.sh
-%configure --enable-isasl --enable-tcmalloc
-#%configure --enable-isasl
+#%configure --enable-isasl --enable-tcmalloc
+%configure --enable-isasl --enable-tcmalloc-minimal --with-gnu-ld
 
 make %{?_smp_mflags}
 

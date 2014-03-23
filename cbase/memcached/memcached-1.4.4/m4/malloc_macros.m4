@@ -38,7 +38,7 @@ AC_DEFUN([MALLOC_MACROS],[
   else
     if test $ac_enable_tcmalloc_minimal != "no"; then
       AC_CHECK_LIB(tcmalloc_minimal, tc_malloc,
-        [MALLOC_LIBS="-ltcmalloc_minimal"],
+        [MALLOC_LIBS="-ltcmalloc_minimal -lpthread"],
         [AC_MSG_ERROR([Unable to link with libtcmalloc_minimal"])])
       AC_DEFINE([HAVE_LIBTCMALLOC_MINIMAL], [1], [Define if using tcmalloc_minimal])
 
