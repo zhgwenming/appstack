@@ -1,6 +1,6 @@
 Name:           memcached
 Version:        1.4.4
-Release:        902.1%{?dist}
+Release:        903.1%{?dist}
 Epoch:          0
 Summary:        High Performance, Distributed Memory Object Cache
 
@@ -10,6 +10,7 @@ URL:            http://www.danga.com/memcached/
 Source0:        http://memcached.googlecode.com/files/%{name}-1.4.4.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
+BuildRequires:  gperftools-devel
 BuildRequires:  libevent-devel
 BuildRequires:  perl(Test::More)
 BuildRequires:  /usr/bin/prove
@@ -38,7 +39,8 @@ memcached binary include files.
 
 %build
 config/autorun.sh
-%configure --enable-isasl
+%configure --enable-isasl --enable-tcmalloc
+#%configure --enable-isasl
 
 make %{?_smp_mflags}
 
