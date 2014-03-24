@@ -47,7 +47,7 @@ def findCmd(cmdName):
     return cmdbin
 
 def findSqlite():
-    return findCmd('sqlite3')
+    return findCmd('cbsqlite3')
 
 def run_sql(sqlite, fn, sql, more_args=[], logger=sys.stderr):
     args = ['-batch', '-bail']

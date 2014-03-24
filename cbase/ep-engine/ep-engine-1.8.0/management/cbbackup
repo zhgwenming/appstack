@@ -68,7 +68,7 @@ def findCmd(cmdName):
     return cmdbin
 
 def find_sqlite():
-    return findCmd('sqlite3')
+    return findCmd('cbsqlite3')
 
 src_path, dest_path = sys.argv[1:]
 sqlite_path = find_sqlite()
