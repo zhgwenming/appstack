@@ -1,6 +1,6 @@
 Name:           bucket-engine
 Version:        1.8.0
-Release:        1
+Release:        901.1
 Epoch:          0
 Summary:        Bucket engine for memcached
 Group:          System Environment/Libraries
@@ -30,6 +30,8 @@ make test
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
 find $RPM_BUILD_ROOT -type f -name '*.la' -exec rm -f {} ';'
+find %{buildroot} -type f -name 'memcacheConstants.py*' -exec rm -f {} ';'
+find %{buildroot} -type f -name 'mc_bin_client.py*' -exec rm -f {} ';'
 
 %clean
 rm -rf %{buildroot}
@@ -53,12 +55,12 @@ rm -rf %{buildroot}
 %{_libdir}/python/collectd_memcached_buckets.py
 %{_libdir}/python/collectd_memcached_buckets.pyc
 %{_libdir}/python/collectd_memcached_buckets.pyo
-%{_libdir}/python/mc_bin_client.py
-%{_libdir}/python/mc_bin_client.pyc
-%{_libdir}/python/mc_bin_client.pyo
-%{_libdir}/python/memcacheConstants.py
-%{_libdir}/python/memcacheConstants.pyc
-%{_libdir}/python/memcacheConstants.pyo
+#%{_libdir}/python/mc_bin_client.py
+#%{_libdir}/python/mc_bin_client.pyc
+#%{_libdir}/python/mc_bin_client.pyo
+#%{_libdir}/python/memcacheConstants.py
+#%{_libdir}/python/memcacheConstants.pyc
+#%{_libdir}/python/memcacheConstants.pyo
 %{_libdir}/python/types.db
 
 
