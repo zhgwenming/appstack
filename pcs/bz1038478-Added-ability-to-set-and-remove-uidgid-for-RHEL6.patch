@@ -1,0 +1,141 @@
+From 7b75e22105ebb258d374487c48283ca5497e685e Mon Sep 17 00:00:00 2001
+From: Chris Feist <cfeist@redhat.com>
+Date: Wed, 4 Dec 2013 17:35:33 -0600
+Subject: [PATCH 1/2] Added ability to set and remove uidgid for RHEL6
+
+---
+ pcs/cluster.py           | 58 +++++++++++++++++++++++++++++++++++
+ pcs/pcs.8                |  9 ++++++
+ pcs/test/test_cluster.py | 79 +++++++++++++++++++++++++++++++++++++++++++++++-
+ pcs/usage.py             | 12 ++++++++
+ 4 files changed, 157 insertions(+), 1 deletion(-)
+
+diff --git a/pcs/cluster.py b/pcs/cluster.py
+index 2e910e5..a4e22ad 100644
+--- a/pcs/cluster.py
++++ b/pcs/cluster.py
+@@ -89,6 +89,8 @@ def cluster_cmd(argv):
+         cluster_node(argv)
+     elif (sub_cmd == "localnode"):
+         cluster_localnode(argv)
++    elif (sub_cmd == "uidgid"):
++        cluster_uidgid(argv)
+     elif (sub_cmd == "corosync"):
+         cluster_get_corosync_conf(argv)
+     elif (sub_cmd == "destroy"):
+@@ -637,6 +639,59 @@ def cluster_localnode(argv):
+         usage.cluster()
+         exit(1)
+ 
++def cluster_uidgid(argv, silent_list = False):
++    if not utils.is_rhel6():
++        utils.err("this command is only valid on RHEL6 clusters")
++
++    if not os.path.isfile("/etc/cluster/cluster.conf"):
++        utils.err("the /etc/cluster/cluster.conf file doesn't exist on this machine, create a cluster before running this command")
++
++    if len(argv) == 0:
++        found = False
++        output, retval = utils.run(["/usr/sbin/ccs", "-f", "/etc/cluster/cluster.conf", "--lsmisc"])
++        if retval != 0:
++            utils.err("error running ccs\n" + output)
++        lines = output.split('\n')
++        for line in lines:
++            if line.startswith('UID/GID: '):
++                print line
++                found = True
++        if not found and not silent_list:
++            print "No uidgids configured in cluster.conf"
++        return
++    
++    command = argv.pop(0)
++    uid=""
++    gid=""
++    if (command == "add" or command == "rm") and len(argv) > 0:
++        for arg in argv:
++            if arg.find('=') == -1:
++                utils.err("uidgid options must be of the form uid=<uid> gid=<gid>")
++
++            (k,v) = arg.split('=',1)
++            if k != "uid" and k != "gid":
++                utils.err("%s is not a valid key, you must use uid or gid" %k)
++
++            if k == "uid":
++                uid = v
++            if k == "gid":
++                gid = v
++        if uid == "" and gid == "":
++            utils.err("you must set either uid or gid")
++
++        if command == "add":
++            output, retval = utils.run(["/usr/sbin/ccs", "-f", "/etc/cluster/cluster.conf", "--setuidgid", "uid="+uid, "gid="+gid])
++            if retval != 0:
++                utils.err("unable to add uidgid\n" + output.rstrip())
++        elif command == "rm":
++            output, retval = utils.run(["/usr/sbin/ccs", "-f", "/etc/cluster/cluster.conf", "--rmuidgid", "uid="+uid, "gid="+gid])
++            if retval != 0:
++                utils.err("unable to remove uidgid\n" + output.rstrip())
++         
++    else:
++        usage.cluster(["uidgid"])
++        exit(1)
++
+ def cluster_get_corosync_conf(argv):
+     if len(argv) != 1:
+         usage.cluster()
+@@ -680,6 +735,9 @@ def print_config():
+     print ""
+     del utils.pcs_options["--all"]
+     prop.list_property([])
++    if utils.is_rhel6():
++        print ""
++        cluster_uidgid([], True)
+ 
+ # Completely tear down the cluster & remove config files
+ # Code taken from cluster-clean script in pacemaker
+diff --git a/pcs/pcs.8 b/pcs/pcs.8
+index b390f89..bffc437 100644
+--- a/pcs/pcs.8
++++ b/pcs/pcs.8
+@@ -201,6 +201,15 @@ Add the node to corosync.conf and corosync on all nodes in the cluster and sync
+ node remove <node>
+ Shutdown specified node and remove it from pacemaker and corosync on all other nodes in the cluster
+ .TP
++uidgid <node>
++List the current configured uids and gids of users allowed to connect to corosync (RHEL6 cman clusters only)
++.TP
++uidgid add [uid=<uid>] [gid=<gid>]
++Add the specified uid and/or gid to the list of users/groups allowed to connect to corosync (RHEL6 cman clusters only)
++.TP
++uidgid rm [uid=<uid>] [gid=<gid>]
++Remove the specified uid and/or gid from the list of users/groups allowed to connect to corosync (RHEL6 cman clusters only)
++.TP
+ corosync <node>
+ Get the corosync.conf from the specified node
+ .TP
+diff --git a/pcs/usage.py b/pcs/usage.py
+index 93dd8b4..46e918e 100644
+--- a/pcs/usage.py
++++ b/pcs/usage.py
+@@ -520,6 +520,18 @@ Commands:
+         Shutdown specified node and remove it from pacemaker and corosync on
+         all other nodes in the cluster
+ 
++    uidgid
++        List the current configured uids and gids of users allowed to connect
++        to corosync (RHEL6 cman clusters only)
++
++    uidgid add [uid=<uid>] [gid=<gid>]
++        Add the specified uid and/or gid to the list of users/groups
++        allowed to connect to corosync (RHEL6 cman clusters only)
++
++    uidgid rm [uid=<uid>] [gid=<gid>]
++        Remove the specified uid and/or gid from the list of users/groups
++        allowed to connect to corosync (RHEL6 cman clusters only)
++
+     corosync <node>
+         Get the corosync.conf from the specified node
+ 
+-- 
+1.8.3.1
+

@@ -1,0 +1,52 @@
+From 9811d6f1f4d5e2950a59f3f684db23d0cbccd184 Mon Sep 17 00:00:00 2001
+From: Chris Feist <cfeist@redhat.com>
+Date: Wed, 4 Dec 2013 17:57:50 -0600
+Subject: [PATCH 2/2] Fix for adding/verify stonith levels on RHEL6
+
+---
+ pcs/stonith.py | 4 ++--
+ pcs/utils.py   | 6 ++++++
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/pcs/stonith.py b/pcs/stonith.py
+index 6449be1..ce282b6 100644
+--- a/pcs/stonith.py
++++ b/pcs/stonith.py
+@@ -193,7 +193,7 @@ def stonith_level_add(level, node, devices):
+         for dev in devices.split(","):
+             if not utils.is_stonith_resource(dev):
+                 utils.err("%s is not a stonith id (use --force to override)" % dev)
+-        if not utils.is_corosync_node(node):
++        if not utils.is_pacemaker_node(node) and not utils.is_corosync_node(node):
+             utils.err("%s is not currently a node (use --force to override)" % node)
+ 
+     ft = dom.getElementsByTagName("fencing-topology")
+@@ -299,7 +299,7 @@ def stonith_level_verify():
+         for dev in devices.split(","):
+             if not utils.is_stonith_resource(dev):
+                 utils.err("%s is not a stonith id" % dev)
+-        if not utils.is_corosync_node(node):
++        if not utils.is_corosync_node(node) and not utils.is_pacemaker_node(node):
+             utils.err("%s is not currently a node" % node)
+ 
+ def stonith_level_show():
+diff --git a/pcs/utils.py b/pcs/utils.py
+index 7a1eae5..d12f8ee 100644
+--- a/pcs/utils.py
++++ b/pcs/utils.py
+@@ -463,6 +463,12 @@ def does_exist(xpath_query):
+         return False
+     return True
+ 
++def is_pacemaker_node(node):
++    p_nodes = getNodesFromPacemaker()
++    if node in p_nodes:
++        return True
++    return False
++
+ def is_corosync_node(node):
+     c_nodes = getNodesFromCorosyncConf()
+     if node in c_nodes:
+-- 
+1.8.3.1
+

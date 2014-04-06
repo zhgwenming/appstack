@@ -1,0 +1,88 @@
+diff -up ./pcs/cluster.py.transport ./pcs/cluster.py
+--- ./pcs/cluster.py.transport	2014-04-06 11:36:36.500884559 +0800
++++ ./pcs/cluster.py	2014-04-06 11:38:34.843011519 +0800
+@@ -202,6 +202,7 @@ def corosync_setup(argv,returnConfig=Fal
+     if len(argv) < 2:
+         usage.cluster()
+         exit(1)
++
+     if not returnConfig and "--start" in utils.pcs_options and not "--local" in utils.pcs_options and fedora_config:
+         sync_start(argv)
+         if "--enable" in utils.pcs_options:
+@@ -246,9 +247,14 @@ def corosync_setup(argv,returnConfig=Fal
+         if len(nodes) == 2:
+             two_node_section = "two_node: 1"
+ 
++        transport = "udpu"
++        if "--transport" in utils.pcs_options:
++            transport = utils.pcs_options["--transport"]
++
+         corosync_config = corosync_config.replace("@@nodes", new_nodes_section)
+         corosync_config = corosync_config.replace("@@cluster_name",cluster_name)
+         corosync_config = corosync_config.replace("@@two_node",two_node_section)
++        corosync_config = corosync_config.replace("@@transport",transport)
+         if returnConfig:
+             return corosync_config
+ 
+diff -up ./pcs/corosync.conf.fedora.template.transport ./pcs/corosync.conf.fedora.template
+--- ./pcs/corosync.conf.fedora.template.transport	2013-06-20 01:56:51.000000000 +0800
++++ ./pcs/corosync.conf.fedora.template	2014-04-06 11:38:34.843932000 +0800
+@@ -2,7 +2,7 @@ totem {
+ version: 2
+ secauth: off
+ cluster_name: @@cluster_name
+-transport: udpu
++transport: @@transport
+ }
+ 
+ nodelist {
+diff -up ./pcs/pcs.8.transport ./pcs/pcs.8
+--- ./pcs/pcs.8.transport	2014-04-06 11:36:36.500884559 +0800
++++ ./pcs/pcs.8	2014-04-06 11:38:34.853826967 +0800
+@@ -144,8 +144,8 @@ Reset failcount for specified resource o
+ auth [node] [...] [\-u username] [\-p password]
+ Authenticate pcs to pcsd on nodes specified, or on all nodes configured in corosync.conf if no nodes are specified (authorization tokens are stored in ~/.pcs/token)
+ .TP
+-setup [\-\-start] [\-\-local] [\-\-enable] \fB\-\-name\fR <cluster name> <node1> [node2] [..]
+-Configure corosync and sync configuration out to listed nodes \fB\-\-local\fR will only perform changes on the local node, \fB\-\-start\fR will also start the cluster on the specified nodes, \fB\-\-enable\fR will enable corosync and pacemaker on node startup
++setup [\-\-start] [\-\-local] [\-\-enable] \fB\-\-name\fR <cluster name> <node1> [node2] [..] [--transport <transport>]
++Configure corosync and sync configuration out to listed nodes \fB\-\-local\fR will only perform changes on the local node, \fB\-\-start\fR will also start the cluster on the specified nodes, \fB\-\-enable\fR will enable corosync and pacemaker on node startup, --transport allows specification of corosync transport (default: udpu)
+ .TP
+ start [\-\-all] [node] [...]
+ Start corosync & pacemaker on specified node(s), if a node is not specified then corosync & pacemaker are started on the local node. If \fB\-\-all\fR is specified then corosync & pacemaker are started on all nodes.
+diff -up ./pcs/pcs.py.transport ./pcs/pcs.py
+--- ./pcs/pcs.py.transport	2013-10-04 15:20:11.000000000 +0800
++++ ./pcs/pcs.py	2014-04-06 11:41:05.487027164 +0800
+@@ -56,12 +56,13 @@ def main(argv):
+             else:
+                 if prev_arg != "-f" and prev_arg != "-p" and prev_arg != "-u"\
+                         and prev_arg != "--corosync_conf" and prev_arg != "--name"\
+-                        and prev_arg != "--group":
++                        and prev_arg != "--group"\
++                        and prev_arg != "--transport":
+                     real_argv.append(arg)
+                 modified_argv.append(arg)
+             prev_arg = arg
+ 
+-        pcs_options, argv = getopt.gnu_getopt(modified_argv, "hf:p:u:V", ["local","start","all","clone","master","force","corosync_conf=", "defaults","debug","version","help","fullhelp","off","from=","to=", "name=", "wait", "group=","groups","full","enable","node="])
++        pcs_options, argv = getopt.gnu_getopt(modified_argv, "hf:p:u:V", ["local","start","all","clone","master","force","corosync_conf=", "defaults","debug","version","help","fullhelp","off","from=","to=", "name=", "wait", "group=","groups","full","enable","node=","transport="])
+     except getopt.GetoptError, err:
+         print err
+         usage.main()
+diff -up ./pcs/usage.py.transport ./pcs/usage.py
+--- ./pcs/usage.py.transport	2014-04-06 11:36:36.509044666 +0800
++++ ./pcs/usage.py	2014-04-06 11:38:36.663886174 +0800
+@@ -426,11 +426,12 @@ Commands:
+         tokens are stored in ~/.pcs/token)
+ 
+     setup [--start] [--local] [--enable] --name <cluster name> <node1>
+-                                                               [node2] [..]
++            [node2] [..] [--transport <transport>]
+         Configure corosync and sync configuration out to listed nodes
+         --local will only perform changes on the local node
+         --start will also start the cluster on the specified nodes
+         --enable will enable corosync and pacemaker on node startup
++        --transport allows specification of corosync transport (default: udpu)
+ 
+     start [--all] [node] [...]
+         Start corosync & pacemaker on specified node(s), if a node is not

@@ -1,0 +1,13 @@
+diff -up pcs-0.9.90/pcs/utils.py.clones pcs-0.9.90/pcs/utils.py
+--- pcs-0.9.90/pcs/utils.py.clones	2013-10-04 10:59:18.000000000 +0300
++++ pcs-0.9.90/pcs/utils.py	2013-11-06 00:01:55.982636970 +0200
+@@ -1071,6 +1071,10 @@ def is_rhel6():
+ 
+     if re.search(r'Red Hat Enterprise Linux Server release 6\.', issue):
+         return True
++    elif re.search(r'Foobar Linux release 6\.', issue):
++        return True
++    elif re.search(r'CentOS release 6\.', issue):
++        return True
+     else:
+         return False

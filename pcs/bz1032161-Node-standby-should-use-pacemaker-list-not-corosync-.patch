@@ -1,0 +1,26 @@
+From 8b888080c37ddea88b92dfd95aadd78b9db68b55 Mon Sep 17 00:00:00 2001
+From: Chris Feist <cfeist@redhat.com>
+Date: Mon, 11 Nov 2013 13:59:52 -0600
+Subject: [PATCH] Node standby should use pacemaker list, not corosync or
+ cluster.conf
+
+---
+ pcs/cluster.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/pcs/cluster.py b/pcs/cluster.py
+index 11fb9b7..ff65045 100644
+--- a/pcs/cluster.py
++++ b/pcs/cluster.py
+@@ -409,7 +409,7 @@ def node_standby(argv,standby=True):
+             usage.cluster(["unstandby"])
+         sys.exit(1)
+ 
+-    nodes = utils.getNodesFromCorosyncConf()
++    nodes = utils.getNodesFromPacemaker()
+ 
+     if "--all" not in utils.pcs_options:
+         nodeFound = False
+-- 
+1.8.3.1
+
