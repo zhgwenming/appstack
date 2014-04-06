@@ -1,0 +1,11 @@
+[Unit]
+Description=PCS GUI and remote configuration interface
+
+[Service]
+WorkingDirectory=/var/lib/pcsd
+ExecStart=/usr/lib/pcsd/pcsd start
+Type=notify
+NotifyAccess=all
+
+[Install]
+WantedBy=multi-user.target

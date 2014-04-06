@@ -1,0 +1,129 @@
+
+    _pcs()
+    {
+    local cur cur1 cur2 cur3
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    cur1="${COMP_WORDS[COMP_CWORD-1]}"
+    cur2="${COMP_WORDS[COMP_CWORD-2]}"
+    cur3="${COMP_WORDS[COMP_CWORD-3]}"
+
+    
+
+case "${cur2}" in
+  status)
+    ;;
+  resource)
+  case "${cur1}" in
+    group)
+      COMPREPLY=($(compgen -W "add remove" -- ${cur}))
+      return 0
+      ;;
+    failcount)
+      COMPREPLY=($(compgen -W "reset show" -- ${cur}))
+      return 0
+      ;;
+    op)
+      COMPREPLY=($(compgen -W "add defaults remove" -- ${cur}))
+      return 0
+      ;;
+    *)
+    ;;
+  esac
+  
+    ;;
+  constraint)
+  case "${cur1}" in
+    colocation)
+      COMPREPLY=($(compgen -W "add set remove show" -- ${cur}))
+      return 0
+      ;;
+    rule)
+      COMPREPLY=($(compgen -W "add remove" -- ${cur}))
+      return 0
+      ;;
+    location)
+      COMPREPLY=($(compgen -W "add remove show" -- ${cur}))
+      return 0
+      ;;
+    order)
+      COMPREPLY=($(compgen -W "set remove show" -- ${cur}))
+      return 0
+      ;;
+    *)
+    ;;
+  esac
+  
+    ;;
+  stonith)
+  case "${cur1}" in
+    level)
+      COMPREPLY=($(compgen -W "verify add clear remove" -- ${cur}))
+      return 0
+      ;;
+    *)
+    ;;
+  esac
+  
+    ;;
+  cluster)
+  case "${cur1}" in
+    node)
+      COMPREPLY=($(compgen -W "add remove" -- ${cur}))
+      return 0
+      ;;
+    remote-node)
+      COMPREPLY=($(compgen -W "add remove" -- ${cur}))
+      return 0
+      ;;
+    *)
+    ;;
+  esac
+  
+    ;;
+  property)
+    ;;
+  *)
+  ;;
+esac
+
+
+case "${cur1}" in
+  status)
+    COMPREPLY=($(compgen -W "xml corosync cluster resources groups nodes pcsd" -- ${cur}))
+    return 0
+    ;;
+  resource)
+    COMPREPLY=($(compgen -W "providers move meta agents manage unclone group create show cleanup master ungroup enable clone describe update disable debug-start clear list standards failcount unmanage defaults ban delete op" -- ${cur}))
+    return 0
+    ;;
+  constraint)
+    COMPREPLY=($(compgen -W "colocation remove rule location ref order" -- ${cur}))
+    return 0
+    ;;
+  stonith)
+    COMPREPLY=($(compgen -W "fence show create describe list update confirm level delete" -- ${cur}))
+    return 0
+    ;;
+  cluster)
+    COMPREPLY=($(compgen -W "status cib pcsd-status enable node standby edit setup stop sync auth start disable kill verify cib-push report destroy unstandby corosync remote-node" -- ${cur}))
+    return 0
+    ;;
+  property)
+    COMPREPLY=($(compgen -W "set unset list|show" -- ${cur}))
+    return 0
+    ;;
+  *)
+  ;;
+esac
+
+
+
+    if [ $COMP_CWORD -eq 1 ]; then
+        COMPREPLY=( $(compgen -W "resource cluster stonith property constraint status" -- $cur) )
+    fi
+    return 0
+
+    }
+    complete -F _pcs pcs
+    

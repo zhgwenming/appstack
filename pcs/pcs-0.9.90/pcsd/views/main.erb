@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<head>
+  <title>Pacemaker/Corosync Configuration</title>
+  <link rel="stylesheet" type="text/css" href="/css/style.css" />
+  <link rel="stylesheet" type="text/css" href="/css/overpass.css" />
+  <link rel="stylesheet" type="text/css" href="/css/liberation.css" />
+  <link rel="stylesheet" type="text/css" href="/css/jquery-ui-1.10.1.custom.css" />
+  <script type="text/javascript">
+	ENV = { "RAISE_ON_DEPRECATION": true, "VIEW_PRESERVES_CONTEXT": true,
+	  "CP_DEFAULT_CACHEABLE": true};
+  </script>
+  <script src="/js/jquery-1.9.1.min.js"></script>
+  <script src="/js/jquery-ui-1.10.1.custom.min.js"></script>
+  <script src="/js/handlebars-1.0.0-rc.3.js"></script>
+  <script src="/js/ember-1.0.0-rc.3.js"></script>
+  <script src="/js/pcsd.js"></script>
+  <script type="text/javascript">
+    var origMainTRHeight = 0;
+    function resizeDialog() {
+      $('#add_resource').dialog('option','position','center');
+    }
+    function resizeTable(refresh) {
+      if (refresh == true) {
+	origMainTRHeight = $('#main > tbody > tr:nth-child(3)').height();
+      }
+      var wheight = $(window).height();
+      var header = $('#header').height();
+      var footer = $('#footer').height();
+      var tr1 = $('#main > tbody > tr:nth-child(1)').height();
+      var tr2 = $('#main > tbody > tr:nth-child(2)').height();
+      var tr3 = $('#main > tbody > tr:nth-child(4)').height();
+      var push = $('#push').height();
+      var newheight = wheight - header - footer - tr1 - tr2 - tr3 - 25;
+      if (origMainTRHeight <= newheight) {
+	$('#main > tbody > tr:nth-child(3)').height(newheight);
+	$('#content').height($('#main').height());
+      }
+    }
+    $(window).resize(function() {
+	resizeTable();
+	});
+    $(window).load(function() {
+	resizeTable(true);
+	$('#add_ra_type').trigger('change');
+	$('#add_stonith_type').trigger('change');
+	$('#new_resource_agent').ajaxStop(function() {
+	  resizeDialog();
+	  });
+	});
+
+  </script>
+</head>
+<html>
+  <body>
+  <script type="text/x-handlebars">
+    <div id="wrapper">
+  <div id="header">
+    <div id="topmenu">
+    <table id="menu_controls">
+	<tr><td rowspan=2 width="170px" style="vertical-align: top;">
+	    <div id="logo">
+	      <img width="170" height="40" src="/images/HAM-logo.png" onclick="if (Pcs) { Pcs.update(); }">
+	    </div>
+	  </td>
+	</tr>
+	<tr><td>
+	    <div id="menu_list">
+	      <table>
+		<tr>
+		  <td colspan=2 style="padding-bottom:8px;">
+		    <div style="float:left">
+		      <div style="float:right;" id="dropdownl" onclick="window.location='/manage#manage'">
+			<%=@manage ? "Select Cluster" : "Cluster:" + @@cluster_name%><span style="float:right;" class="downarrow sprites"></span>
+		      </div>
+		    </div>
+		  </td>
+		  <td colspan=4 style="padding-bottom:8px;">
+		    <% if session[:username] %>
+		      <div style="float:right">
+			<li class="menuheader">
+			<div class="label"><%=session[:username]%><div style="float:right;" class="downarrow sprites"></div></div>
+			<div class="menu">
+			  <a href="/logout" class="menu-item">Logout</a>
+			</div>
+			</li>
+			<!--		      <div id="dropdownr">
+			  <%=session[:username]%><div style="float:right;" class="downarrow sprites"></div>
+			</div> -->
+		      </div>
+		    <% end %>
+		  </td>
+		</tr>
+		<% if !@manage %>
+		<tr>
+		  <td class="menuitem first">{{#linkTo "Nodes" }}NODES{{/linkTo}}</td>
+		  <td class="menuitem">{{#linkTo "Resources" }}RESOURCES{{/linkTo}}</td>
+		  <td class="menuitem">{{#linkTo "Fence Devices" }}FENCE DEVICES{{/linkTo}}</td>
+		  <td class="menuitem">{{#linkTo "Configuration" }}CLUSTER PROPERTIES{{/linkTo}}</td>
+		  <!--<td class="menuitem">{{#linkTo "Wizards" }}WIZARDS{{/linkTo}}</td>-->
+		</tr>
+	      <% else %>
+		<tr height="37px">
+		  <td colspan=5 width="565px"></td>
+		</tr>
+	      <% end %>
+	      </table>
+	    </div>
+	</td>
+	<td>
+	</td>
+      </tr>
+      </table>
+    </div>
+  </div>
+
+  <div id="content">
+      <%= yield %>
+  </div>
+  <div id="push">
+  </div>
+</div>
+    </script>
+
+<!--  <div id="footer">
+    <div id="copyright">&copy 2012</div>&nbsp;<a href="http://www.redhat.com">Red Hat, Inc.</a>  <a href="http://access.redhat.com/">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Red Hat Customer Portal</a>
+    <div id="help"><a href="#">Help</a></div>
+  </div> -->
+  <div id="loading_screen" style="display:hidden;">
+    <div id="loading_screen_progress_bar"></div>
+  </div>
+<table id="footer" style="display: none;">
+  <tr>
+    <td>&copy 2012&nbsp;<a href="http://www.redhat.com">Red Hat, Inc.</a>&nbsp;&nbsp;<a href="http://access.redhat.com/">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Red Hat Customer Portal</td>
+    <td align=right><a href="#">Help</a></td>
+  </tr>
+</table>
+</div>
+</body>
+  <script src="/js/nodes-ember.js"></script>
+  <script type="text/javascript">
+$(function() {
+  disable_checkbox_clicks();
+});
+
+  </script>
+  </html>
