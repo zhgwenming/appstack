@@ -1,0 +1,17 @@
+diff -up ./pcs/cluster.py.cman ./pcs/cluster.py
+--- ./pcs/cluster.py.cman	2014-04-06 18:12:53.126804933 +0800
++++ ./pcs/cluster.py	2014-04-06 18:16:14.227880411 +0800
+@@ -278,6 +278,13 @@ def corosync_setup(argv,returnConfig=Fal
+                 print output
+                 utils.err("error adding node: %s" % node)
+ 
++        if "--transport" in utils.pcs_options:
++            transport = utils.pcs_options["--transport"]
++            output, retval = utils.run(["/usr/sbin/ccs", "-f", "/etc/cluster/cluster.conf", "--setcman", "transport=\"%s\"" % transport])
++            if retval != 0:
++                print output
++                utils.err("error adding node: %s" % node)
++
+         for node in nodes:
+             output, retval = utils.run(["/usr/sbin/ccs", "-f", "/etc/cluster/cluster.conf", "--addnode", node])
+             if retval != 0:

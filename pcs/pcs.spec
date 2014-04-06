@@ -1,6 +1,6 @@
 Name: pcs		
 Version: 0.9.90
-Release: 901.2%{?dist}.2
+Release: 902.2%{?dist}.2
 License: GPLv2
 URL: http://github.com/feist/pcs
 Group: System Environment/Base
@@ -12,6 +12,7 @@ Patch1: pcs/bz1032161-Node-standby-should-use-pacemaker-list-not-corosync-.patch
 Patch2: bz1038478-Added-ability-to-set-and-remove-uidgid-for-RHEL6.patch
 Patch3: bz1038479-Fix-for-adding-verify-stonith-levels-on-RHEL6.patch
 Patch900: pcs-transport.patch
+Patch901: pcs-transport-cman.patch
 Patch999: pcs-0.9.90-clones-utils.py.patch
 
 Requires: pacemaker
@@ -27,6 +28,7 @@ easily view, modify and created pacemaker based clusters.
 %patch2 -p1 -b .bz1038478
 %patch3 -p1 -b .bz1038479
 %patch900 -p1 -b .transport
+%patch901 -p1 -b .cman
 %patch999 -p1
 
 %build
