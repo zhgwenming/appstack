@@ -1,6 +1,6 @@
 Name:           cbase
 Version:        1.8.1
-Release:        906.1%{dist}
+Release:        907.1%{dist}
 Epoch:          0
 Summary:	A memcached cache cluster
 Group:		System Environment/Daemons
@@ -28,9 +28,9 @@ BuildRequires:  memcached-devel >= 1.4.4-902
 Requires:       openssl
 Requires:	libevent
 Requires:	moxi
-Requires:	memcached
-Requires:	bucket-engine
-Requires:	ep-engine
+Requires:	memcached >= 1.4.4-904
+Requires:	bucket-engine >= 1.8.0-901
+Requires:	ep-engine >= 1.8.0-903
 Requires:	vbucketmigrator
 Requires:       sqlite
 Requires:       erlang
