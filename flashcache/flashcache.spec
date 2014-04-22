@@ -1,7 +1,7 @@
 Summary: A write-back block cache for Linux
 Name: flashcache
 Vendor: flashcache development, https://github.com/facebook/flashcache
-Version: 1.0.20130906git
+Version: 1.0.20131209git
 Release: letv.3%{?dist}
 License: GPL
 Group: System Environment/Base
