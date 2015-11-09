@@ -1,6 +1,6 @@
 Name:           memcached
 Version:        1.4.4
-Release:        904.1%{?dist}
+Release:        905.1%{?dist}
 Epoch:          0
 Summary:        High Performance, Distributed Memory Object Cache
 
