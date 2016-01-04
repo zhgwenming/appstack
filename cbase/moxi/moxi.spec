@@ -1,6 +1,6 @@
 Name:	moxi
 Version: 1.8.0_8_g52a5fa8
-Release:	902.2%{?dist}
+Release:	903.1%{?dist}
 Summary:	a memcached proxy with energy and pep
 Group:		System Environment/Daemons
 License:	BSD
@@ -96,6 +96,8 @@ rm -rf %{buildroot}
 %{_initrddir}/moxi
 
 %changelog
+* Mon Jan 1 2016 Albert Zhang <zhgwenming@gmail.com>
+- fix an moxi exit issue which occurs during ascii mget when one or more remote cbase node is warming up.
 * Mon Jul 8 2013 Albert Zhang <zhgwenming@gmail.com>
 - fix mem leak issue
 * Tue Jul 1 2013 Albert Zhang <zhgwenming@gmail.com>
