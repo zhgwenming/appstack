@@ -764,8 +764,9 @@ void a2b_process_downstream_response(conn *c) {
         if (status != 0) {
             assert(it == NULL);
 
-            if (status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
-                return; // Swallow miss response.
+            if (status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT ||
+                status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL) {
+                return; // Swallow the response.
             }
 
             // TODO: Handle error case.  Should we pause the conn
